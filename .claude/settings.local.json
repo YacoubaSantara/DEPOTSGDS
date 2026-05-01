@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py migrate)",
+      "Bash('E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe' manage.py shell -c ':*)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py check)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py show_urls)",
+      "Bash('E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe' -c ':*)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py showmigrations SGDS)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS --name numero_enregistrement_auto)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS --empty --name attribuer_numeros_mouvements)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py shell -c \"from SGDS.models import Mouvement; n = Mouvement.objects.filter\\(acquittement_montant_droits__isnull=False\\).count\\(\\); print\\(f'Mouvements avec montant_droits non NULL : {n}'\\)\")",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS --name suppr_acquittement_montant_droits)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS --name ajout_ecart_densite_15c)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS --name=\"ajout_stock_actuel_produit\")",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py makemigrations SGDS --name coulage_models)",
+      "Bash(\"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests_coulage --verbosity=2)",
+      "Bash(E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe *)",
+      "Bash(\"E:/Projet Site/SANKE/SGDS/env/Scripts/python.exe\" manage.py test SGDS.tests.test_workflow_periode --verbosity=2)",
+      "Bash(python manage.py check)",
+      "Bash(python -c \"import SGDS.views\")",
+      "Bash(python manage.py makemigrations --check)",
+      "Bash(python manage.py test SGDS.tests_coulage)",
+      "Bash(python manage.py test SGDS.tests_coulage.TestSuiviEvolution SGDS.tests_coulage.TestFraisPassage)"
+    ]
+  }
+}
