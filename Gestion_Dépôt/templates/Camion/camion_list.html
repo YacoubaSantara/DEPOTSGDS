@@ -1,0 +1,120 @@
+﻿{% extends 'base.html' %}
+{% block title %}Camions citernes{% endblock %}
+{% block nav_camion %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Camions citernes</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Camions citernes</h1>
+    <div class="ph-sub">Gestion du parc de camions citernes</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'camion_create' %}" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau camion
+    </a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi">
+    <div class="kpi-label">Total camions</div>
+    <div class="kpi-val mono">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">En service</div>
+    <div class="kpi-val mono">{{ nb_service }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">En maintenance</div>
+    <div class="kpi-val mono">{{ nb_maintenance }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Hors service</div>
+    <div class="kpi-val mono">{{ nb_hors_service }}</div>
+  </div>
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get">
+  <div class="filter-bar">
+    <div style="position:relative;flex:1;min-width:220px">
+      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);fill:none;pointer-events:none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" type="text" name="q" value="{{ q }}" placeholder="Immatriculation, marque, marketeur…">
+    </div>
+    <select name="statut" class="select">
+      <option value="">Tous les statuts</option>
+      {% for val, label in statut_choices %}
+        <option value="{{ val }}" {% if statut == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="type_produit" class="select">
+      <option value="">Tous les produits</option>
+      {% for val, label in type_choices %}
+        <option value="{{ val }}" {% if type_produit == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-accent btn-sm">
+      <svg viewBox="0 0 24 24" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Filtrer
+    </button>
+    {% if q or statut or type_produit %}
+    <a href="{% url 'camion_list' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
+    {% endif %}
+    <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;margin-left:auto">{{ camions|length }} résultat{% if camions|length != 1 %}s{% endif %}</span>
+  </div>
+  </form>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Immatriculation</th>
+        <th>Marque / Modèle</th>
+        <th>Produit</th>
+        <th>Capacité</th>
+        <th>Marketeur</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cam in camions %}
+      <tr class="clickable" onclick="window.location='{% url 'camion_detail' cam.pk %}'">
+        <td><span style="font-family:inherit;font-weight:700;color:var(--navy);letter-spacing:.04em">{{ cam.immatriculation }}</span></td>
+        <td>
+          <span style="font-weight:500">{{ cam.marque }}</span>
+          {% if cam.modele %}<br><span style="color:var(--muted);font-size:.8rem">{{ cam.modele }}{% if cam.annee_fabrication %} · {{ cam.annee_fabrication }}{% endif %}</span>{% endif %}
+        </td>
+        <td><span class="bdg info">{{ cam.get_type_produit_display }}</span></td>
+        <td><span class="mono">{{ cam.capacite_totale|floatformat:0 }} L</span></td>
+        <td>
+          {% if cam.marketeur %}
+            <a href="{% url 'marketeur_detail' cam.marketeur.pk %}" style="color:var(--navy);font-weight:500;font-size:.82rem" onclick="event.stopPropagation()">{{ cam.marketeur.raison_sociale }}</a>
+          {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+        </td>
+        <td>
+          {% if cam.statut == 'EN_SERVICE' %}<span class="bdg ok">{{ cam.get_statut_display }}</span>
+          {% elif cam.statut == 'EN_MAINTENANCE' %}<span class="bdg warn">{{ cam.get_statut_display }}</span>
+          {% elif cam.statut == 'HORS_SERVICE' %}<span class="bdg err">{{ cam.get_statut_display }}</span>
+          {% else %}<span class="bdg">{{ cam.get_statut_display }}</span>{% endif %}
+        </td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px">
+            <a href="{% url 'camion_detail' cam.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'camion_update' cam.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'camion_delete' cam.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty"><td colspan="7">Aucun camion trouvé{% if q or statut or type_produit %} pour ces critères{% endif %}.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

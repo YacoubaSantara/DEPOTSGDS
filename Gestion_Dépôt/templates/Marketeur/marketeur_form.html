@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Marketeur{% endblock %}
+{% block nav_marketeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'marketeur_list' %}">Marketeurs</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ action }}</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:0;overflow-x:auto}
+.tab-btn{padding:10px 18px;font-size:.82rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;background:transparent;white-space:nowrap}
+.tab-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--navy);border-bottom-color:var(--navy)}
+.tab-panel{display:none;animation:fadeIn .25s ease}
+.tab-panel.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.logo-upload{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);position:relative}
+.logo-upload:hover{border-color:var(--navy);background:var(--bg)}
+.logo-upload svg{width:28px;height:28px;stroke:var(--muted);fill:none;margin:0 auto 8px;display:block}
+.logo-upload p{font-size:.8rem;color:var(--muted)}
+#logo-preview{width:80px;height:80px;border-radius:12px;object-fit:cover;margin:0 auto 8px;display:none}
+.status-badge-live{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:600;margin-top:6px}
+.status-badge-live::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">{{ action }} Marketeur</h1>
+    <p class="ph-sub">{% if action == 'Modifier' %}Modification de {{ mkt.raison_sociale }}{% else %}Renseignez les informations de la société{% endif %}</p>
+  </div>
+  <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">← Retour</a>
+</div>
+
+<div class="form-tabs">
+  <button class="tab-btn active" type="button" onclick="switchTab(0)">
+    <svg viewBox="0 0 24 24" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>Identification
+  </button>
+  <button class="tab-btn" type="button" onclick="switchTab(1)">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Coordonnées
+  </button>
+  <button class="tab-btn" type="button" onclick="switchTab(2)">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Représentant
+  </button>
+  <button class="tab-btn" type="button" onclick="switchTab(3)">
+    <svg viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Banque
+  </button>
+  <button class="tab-btn" type="button" onclick="switchTab(4)">
+    <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Statut
+  </button>
+</div>
+
+<form method="post" enctype="multipart/form-data" id="mkt-form">
+  {% csrf_token %}
+
+  <!-- TAB 0 : Identification -->
+  <div class="tab-panel active" id="panel-0">
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div class="card-h-title">Identification de la société</div></div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          <div class="field" style="grid-column:1/-1">
+            <label class="field-label">Raison sociale<span class="req">*</span></label>
+            {{ form.raison_sociale }}
+            {% if form.raison_sociale.errors %}{{ form.raison_sociale.errors }}{% endif %}
+          </div>
+          <div class="field">
+            <label class="field-label">Sigle</label>{{ form.sigle }}
+          </div>
+          <div class="field">
+            <label class="field-label">Forme juridique<span class="req">*</span></label>
+            {{ form.forme_juridique }}
+            {% if form.forme_juridique.errors %}{{ form.forme_juridique.errors }}{% endif %}
+          </div>
+          <div class="field">
+            <label class="field-label">Capital social (FCFA)</label>{{ form.capital_social }}
+          </div>
+          <div class="field">
+            <label class="field-label">N° Registre de commerce</label>{{ form.numero_registre_commerce }}
+          </div>
+          <div class="field">
+            <label class="field-label">N° Contribuable / NIF</label>{{ form.numero_contribuable }}
+          </div>
+          <div class="field">
+            <label class="field-label">N° IFU</label>{{ form.numero_ifu }}
+          </div>
+          <div class="field">
+            <label class="field-label">Date de création</label>{{ form.date_creation_societe }}
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <label class="field-label">Domaine d'activité</label>{{ form.domaine_activite }}
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <label class="field-label">Logo</label>
+            <div class="logo-upload" onclick="document.getElementById('id_logo').click()">
+              {% if mkt.logo %}<img id="logo-preview" src="{{ mkt.logo.url }}" style="display:block"/>
+              {% else %}<img id="logo-preview"/>{% endif %}
+              <svg viewBox="0 0 24 24" stroke-width="1.5" id="logo-icon" {% if mkt.logo %}style="display:none"{% endif %}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <p id="logo-txt" {% if mkt.logo %}style="display:none"{% endif %}>Cliquez pour choisir un logo<br/><small>PNG, JPG — max 2 Mo</small></p>
+              <div style="display:none">{{ form.logo }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 1 : Coordonnées -->
+  <div class="tab-panel" id="panel-1">
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div class="card-h-title">Coordonnées</div></div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          <div class="field" style="grid-column:1/-1">
+            <label class="field-label">Adresse complète<span class="req">*</span></label>
+            {{ form.adresse }}
+            {% if form.adresse.errors %}{{ form.adresse.errors }}{% endif %}
+          </div>
+          <div class="field"><label class="field-label">Quartier / Secteur</label>{{ form.quartier }}</div>
+          <div class="field">
+            <label class="field-label">Ville<span class="req">*</span></label>{{ form.ville }}
+            {% if form.ville.errors %}{{ form.ville.errors }}{% endif %}
+          </div>
+          <div class="field"><label class="field-label">Pays</label>{{ form.pays }}</div>
+          <div class="field"><label class="field-label">Boîte postale</label>{{ form.boite_postale }}</div>
+          <div class="field">
+            <label class="field-label">Téléphone principal<span class="req">*</span></label>{{ form.telephone }}
+            {% if form.telephone.errors %}{{ form.telephone.errors }}{% endif %}
+          </div>
+          <div class="field"><label class="field-label">Téléphone secondaire</label>{{ form.telephone2 }}</div>
+          <div class="field"><label class="field-label">Email</label>{{ form.email }}</div>
+          <div class="field"><label class="field-label">Site web</label>{{ form.site_web }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2 : Représentant -->
+  <div class="tab-panel" id="panel-2">
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div class="card-h-title">Représentant légal</div></div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          <div class="field">
+            <label class="field-label">Nom<span class="req">*</span></label>{{ form.nom_representant }}
+            {% if form.nom_representant.errors %}{{ form.nom_representant.errors }}{% endif %}
+          </div>
+          <div class="field">
+            <label class="field-label">Prénom<span class="req">*</span></label>{{ form.prenom_representant }}
+            {% if form.prenom_representant.errors %}{{ form.prenom_representant.errors }}{% endif %}
+          </div>
+          <div class="field"><label class="field-label">Fonction</label>{{ form.fonction_representant }}</div>
+          <div class="field"><label class="field-label">Téléphone</label>{{ form.telephone_representant }}</div>
+          <div class="field" style="grid-column:1/-1"><label class="field-label">Email</label>{{ form.email_representant }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3 : Banque -->
+  <div class="tab-panel" id="panel-3">
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div class="card-h-title">Informations bancaires</div></div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          <div class="field" style="grid-column:1/-1"><label class="field-label">Banque</label>{{ form.banque }}</div>
+          <div class="field"><label class="field-label">N° Compte bancaire</label>{{ form.numero_compte }}</div>
+          <div class="field"><label class="field-label">Code SWIFT / BIC</label>{{ form.code_swift }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4 : Statut -->
+  <div class="tab-panel" id="panel-4">
+    <div class="card" style="margin-top:16px">
+      <div class="card-h"><div class="card-h-title">Statut & Observations</div></div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+          <div class="field">
+            <label class="field-label">Statut</label>
+            {{ form.statut }}
+            <div id="status-live" class="status-badge-live bdg ok">Actif</div>
+          </div>
+          <div class="field" style="grid-column:1/-1"><label class="field-label">Notes / Observations</label>{{ form.notes }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
+    <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">Annuler</a>
+    <button type="submit" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Enregistrer
+    </button>
+  </div>
+</form>
+
+<script>
+function switchTab(i){
+  document.querySelectorAll('.tab-btn').forEach((b,j)=>b.classList.toggle('active',i===j));
+  document.querySelectorAll('.tab-panel').forEach((p,j)=>p.classList.toggle('active',i===j));
+}
+document.getElementById('id_logo')?.addEventListener('change',function(){
+  if(this.files&&this.files[0]){
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=document.getElementById('logo-preview');
+      img.src=e.target.result;img.style.display='block';
+      document.getElementById('logo-icon').style.display='none';
+      document.getElementById('logo-txt').style.display='none';
+    };r.readAsDataURL(this.files[0]);
+  }
+});
+const statSel=document.getElementById('id_statut');
+const statBadge=document.getElementById('status-live');
+const statMap={ACTIF:{cls:'bdg ok',lbl:'Actif'},INACTIF:{cls:'bdg',lbl:'Inactif'},SUSPENDU:{cls:'bdg warn',lbl:'Suspendu'},BLACKLIST:{cls:'bdg err',lbl:'Blacklisté'}};
+function updateBadge(){
+  const v=statSel?.value||'ACTIF';
+  const s=statMap[v]||statMap.ACTIF;
+  statBadge.className='status-badge-live '+s.cls;
+  statBadge.textContent=s.lbl;
+}
+statSel?.addEventListener('change',updateBadge);
+updateBadge();
+{% if form.errors %}
+  const errFields={'raison_sociale':0,'sigle':0,'forme_juridique':0,'capital_social':0,'numero_registre_commerce':0,'numero_contribuable':0,'numero_ifu':0,'date_creation_societe':0,'domaine_activite':0,'logo':0,'adresse':1,'quartier':1,'ville':1,'pays':1,'boite_postale':1,'telephone':1,'telephone2':1,'email':1,'site_web':1,'nom_representant':2,'prenom_representant':2,'fonction_representant':2,'telephone_representant':2,'email_representant':2,'banque':3,'numero_compte':3,'code_swift':3,'statut':4,'notes':4};
+  const errKeys=[{% for field in form.errors %}"{{ field }}",{% endfor %}];
+  if(errKeys.length>0){ const tab=errFields[errKeys[0]]; if(tab!=null) switchTab(tab); }
+{% endif %}
+</script>
+{% endblock %}

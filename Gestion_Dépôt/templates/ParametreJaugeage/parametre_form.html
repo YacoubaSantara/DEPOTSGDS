@@ -1,0 +1,174 @@
+﻿{% extends "base.html" %}
+{% block title %}{% if action == 'Configurer' %}Configurer{% else %}Modifier{% endif %} paramètres — {{ cuve.numero }}{% endblock %}
+{% block nav_parametre %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'parametre_list' %}">Paramètres jaugeage</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">{{ cuve.numero }}</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-wrap{max-width:900px;margin:0 auto}
+.cuve-banner{background:linear-gradient(135deg,var(--navy),var(--ink));border-radius:var(--radius);padding:18px 24px;margin-bottom:20px;color:#fff;display:flex;align-items:center;gap:16px}
+.cuve-icon{width:44px;height:44px;border-radius:10px;background:rgba(232,118,10,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cuve-icon svg{width:22px;height:22px;stroke:var(--orange);fill:none}
+.cuve-label{font-size:.65rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.45)}
+.cuve-id{font-family:inherit;font-size:1.1rem;font-weight:700}
+.cuve-desc{font-size:.8rem;color:rgba(255,255,255,.65)}
+
+.form-card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.form-section{padding:22px 26px;border-bottom:1px solid var(--border)}
+.form-section:last-of-type{border-bottom:none}
+.section-title{font-family:inherit;font-size:.9rem;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;margin-bottom:18px}
+.section-title .section-icon{width:28px;height:28px;border-radius:7px;background:rgba(232,118,10,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.section-title .section-icon svg{width:14px;height:14px;stroke:var(--orange);fill:none}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.form-grid.cols4{grid-template-columns:1fr 1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:.77rem;font-weight:600;color:var(--text)}
+.form-group .req{color:var(--orange)}
+.form-group .hint{font-size:.7rem;color:var(--muted);margin-top:3px}
+.form-control{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;color:var(--text);background:#fff;width:100%;transition:border-color .2s}
+.form-control:focus{border-color:var(--navy-l);box-shadow:0 0 0 3px rgba(30,58,95,.08);outline:none}
+.check-group{display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg);border-radius:8px;border:1.5px solid var(--border)}
+.form-check-input{width:18px;height:18px;accent-color:var(--orange);cursor:pointer}
+.check-label{font-size:.85rem;font-weight:500;color:var(--text)}
+.check-hint{font-size:.72rem;color:var(--muted)}
+
+.form-actions{background:var(--bg);padding:18px 26px;display:flex;gap:10px;justify-content:space-between;border-top:1px solid var(--border)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-wrap">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ action }} les paramètres de jaugeage</h1>
+      <p class="page-subtitle">Caractéristiques physiques et certificat métrologique officiel</p>
+    </div>
+  </div>
+
+  <!-- Bannière cuve -->
+  <div class="cuve-banner">
+    <div class="cuve-icon">
+      <svg viewBox="0 0 24 24" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+    </div>
+    <div>
+      <div class="cuve-label">Cuve cible</div>
+      <div class="cuve-id">{{ cuve.numero }} — {{ cuve.designation }}</div>
+      <div class="cuve-desc">Capacité : {{ cuve.capacite_totale|floatformat:0 }} L · {{ cuve.get_type_cuve_display }} · {{ cuve.get_materiau_display }}</div>
+    </div>
+  </div>
+
+  <form method="post" class="form-card">
+    {% csrf_token %}
+
+    <!-- Caractéristiques physiques -->
+    <div class="form-section">
+      <div class="section-title">
+        <div class="section-icon"><svg viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+        Caractéristiques physiques
+      </div>
+      <div class="form-grid cols3">
+        <div class="form-group">
+          <label>{{ form.hauteur_totale_temoin.label }} <span class="req">*</span></label>
+          {{ form.hauteur_totale_temoin }}
+          <span class="hint">Hauteur de référence de la cuve (mm)</span>
+          {% if form.hauteur_totale_temoin.errors %}<span class="form-field-error">{{ form.hauteur_totale_temoin.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-group">
+          <label>{{ form.hauteur_min_livraison.label }}</label>
+          {{ form.hauteur_min_livraison }}
+          <span class="hint">Hml en mm (défaut : 2000)</span>
+        </div>
+        <div class="form-group">
+          <label>{{ form.correction_creux.label }}</label>
+          {{ form.correction_creux }}
+          <span class="hint">Correction systématique (CONV_ADAMA L2)</span>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>{{ form.remplissage_maxi.label }} <span class="req">*</span></label>
+          {{ form.remplissage_maxi }}
+          <span class="hint">Volume maximum autorisé en exploitation (litres)</span>
+          {% if form.remplissage_maxi.errors %}<span class="form-field-error">{{ form.remplissage_maxi.errors.0 }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Certificat de jaugeage -->
+    <div class="form-section">
+      <div class="section-title">
+        <div class="section-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        Données du certificat de jaugeage officiel
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>{{ form.v_a.label }} <span class="req">*</span></label>
+          {{ form.v_a }}
+          <span class="hint">Volume à la hauteur décimale (litres)</span>
+          {% if form.v_a.errors %}<span class="form-field-error">{{ form.v_a.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-group">
+          <label>{{ form.v_mn.label }} <span class="req">*</span></label>
+          {{ form.v_mn }}
+          <span class="hint">Volume par millimètre (litres/mm)</span>
+          {% if form.v_mn.errors %}<span class="form-field-error">{{ form.v_mn.errors.0 }}</span>{% endif %}
+        </div>
+        <div class="form-group">
+          <label>{{ form.reference_certificat.label }}</label>
+          {{ form.reference_certificat }}
+        </div>
+        <div class="form-group">
+          <label>{{ form.organisme_certificateur.label }}</label>
+          {{ form.organisme_certificateur }}
+        </div>
+        <div class="form-group">
+          <label>{{ form.date_certificat.label }}</label>
+          {{ form.date_certificat }}
+        </div>
+        <div class="form-group">
+          <label>{{ form.date_prochain_jaugeage.label }}</label>
+          {{ form.date_prochain_jaugeage }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="form-section">
+      <div class="section-title">
+        <div class="section-icon"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+        Options
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="check-group">
+          {{ form.is_pompe }}
+          <div>
+            <div class="check-label">{{ form.is_pompe.label }}</div>
+            <div class="check-hint">Cocher pour les cuves P GO, P SP (index pompe)</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>{{ form.notes.label }}</label>
+          {{ form.notes }}
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <div style="display:flex;gap:8px">
+        <a href="{% url 'parametre_list' %}" class="btn btn-secondary">Annuler</a>
+        {% if instance %}
+        <a href="{% url 'parametre_delete' instance.pk %}" class="btn btn-danger">Supprimer</a>
+        {% endif %}
+      </div>
+      <button type="submit" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Enregistrer les paramètres
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

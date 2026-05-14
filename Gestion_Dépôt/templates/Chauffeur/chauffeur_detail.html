@@ -1,0 +1,134 @@
+﻿{% extends 'base.html' %}
+{% block title %}{{ chauffeur.nom_complet }}{% endblock %}
+{% block nav_chauffeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'chauffeur_list' %}">Chauffeurs</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ chauffeur.nom_complet }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="hero" style="margin-bottom:20px">
+  <div class="hero-row">
+    <div>
+      <div class="hero-eyebrow">Permis {{ chauffeur.categorie_permis }}</div>
+      <div class="hero-title">{{ chauffeur.nom_complet }}</div>
+      <div class="hero-meta">
+        {% if chauffeur.numero_employe %}{{ chauffeur.numero_employe }} &nbsp;·&nbsp; {% endif %}
+        {{ chauffeur.nationalite }}
+        {% if chauffeur.date_embauche %} &nbsp;·&nbsp; Depuis {{ chauffeur.date_embauche|date:"m/Y" }}{% endif %}
+        {% if chauffeur.marketeur %} &nbsp;·&nbsp; {{ chauffeur.marketeur.raison_sociale }}{% endif %}
+        &nbsp;·&nbsp;
+        {% if chauffeur.statut == 'ACTIF' %}<span class="bdg ok">{{ chauffeur.get_statut_display }}</span>
+        {% elif chauffeur.statut == 'SUSPENDU' %}<span class="bdg warn">{{ chauffeur.get_statut_display }}</span>
+        {% else %}<span class="bdg">{{ chauffeur.get_statut_display }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="hero-actions">
+      <a href="{% url 'chauffeur_badge' chauffeur.pk %}" target="_blank" class="hero-btn">Badge QR</a>
+      <a href="{% url 'chauffeur_list' %}" class="hero-btn">← Retour</a>
+      <a href="{% url 'chauffeur_update' chauffeur.pk %}" class="hero-btn primary">Modifier</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+
+  <!-- Identité -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Identité</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Nom complet</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.nom_complet }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Date de naissance</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.date_naissance|date:"d/m/Y"|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Lieu de naissance</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.lieu_naissance|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Nationalité</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.nationalite }}</span></div>
+        {% if chauffeur.numero_employe %}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">N° Employé</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ chauffeur.numero_employe }}</span></div>
+        {% endif %}
+        {% if chauffeur.date_embauche %}
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Date d'embauche</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.date_embauche|date:"d/m/Y" }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Contact</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Téléphone</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.telephone }}</span></div>
+        {% if chauffeur.telephone2 %}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Téléphone 2</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.telephone2 }}</span></div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Email</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.email|default:"—" }}</span></div>
+        {% if chauffeur.adresse %}
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Adresse</span><span style="font-size:.85rem;font-weight:500;max-width:180px;text-align:right">{{ chauffeur.adresse }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Permis -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Permis de conduire</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Catégorie</span><span style="font-size:.85rem;font-weight:700;color:var(--navy)">{{ chauffeur.categorie_permis }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">N° Permis</span><span style="font-size:.85rem;font-weight:500;font-family:inherit;letter-spacing:.04em">{{ chauffeur.numero_permis }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Obtenu le</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.date_obtention_permis|date:"d/m/Y"|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Expire le</span><span style="font-size:.85rem;font-weight:500">{{ chauffeur.date_expiration_permis|date:"d/m/Y"|default:"—" }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Affectations -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Affectations</div></div>
+    <div class="card-b">
+      {% if chauffeur.marketeur %}
+      <div style="margin-bottom:12px">
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Marketeur</div>
+        <a href="{% url 'marketeur_detail' chauffeur.marketeur.pk %}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:rgba(30,58,95,.05);color:var(--navy);text-decoration:none;font-weight:600;font-size:.85rem">
+          {{ chauffeur.marketeur.raison_sociale }}
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </div>
+      {% endif %}
+      {% if chauffeur.camion %}
+      <div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Camion assigné</div>
+        <a href="{% url 'camion_detail' chauffeur.camion.pk %}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:rgba(30,58,95,.05);color:var(--navy);text-decoration:none;font-weight:600;font-size:.85rem">
+          {{ chauffeur.camion.immatriculation }} — {{ chauffeur.camion.marque }}
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </div>
+      {% endif %}
+      {% if not chauffeur.marketeur and not chauffeur.camion %}
+      <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:12px 0">Aucune affectation</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if chauffeur.notes %}
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Notes</div></div>
+    <div class="card-b">
+      <p style="font-size:.85rem;color:var(--text);line-height:1.6;white-space:pre-line">{{ chauffeur.notes }}</p>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:24px;flex-wrap:wrap;gap:12px">
+  <a href="{% url 'chauffeur_delete' chauffeur.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce chauffeur</a>
+  <span style="font-size:.75rem;color:var(--muted)">
+    Enregistré le {{ chauffeur.date_enregistrement|date:"d/m/Y à H:i" }} &nbsp;·&nbsp;
+    Modifié le {{ chauffeur.date_modification|date:"d/m/Y à H:i" }}
+  </span>
+</div>
+{% endblock %}

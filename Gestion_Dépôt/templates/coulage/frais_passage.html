@@ -1,0 +1,204 @@
+﻿{% extends "base.html" %}
+{% load humanize coulage_tags %}
+{% block nav_coulage %}active{% endblock %}
+{% block title %}Frais de passage — {{ periode.libelle }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.fp-export-btn{display:inline-flex;align-items:center;gap:.4rem;background:#16a34a;color:#fff;padding:.45rem 1rem;border-radius:.375rem;text-decoration:none;font-size:.875rem;font-weight:600;height:fit-content}
+.fp-pu-badge{border-radius:.25rem;font-size:.78rem;font-weight:600;background:#fef3c7;color:#92400e;padding:.1rem .4rem}
+.fp-mode-card{background:#fff;border-radius:.75rem;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:1.25rem}
+.fp-mode-head{background:#f1f5f9;padding:.65rem 1rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0}
+
+/* ── Dark mode ── */
+[data-theme="dark"] .fp-export-btn{background:var(--ok);color:#fff}
+[data-theme="dark"] .fp-export-btn:hover{filter:brightness(1.1)}
+[data-theme="dark"] .fp-pu-badge{background:var(--warn-soft);color:var(--warn)}
+[data-theme="dark"] .fp-mode-card{background:var(--card) !important;box-shadow:none;border:1px solid var(--border)}
+[data-theme="dark"] .fp-mode-head{background:var(--surface-2) !important;border-bottom-color:var(--border)}
+.fp-row-alt{background:#f8fafc}
+[data-theme="dark"] .fp-row-alt{background:rgba(255,255,255,.02)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding:1.5rem 2rem;">
+
+  <!-- En-tête -->
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:1rem;flex-wrap:wrap;">
+    <div>
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem;">
+        <a href="{% url 'coulage_liste' %}" style="color:#64748b;text-decoration:none;font-size:.85rem;">Coulage</a>
+        <span style="color:#94a3b8;">›</span>
+        <a href="{% url 'coulage_detail' periode_id=periode.pk %}" style="color:#64748b;text-decoration:none;font-size:.85rem;">{{ periode.libelle }}</a>
+        <span style="color:#94a3b8;">›</span>
+        <span style="color:var(--ink);font-size:.85rem;font-weight:600;">Frais de passage</span>
+      </div>
+      <h1 style="font-size:1.4rem;font-weight:700;color:var(--ink);margin:0;">
+        Frais de passage — <span style="font-weight:400;">{{ periode.libelle }}</span>
+      </h1>
+      <p style="color:#64748b;font-size:.85rem;margin:.3rem 0 0;">
+        Tarif global : <strong>{{ rapport.parametres.prix_unitaire_global|floatformat:4 }} FCFA/L</strong>
+        {% for produit in rapport.produits %}
+          {% with pu=rapport.parametres.pu_par_produit|lookup_id:produit %}
+          {% if produit.prix_passage %}
+          &nbsp;·&nbsp; <span class="fp-pu-badge">{{ produit.code }} : {{ pu|floatformat:4 }} FCFA/L</span>
+          {% endif %}
+          {% endwith %}
+        {% endfor %}
+        &nbsp;·&nbsp; Motif : {{ rapport.parametres.motif }}
+      </p>
+    </div>
+    <a href="{% url 'frais_passage_export' periode_id=periode.pk %}" class="fp-export-btn">
+      ↓ Exporter Excel
+    </a>
+  </div>
+
+  <!-- Résumé total général -->
+  <div style="background:linear-gradient(135deg,var(--ink) 0%,var(--ink) 100%);border-radius:.75rem;padding:1rem 1.5rem;margin-bottom:1.5rem;color:#fff;display:flex;gap:2rem;flex-wrap:wrap;align-items:center;">
+    <div>
+      <div style="font-size:.75rem;opacity:.7;text-transform:uppercase;letter-spacing:.05em;">Volume global (L)</div>
+      <div style="font-size:1.75rem;font-weight:700;font-family:monospace;margin-top:.1rem;">
+        {{ rapport.total_general.volume_global|floatformat:0|intcomma }}
+      </div>
+    </div>
+    {% for produit in rapport.produits %}
+    <div>
+      <div style="font-size:.75rem;opacity:.7;text-transform:uppercase;letter-spacing:.05em;">{{ produit.code }}</div>
+      <div style="font-size:1.2rem;font-weight:600;font-family:monospace;margin-top:.1rem;">
+        {% with v=rapport.total_general.volumes_par_produit|lookup_id:produit %}
+        {{ v|floatformat:0|intcomma }}
+        {% endwith %}
+      </div>
+    </div>
+    {% endfor %}
+    <div style="margin-left:auto;text-align:right;">
+      <div style="font-size:.75rem;opacity:.7;text-transform:uppercase;letter-spacing:.05em;">Montant total (FCFA)</div>
+      <div style="font-size:1.75rem;font-weight:700;font-family:monospace;margin-top:.1rem;">
+        {{ rapport.total_general.montant|floatformat:0|intcomma }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sections par mode de règlement -->
+  {% for section in rapport.modes %}
+  <div class="fp-mode-card">
+
+    <!-- Titre de la section -->
+    <div class="fp-mode-head">
+      <span style="font-weight:700;color:var(--ink);font-size:.95rem;">
+        {% if section.mode == 'ESP-IMMEDIAT' %}💵
+        {% elif section.mode == 'VIREMENT' %}🏦
+        {% elif section.mode == 'CHEQUE' %}📄
+        {% elif section.mode == 'CREDIT' %}🕐
+        {% else %}❓{% endif %}
+        {{ section.mode_libelle }}
+      </span>
+      <span style="font-size:.8rem;color:#475569;">
+        {{ section.lignes|length }} marketeur{% if section.lignes|length > 1 %}s{% endif %}
+      </span>
+    </div>
+
+    <!-- Tableau marketeurs -->
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:.83rem;">
+        <thead>
+          <tr style="background:var(--ink);color:#fff;">
+            <th style="padding:.55rem .75rem;text-align:left;font-weight:600;">Marketeur</th>
+            {% for produit in rapport.produits %}
+            <th style="padding:.55rem .75rem;text-align:right;font-weight:600;">{{ produit.code }} (L)</th>
+            {% endfor %}
+            <th style="padding:.55rem .75rem;text-align:right;font-weight:600;">Vol. global (L)</th>
+            <th style="padding:.55rem .75rem;text-align:left;font-weight:600;">Motif</th>
+            <th style="padding:.55rem .75rem;text-align:right;font-weight:600;">PU moy. (FCFA/L)</th>
+            <th style="padding:.55rem .75rem;text-align:right;font-weight:600;">Montant (FCFA)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ligne in section.lignes %}
+          <tr class="{% cycle '' 'fp-row-alt' %}" style="border-bottom:1px solid var(--border)">
+            <td style="padding:.55rem .75rem;font-weight:600;color:#1e293b;">
+              {{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}
+            </td>
+            {% for produit in rapport.produits %}
+            <td style="padding:.55rem .75rem;text-align:right;font-family:monospace;color:#334155;">
+              {% with v=ligne.volumes_par_produit|lookup_id:produit %}
+              {% if v %}{{ v|floatformat:0|intcomma }}{% else %}—{% endif %}
+              {% endwith %}
+            </td>
+            {% endfor %}
+            <td style="padding:.55rem .75rem;text-align:right;font-family:monospace;font-weight:700;color:var(--ink);">
+              {{ ligne.volume_global|floatformat:0|intcomma }}
+            </td>
+            <td style="padding:.55rem .75rem;color:#475569;font-size:.78rem;">{{ ligne.motif }}</td>
+            <td style="padding:.55rem .75rem;text-align:right;font-family:monospace;color:#475569;">
+              {{ ligne.pu|floatformat:4 }}
+            </td>
+            <td style="padding:.55rem .75rem;text-align:right;font-family:monospace;font-weight:700;color:var(--ink);">
+              {{ ligne.montant|floatformat:0|intcomma }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <!-- Sous-totaux -->
+        <tfoot>
+          <tr style="background:var(--ink);color:#fff;font-weight:700;">
+            <td style="padding:.6rem .75rem;">Sous-total {{ section.mode_libelle }}</td>
+            {% for produit in rapport.produits %}
+            <td style="padding:.6rem .75rem;text-align:right;font-family:monospace;color:#bfdbfe;">
+              {% with v=section.sous_totaux.volumes_par_produit|lookup_id:produit %}
+              {{ v|floatformat:0|intcomma }}
+              {% endwith %}
+            </td>
+            {% endfor %}
+            <td style="padding:.6rem .75rem;text-align:right;font-family:monospace;">
+              {{ section.sous_totaux.volume_global|floatformat:0|intcomma }}
+            </td>
+            <td colspan="2" style="padding:.6rem .75rem;"></td>
+            <td style="padding:.6rem .75rem;text-align:right;font-family:monospace;">
+              {{ section.sous_totaux.montant|floatformat:0|intcomma }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% empty %}
+  <div class="fp-mode-card" style="text-align:center;padding:3rem;color:var(--muted)">
+    Aucune sortie enregistrée pour cette période.
+  </div>
+  {% endfor %}
+
+  <!-- Total général (bas de page) -->
+  {% if rapport.modes %}
+  <div style="background:var(--ink);border-radius:.75rem;padding:1rem 1.5rem;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <span style="font-weight:700;font-size:1.1rem;">TOTAL GÉNÉRAL</span>
+    <div style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap;">
+      {% for produit in rapport.produits %}
+      <div style="text-align:right;">
+        <div style="font-size:.72rem;opacity:.7;text-transform:uppercase;">{{ produit.code }}</div>
+        <div style="font-family:monospace;font-weight:600;">
+          {% with v=rapport.total_general.volumes_par_produit|lookup_id:produit %}
+          {{ v|floatformat:0|intcomma }}
+          {% endwith %}
+        </div>
+      </div>
+      {% endfor %}
+      <div style="text-align:right;border-left:1px solid rgba(255,255,255,.2);padding-left:2rem;">
+        <div style="font-size:.72rem;opacity:.7;text-transform:uppercase;">Volume global (L)</div>
+        <div style="font-family:monospace;font-weight:700;font-size:1.1rem;">
+          {{ rapport.total_general.volume_global|floatformat:0|intcomma }}
+        </div>
+      </div>
+      <div style="text-align:right;border-left:1px solid rgba(255,255,255,.2);padding-left:2rem;">
+        <div style="font-size:.72rem;opacity:.7;text-transform:uppercase;">Montant FCFA</div>
+        <div style="font-family:monospace;font-weight:700;font-size:1.25rem;">
+          {{ rapport.total_general.montant|floatformat:0|intcomma }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

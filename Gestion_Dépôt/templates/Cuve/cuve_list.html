@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block title %}Cuves{% endblock %}
+{% block page_title %}Cuves{% endblock %}
+{% load jaugeage_extras %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-current">Cuves</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.fill-cell{min-width:120px}
+.fill-label{display:flex;justify-content:space-between;margin-bottom:4px}
+.fill-label span{font-size:11px;color:var(--muted);font-weight:500}
+.fill-label strong{font-size:11px;font-weight:700}
+.fill-bar-bg{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.fill-bar{height:100%;border-radius:3px;transition:width .4s ease}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Cuves de stockage</h1>
+    <div class="ph-sub">{{ total }} cuve{{ total|pluralize }} enregistrée{{ total|pluralize }}</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'cuve_create' %}" class="btn btn-accent">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouvelle cuve
+    </a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi" style="background:var(--ink)">
+    <div class="kpi-label" style="color:rgba(255,255,255,.6)">Total cuves</div>
+    <div class="kpi-val mono" style="color:#fff">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Actives</div>
+    <div class="kpi-val mono" style="color:var(--ok)">{{ nb_active }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">En maintenance</div>
+    <div class="kpi-val mono" style="color:var(--warn)">{{ nb_maintenance }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Hors service</div>
+    <div class="kpi-val mono" style="color:var(--err)">{{ nb_hors_service }}</div>
+  </div>
+</div>
+
+<!-- Filtres -->
+<div class="card" style="margin-bottom:16px">
+  <form method="get" class="filter-bar">
+    <input type="text" class="input search-input" name="q" value="{{ q }}" placeholder="Rechercher une cuve, désignation, produit…" style="min-width:220px">
+    <select class="select" name="produit">
+      <option value="">Tous les produits</option>
+      {% for prod in produits %}
+      <option value="{{ prod.pk }}" {% if produit_id == prod.pk|stringformat:"s" %}selected{% endif %}>{{ prod.nom }}</option>
+      {% endfor %}
+    </select>
+    <select class="select" name="statut">
+      <option value="">Tous statuts</option>
+      <option value="ACTIVE" {% if statut == 'ACTIVE' %}selected{% endif %}>Active</option>
+      <option value="INACTIVE" {% if statut == 'INACTIVE' %}selected{% endif %}>Inactive</option>
+      <option value="EN_MAINTENANCE" {% if statut == 'EN_MAINTENANCE' %}selected{% endif %}>En maintenance</option>
+      <option value="HORS_SERVICE" {% if statut == 'HORS_SERVICE' %}selected{% endif %}>Hors service</option>
+    </select>
+    <button type="submit" class="btn btn-sm btn-accent">Filtrer</button>
+    {% if q or statut or produit_id %}
+    <a href="{% url 'cuve_list' %}" class="btn btn-sm btn-ghost" style="margin-left:auto">Réinitialiser</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Numéro</th>
+        <th>Désignation</th>
+        <th>Produit</th>
+        <th>Type</th>
+        <th>Remplissage</th>
+        <th class="tar">Capacité</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cuve in cuves %}
+      <tr class="clickable" onclick="window.location='{% url 'cuve_detail' cuve.pk %}'">
+        <td><code class="mono" style="background:var(--info-soft);padding:3px 8px;border-radius:5px;font-size:12px;font-weight:700;color:var(--info)">{{ cuve.numero }}</code></td>
+        <td>
+          <div style="font-weight:600">{{ cuve.designation }}</div>
+          {% if cuve.localisation %}<div style="font-size:11px;color:var(--muted);margin-top:1px">{{ cuve.localisation }}</div>{% endif %}
+        </td>
+        <td>
+          {% if cuve.produit %}
+          <a href="{% url 'produit_detail' cuve.produit.pk %}" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink)" onclick="event.stopPropagation()">
+            {% if cuve.produit.famille.couleur %}<span style="width:7px;height:7px;border-radius:50%;background:{{ cuve.produit.famille.couleur }};display:inline-block;flex-shrink:0"></span>{% endif %}
+            {{ cuve.produit.nom }}
+          </a>
+          {% else %}<span style="color:var(--muted);font-size:12px">Non assigné</span>{% endif %}
+        </td>
+        <td><span class="bdg">{{ cuve.get_type_cuve_display }}</span></td>
+        <td class="fill-cell">
+          {% with taux=cuve.taux_remplissage %}
+          <div class="fill-label">
+            <span>{{ cuve.niveau_actuel|fmt_vol:"0" }} L</span>
+            <strong style="color:{% if taux > 70 %}var(--ok){% elif taux > 30 %}var(--warn){% else %}var(--err){% endif %}">{{ taux }}%</strong>
+          </div>
+          <div class="fill-bar-bg">
+            <div class="fill-bar" style="width:{{ taux }}%;background:{% if taux > 70 %}var(--ok){% elif taux > 30 %}var(--accent){% else %}var(--err){% endif %}"></div>
+          </div>
+          {% endwith %}
+        </td>
+        <td class="num tar">{{ cuve.capacite_totale|fmt_vol:"0" }} <span style="font-size:10.5px;color:var(--muted)">L</span></td>
+        <td>
+          {% if cuve.statut == 'ACTIVE' %}<span class="bdg ok">Active</span>
+          {% elif cuve.statut == 'EN_MAINTENANCE' %}<span class="bdg warn">Maintenance</span>
+          {% elif cuve.statut == 'HORS_SERVICE' %}<span class="bdg err">Hors service</span>
+          {% else %}<span class="bdg">Inactive</span>{% endif %}
+        </td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px">
+            <a href="{% url 'cuve_detail' cuve.pk %}" class="btn btn-sm btn-ghost" title="Voir">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </a>
+            <a href="{% url 'cuve_update' cuve.pk %}" class="btn btn-sm btn-ghost" title="Modifier">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </a>
+            <a href="{% url 'cuve_delete' cuve.pk %}" class="btn btn-sm" style="background:var(--err-soft,#fef2f2);color:var(--err)" title="Supprimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty">
+        <td colspan="8">Aucune cuve trouvée — enregistrez la première cuve de votre dépôt.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Supprimer {{ camion.immatriculation }}{% endblock %}
+{% block nav_camion %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'camion_list' %}">Camions</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{% url 'camion_detail' camion.pk %}">{{ camion.immatriculation }}</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:520px">
+  <div class="card-h">
+    <div class="card-h-title" style="color:var(--err)">Confirmer la suppression</div>
+  </div>
+  <div class="card-b">
+    <p>Êtes-vous sûr de vouloir supprimer le camion <strong>{{ camion.immatriculation }}</strong> ?</p>
+    <p style="font-size:.85rem;color:var(--muted);margin-top:6px">{{ camion.marque }}{% if camion.modele %} {{ camion.modele }}{% endif %} · {{ camion.get_type_produit_display }} · {{ camion.capacite_totale|floatformat:0 }} L</p>
+    {% if camion.chauffeurs.exists %}
+    <div class="alert alert-warn" style="margin-top:12px">
+      {{ camion.chauffeurs.count }} chauffeur(s) sont assignés à ce camion. Leur lien sera retiré.
+    </div>
+    {% endif %}
+    <div class="alert alert-error" style="margin-top:12px">Cette action est irréversible.</div>
+    <form method="post" style="display:flex;gap:8px;margin-top:16px">
+      {% csrf_token %}
+      <a href="{% url 'camion_detail' camion.pk %}" class="btn">Annuler</a>
+      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

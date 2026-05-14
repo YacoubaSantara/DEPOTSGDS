@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% load jaugeage_extras %}
+{% block title %}Jaugeage {{ jaugeage.date_jaugeage|date:"d/m/Y" }}{% endblock %}
+{% block page_title %}Jaugeage {{ jaugeage.date_jaugeage|date:"d/m/Y" }}{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Mesures table — specialized column coloring */
+.mesures-table{width:100%;border-collapse:collapse;font-size:12px}
+.mesures-table th{background:var(--surface-2);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:9px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.mesures-table th:first-child{text-align:left}
+.mesures-table th.group-saisie{background:#eff6ff;color:#1d4ed8;border-bottom:2px solid #bfdbfe}
+.mesures-table th.group-calc{background:#f0fdf4;color:#065f46;border-bottom:2px solid #bbf7d0}
+.mesures-table td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:right;vertical-align:middle}
+.mesures-table td:first-child{text-align:left}
+.mesures-table tr:last-child td{border-bottom:none}
+.mesures-table tr:hover td{background:var(--surface-2)}
+.col-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;text-align:center;padding:4px;border-bottom:1px solid var(--border)}
+.col-group-saisie{background:#eff6ff;color:#1d4ed8}
+.col-group-calc{background:#f0fdf4;color:#065f46}
+.cuve-num{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--ink);font-size:12px}
+.cuve-name{font-size:11px;color:var(--muted)}
+.val-num{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--ink)}
+.val-calc{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--ok)}
+.val-neg{color:var(--err)}
+.val-empty{color:var(--border)}
+.no-param{font-size:10.5px;color:var(--warn);background:var(--warn-soft,#fef3c7);padding:2px 6px;border-radius:4px}
+/* tfoot totaux */
+.mesures-table tfoot td{border-top:3px solid var(--accent);padding:9px 10px;white-space:nowrap}
+.tf-lbl{background:var(--ink);color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;text-align:left}
+.tf-empty{background:var(--surface-2);color:var(--border);text-align:right;font-size:11px}
+.tf-vab{background:#064e3b;color:#6ee7b7;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px}
+.tf-vad{background:#9a3412;color:#fed7aa;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12.5px}
+.tf-v15c{background:#065f46;color:#6ee7b7;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:12.5px}
+.tf-vdispo{background:var(--ink);color:#93c5fd;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'jaugeage_list' %}">Jaugeages</a>
+<span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-body">
+    <div style="font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:6px">Jaugeage #{{ jaugeage.pk }}</div>
+    <div class="hero-title" style="font-size:28px">{{ jaugeage.date_jaugeage|date:"d M Y" }}</div>
+    <div class="hero-sub">{{ jaugeage.depot }} — {{ jaugeage.type_depot }}</div>
+    <div class="hero-meta" style="margin-top:12px">
+      {% if jaugeage.heure_jaugeage %}
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Heure</span>
+        <span class="hero-meta-value">{{ jaugeage.heure_jaugeage|time:"H:i" }}</span>
+      </div>
+      {% endif %}
+      {% if jaugeage.operateur %}
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Opérateur</span>
+        <span class="hero-meta-value">{{ jaugeage.operateur }}</span>
+      </div>
+      {% endif %}
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Cuves</span>
+        <span class="hero-meta-value">{{ jaugeage.mesures.count }} cuve{% if jaugeage.mesures.count > 1 %}s{% endif %}</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">T° réf.</span>
+        <span class="hero-meta-value">{{ jaugeage.temperature_reference }}°C</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-actions">
+    {# Badge type de jaugeage #}
+    {% if jaugeage.type_jaugeage == 'AVR' %}
+      <span class="bdg info">Avant livraison</span>
+    {% elif jaugeage.type_jaugeage == 'APR' %}
+      <span class="bdg" style="background:rgba(124,58,237,.2);color:#c4b5fd;border:1px solid rgba(124,58,237,.3)">Après livraison</span>
+    {% else %}
+      <span class="bdg ok">Jaugeage normal</span>
+    {% endif %}
+
+    {# Badge statut validation #}
+    {% if jaugeage.est_valide %}
+      <span class="bdg ok" style="display:inline-flex;align-items:center;gap:5px">
+        <svg viewBox="0 0 24 24" stroke-width="2.5" style="width:11px;height:11px;stroke:currentColor;fill:none"><polyline points="20 6 9 17 4 12"/></svg>
+        Validé le {{ jaugeage.date_validation|date:"d/m/Y" }}
+        {% if jaugeage.valide_par %}par {{ jaugeage.valide_par.get_full_name|default:jaugeage.valide_par.username }}{% endif %}
+      </span>
+    {% else %}
+      <span class="bdg warn">Brouillon</span>
+    {% endif %}
+
+    {# Bouton Imprimer #}
+    <a href="{% url 'jaugeage_rapport' jaugeage.pk %}" class="btn-hero btn-hero-retour" target="_blank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+      Imprimer / PDF
+    </a>
+
+    {% if not request.user.is_marketeur_role %}
+      {% if not jaugeage.est_valide %}
+        <a href="{% url 'jaugeage_saisie' jaugeage.pk %}" class="btn-hero btn-hero-modifier">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Modifier les mesures
+        </a>
+        <a href="{% url 'jaugeage_update' jaugeage.pk %}" class="btn-hero btn-hero-retour">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Modifier en-tête
+        </a>
+        {% if request.user.is_staff %}
+        <form method="post" action="{% url 'jaugeage_valider' jaugeage.pk %}" id="form-valider" style="margin:0">
+          {% csrf_token %}
+          <button type="button" class="btn-hero" style="background:rgba(22,163,74,.25);color:#86efac;border:1px solid rgba(22,163,74,.4)"
+            onclick="ouvrirModaleValider()">
+            <svg viewBox="0 0 24 24" stroke-width="2.5" fill="none" stroke="currentColor" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+            Valider ✓
+          </button>
+        </form>
+        {% endif %}
+      {% else %}
+        <a href="{% url 'jaugeage_saisie' jaugeage.pk %}" class="btn-hero btn-hero-retour">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Voir les mesures
+        </a>
+        {% if request.user.is_staff %}
+        <form method="post" action="{% url 'jaugeage_devalider' jaugeage.pk %}" id="form-devalider" style="margin:0">
+          {% csrf_token %}
+          <button type="button" class="btn-hero" style="background:rgba(245,158,11,.18);color:#fde68a;border:1px solid rgba(245,158,11,.35)"
+            onclick="ouvrirModaleDevalider()">
+            🔓 Déverrouiller
+          </button>
+        </form>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+{% if jaugeage.notes %}
+<div class="alert alert-info" style="margin-bottom:16px">
+  <strong>Notes :</strong> {{ jaugeage.notes }}
+</div>
+{% endif %}
+
+<!-- Totaux volumes -->
+{% jaugeage_total_v15 jaugeage as total_depot %}
+{% jaugeage_total_vad jaugeage as total_vad %}
+{% if total_depot or total_vad %}
+<div class="kpi-strip" style="margin-bottom:18px">
+  {% if total_vad %}
+  <div class="kpi" style="border-left:4px solid var(--info)">
+    <div class="kpi-label">Vol. total ambiant dépôt</div>
+    <div class="kpi-val mono" style="color:var(--info)">{{ total_vad|fmt_vol }}&nbsp;L</div>
+  </div>
+  {% endif %}
+  {% if total_depot %}
+  <div class="kpi" style="border-left:4px solid var(--ok)">
+    <div class="kpi-label">Vol. total dépôt @15°C</div>
+    <div class="kpi-val mono" style="color:var(--ok)">{{ total_depot|fmt_vol }}&nbsp;L</div>
+  </div>
+  {% endif %}
+  <div class="kpi">
+    <div class="kpi-label">Cuves mesurées</div>
+    <div class="kpi-val mono">{{ jaugeage.mesures.count }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tableau des mesures -->
+<div class="card" style="margin-bottom:16px">
+  <div class="card-h">
+    <div class="card-h-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;vertical-align:middle;margin-right:6px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+      Mesures des cuves
+    </div>
+    <span style="font-size:12px;color:var(--muted)">{{ jaugeage.mesures.count }} cuve(s) mesurée(s)</span>
+  </div>
+  {% if jaugeage.mesures.all %}
+  <div style="overflow-x:auto">
+  <table class="mesures-table">
+    <thead>
+      <tr>
+        <th rowspan="2" style="text-align:left;min-width:100px">Cuve</th>
+        <th colspan="6" class="col-group-label col-group-saisie">Saisies opérateur</th>
+        <th colspan="5" class="col-group-label col-group-calc">Volumes calculés</th>
+      </tr>
+      <tr>
+        <th class="group-saisie">Creux (mm)</th>
+        <th class="group-saisie">T1</th>
+        <th class="group-saisie">T2</th>
+        <th class="group-saisie">T3</th>
+        <th class="group-saisie">D moy.</th>
+        <th class="group-saisie">Vcf</th>
+        <th class="group-calc">H. produit (mm)</th>
+        <th class="group-calc">Vol. ambiant bac (L)</th>
+        <th class="group-calc">Vol. ambiant dépôt (L)</th>
+        <th class="group-calc">Vol. std 15°C (L)</th>
+        <th class="group-calc" style="min-width:110px">Vol. disponible (L)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in jaugeage.mesures.all %}
+      <tr>
+        <td>
+          <div class="cuve-num">{{ m.cuve.numero }}</div>
+          <div class="cuve-name">{{ m.cuve.designation|truncatechars:30 }}</div>
+          {% if not m.cuve.parametre_jaugeage %}<span class="no-param">Sans paramètres</span>{% endif %}
+        </td>
+        <td><span class="val-num">{% if m.creux_mesure is not None %}{{ m.creux_mesure }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-num">{% if m.t1 is not None %}{{ m.t1 }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-num">{% if m.t2 is not None %}{{ m.t2 }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-num">{% if m.t3 is not None %}{{ m.t3 }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-num">{% if m.densite_moyenne is not None %}{{ m.densite_moyenne }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-num">{% if m.facteur_vcf is not None %}{{ m.facteur_vcf }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-calc">{% if m.hauteur_produit is not None %}{{ m.hauteur_produit }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-calc">{% if m.volume_ambiant_bac is not None %}{{ m.volume_ambiant_bac|fmt_vol }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-calc">{% if m.volume_ambiant_depot is not None %}{{ m.volume_ambiant_depot|fmt_vol }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td><span class="val-calc">{% if m.volume_standard_15c is not None %}{{ m.volume_standard_15c|fmt_vol }}{% else %}<span class="val-empty">—</span>{% endif %}</span></td>
+        <td>
+          {% if m.volume_disponible is not None %}
+            {% if m.volume_disponible < 0 %}
+              <span class="val-num val-neg">{{ m.volume_disponible|fmt_vol }}</span>
+            {% else %}
+              <span class="val-calc">{{ m.volume_disponible|fmt_vol }}</span>
+            {% endif %}
+          {% else %}
+            <span class="val-empty">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td class="tf-lbl">Σ&nbsp;Totaux</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-empty">—</td>
+        <td class="tf-vab">{% if total_vab %}{{ total_vab|fmt_vol }}{% else %}—{% endif %}</td>
+        <td class="tf-vad">{% if total_vad %}{{ total_vad|fmt_vol }}{% else %}—{% endif %}</td>
+        <td class="tf-v15c">{% if total_v15c %}{{ total_v15c|fmt_vol }}{% else %}—{% endif %}</td>
+        <td class="tf-vdispo">{% if total_vdispo %}{{ total_vdispo|fmt_vol }}{% else %}—{% endif %}</td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+  {% else %}
+  <div class="tbl-empty" style="padding:40px;text-align:center">
+    Aucune mesure enregistrée pour ce jaugeage.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Actions bas de page -->
+<div style="display:flex;gap:10px;justify-content:space-between;align-items:center">
+  <a href="{% url 'jaugeage_list' %}" class="btn btn-ghost">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
+    Retour à la liste
+  </a>
+  {% if not request.user.is_marketeur_role %}
+  <a href="{% url 'jaugeage_delete' jaugeage.pk %}" class="btn btn-danger">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+    Supprimer ce jaugeage
+  </a>
+  {% endif %}
+</div>
+
+{# ═══════════════ MODALE VALIDATION ═══════════════ #}
+<div id="modal-valider" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center">
+  <div onclick="fermerModaleValider()" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px)"></div>
+  <div style="position:relative;width:100%;max-width:480px;margin:16px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:jaugFadeIn .25s ease both">
+    <!-- En-tête vert -->
+    <div style="background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);padding:24px 24px 18px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+      <div style="width:60px;height:60px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 24 24" stroke-width="2.5" style="width:28px;height:28px;stroke:#fff;fill:none"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style="font-size:17px;font-weight:700;color:#fff;margin:0">Valider le jaugeage</h3>
+      <p style="font-size:12px;color:rgba(255,255,255,.8);margin:0">{{ jaugeage.date_jaugeage|date:"d M Y" }} — {{ jaugeage.depot }}</p>
+    </div>
+    <!-- Corps -->
+    <div style="background:var(--surface,#fff);padding:20px 24px 24px">
+      <!-- Info -->
+      <div style="display:flex;align-items:flex-start;gap:9px;background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;border-radius:8px;padding:11px 13px;margin-bottom:18px;font-size:12.5px;color:#065f46">
+        <svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:#16a34a;fill:none;flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Une fois validé, les mesures de ce jaugeage <strong>ne pourront plus être modifiées</strong>. Cette action est réservée au personnel autorisé.</span>
+      </div>
+      <!-- Récap -->
+      <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border,#e5e7eb);border-radius:9px;overflow:hidden;margin-bottom:22px">
+        <div style="padding:8px 14px;background:#dcfce7;border-bottom:1px solid #bbf7d0;font-size:10.5px;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:.06em">Récapitulatif</div>
+        <div style="padding:4px 0">
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Date</span>
+            <span style="font-weight:600">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Dépôt</span>
+            <span style="font-weight:600">{{ jaugeage.depot }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Cuves</span>
+            <span style="font-weight:600">{{ jaugeage.mesures.count }} cuve{% if jaugeage.mesures.count > 1 %}s{% endif %}</span>
+          </div>
+          {% if jaugeage.operateur %}
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px">
+            <span style="color:var(--muted,#6b7280)">Opérateur</span>
+            <span style="font-weight:600">{{ jaugeage.operateur }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <!-- Boutons -->
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" onclick="fermerModaleValider()" style="display:inline-flex;align-items:center;gap:7px;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1.5px solid var(--border,#d1d5db);background:transparent;color:var(--ink,#374151);cursor:pointer">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Annuler
+        </button>
+        <button type="button" onclick="document.getElementById('form-valider').submit()" style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;border-radius:8px;font-size:13px;font-weight:700;background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(22,163,74,.4)">
+          <svg viewBox="0 0 24 24" stroke-width="2.5" style="width:14px;height:14px;stroke:currentColor;fill:none"><polyline points="20 6 9 17 4 12"/></svg>
+          Confirmer la validation
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ═══════════════ MODALE DÉVERROUILLAGE ═══════════════ #}
+<div id="modal-devalider" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center">
+  <div onclick="fermerModaleDevalider()" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px)"></div>
+  <div style="position:relative;width:100%;max-width:480px;margin:16px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35);animation:jaugFadeIn .25s ease both">
+    <!-- En-tête ambre -->
+    <div style="background:linear-gradient(135deg,#d97706 0%,#b45309 100%);padding:24px 24px 18px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+      <div style="width:60px;height:60px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 24 24" stroke-width="2" style="width:28px;height:28px;stroke:#fff;fill:none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      </div>
+      <h3 style="font-size:17px;font-weight:700;color:#fff;margin:0">Déverrouiller le jaugeage</h3>
+      <p style="font-size:12px;color:rgba(255,255,255,.8);margin:0">{{ jaugeage.date_jaugeage|date:"d M Y" }} — {{ jaugeage.depot }}</p>
+    </div>
+    <!-- Corps -->
+    <div style="background:var(--surface,#fff);padding:20px 24px 24px">
+      <!-- Avertissement -->
+      <div style="display:flex;align-items:flex-start;gap:9px;background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:8px;padding:11px 13px;margin-bottom:18px;font-size:12.5px;color:#92400e">
+        <svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:#f59e0b;fill:none;flex-shrink:0;margin-top:1px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Ce jaugeage redeviendra <strong>modifiable</strong>. Son statut « validé » sera retiré jusqu'à une nouvelle validation.</span>
+      </div>
+      <!-- Récap -->
+      <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border,#e5e7eb);border-radius:9px;overflow:hidden;margin-bottom:22px">
+        <div style="padding:8px 14px;background:#fef9c3;border-bottom:1px solid #fde68a;font-size:10.5px;font-weight:700;color:#a16207;text-transform:uppercase;letter-spacing:.06em">Récapitulatif</div>
+        <div style="padding:4px 0">
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Date</span>
+            <span style="font-weight:600">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Dépôt</span>
+            <span style="font-weight:600">{{ jaugeage.depot }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px">
+            <span style="color:var(--muted,#6b7280)">Validé le</span>
+            <span style="font-weight:600">{{ jaugeage.date_validation|date:"d/m/Y" }}{% if jaugeage.valide_par %} par {{ jaugeage.valide_par.get_full_name|default:jaugeage.valide_par.username }}{% endif %}</span>
+          </div>
+        </div>
+      </div>
+      <!-- Boutons -->
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" onclick="fermerModaleDevalider()" style="display:inline-flex;align-items:center;gap:7px;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1.5px solid var(--border,#d1d5db);background:transparent;color:var(--ink,#374151);cursor:pointer">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Annuler
+        </button>
+        <button type="button" onclick="document.getElementById('form-devalider').submit()" style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;border-radius:8px;font-size:13px;font-weight:700;background:linear-gradient(135deg,#d97706 0%,#b45309 100%);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(217,119,6,.4)">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          Confirmer le déverrouillage
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes jaugFadeIn{from{opacity:0;transform:scale(.94) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+</style>
+<script>
+function ouvrirModaleValider(){
+  document.getElementById('modal-valider').style.display='flex';
+}
+function fermerModaleValider(){
+  document.getElementById('modal-valider').style.display='none';
+}
+function ouvrirModaleDevalider(){
+  document.getElementById('modal-devalider').style.display='flex';
+}
+function fermerModaleDevalider(){
+  document.getElementById('modal-devalider').style.display='none';
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    fermerModaleValider();
+    fermerModaleDevalider();
+  }
+});
+</script>
+{% endblock %}

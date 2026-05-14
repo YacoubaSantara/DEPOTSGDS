@@ -1,0 +1,563 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Stock Global Tout Marketeur{% endblock %}
+{% block nav_etat_stock_global %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="{% url 'marketeur_list' %}">Accueil</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Stock Global</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ══════════════════════════════════════════════════════════
+   STYLES ÉCRAN
+══════════════════════════════════════════════════════════ */
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:140px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select,
+.filter-group input[type="date"]{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text);font-family:inherit}
+.filter-group select:focus,
+.filter-group input[type="date"]:focus{border-color:var(--navy);outline:none}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer;transition:background .2s}
+.btn-filter:hover{background:var(--navy-l)}
+.btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;text-decoration:none;transition:all .2s;display:inline-flex;align-items:center}
+.btn-reset:hover{border-color:var(--navy);color:var(--navy)}
+.btn-print-main{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn-print-main:hover{background:#16304f;transform:translateY(-1px);box-shadow:0 4px 14px rgba(30,58,95,.3)}
+.btn-export-main{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:#16a34a;color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none;transition:all .2s}
+.btn-export-main:hover{background:#15803d;transform:translateY(-1px)}
+
+.carte-header{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:16px;box-shadow:var(--shadow)}
+.carte-header-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.ch-item{display:flex;flex-direction:column;gap:3px}
+.ch-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.ch-value{font-size:.88rem;font-weight:700;color:var(--navy)}
+
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+thead{background:var(--bg)}
+th{padding:9px 12px;text-align:center;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap}
+th.left{text-align:left}
+td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:center;color:var(--text)}
+td.left{text-align:left}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(240,244,248,.4)}
+
+tr.row-report td{background:#f0f7ff;font-weight:700;color:var(--navy)}
+tr.row-cumul td{background:#f8fafc;font-weight:700;border-top:2px solid var(--navy)}
+tr.row-entree td{background:rgba(220,252,231,.25)}
+tr.row-sortie td{background:rgba(254,226,226,.2)}
+tr.row-cession td{background:rgba(219,234,254,.2)}
+tr.row-acquittement td{background:rgba(254,243,199,.25)}
+
+.num{font-family:'JetBrains Mono',monospace;font-size:.8rem}
+.num-pos{color:#16a34a;font-weight:600}
+.num-neg{color:#dc2626;font-weight:600}
+.num-stock{color:var(--navy);font-weight:700}
+.num-warn{color:#d97706;font-weight:600}
+
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:600;white-space:nowrap}
+.badge-entree{background:#dcfce7;color:#166534}
+.badge-sortie{background:#fee2e2;color:#991b1b}
+.badge-cession{background:#dbeafe;color:#1e40af}
+.badge-acquittement{background:#fef3c7;color:#92400e}
+.badge-sd{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
+.badge-ac{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.badge-sdac{background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe}
+.badge-mkt{background:#e0f2fe;color:#0c4a6e;border:1px solid #bae6fd;font-size:.7rem;font-weight:700}
+
+.cumul-chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.cumul-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:.78rem;box-shadow:var(--shadow)}
+.cumul-chip .chip-label{color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:.67rem;display:block;margin-bottom:3px}
+.cumul-chip .chip-val{font-family:inherit;font-weight:700;font-size:.92rem}
+.cumul-chip.green .chip-val{color:#16a34a}
+.cumul-chip.red .chip-val{color:#dc2626}
+.cumul-chip.amber .chip-val{color:#d97706}
+.cumul-chip.navy .chip-val{color:var(--navy)}
+
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-state svg{margin-bottom:12px;opacity:.4}
+.empty-state p{font-size:.9rem}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] tr.row-report td{background:rgba(255,255,255,.04)}
+[data-theme="dark"] tr.row-cumul td{background:rgba(255,255,255,.06)}
+[data-theme="dark"] tr.row-entree td{background:rgba(34,197,94,.07)}
+[data-theme="dark"] tr.row-sortie td{background:rgba(239,68,68,.07)}
+[data-theme="dark"] tr.row-cession td{background:rgba(59,130,246,.07)}
+[data-theme="dark"] tr.row-acquittement td{background:rgba(245,158,11,.07)}
+[data-theme="dark"] .badge-entree{background:var(--ok-soft);color:var(--ok)}
+[data-theme="dark"] .badge-sortie{background:var(--err-soft);color:var(--err)}
+[data-theme="dark"] .badge-cession{background:var(--info-soft);color:var(--info)}
+[data-theme="dark"] .badge-acquittement{background:var(--warn-soft);color:var(--warn)}
+[data-theme="dark"] .badge-sd{background:var(--warn-soft);color:var(--warn);border-color:rgba(245,158,11,.3)}
+[data-theme="dark"] .badge-ac{background:var(--ok-soft);color:var(--ok);border-color:rgba(34,197,94,.3)}
+[data-theme="dark"] .badge-sdac{background:rgba(139,92,246,.15);color:#c4b5fd;border-color:rgba(139,92,246,.3)}
+[data-theme="dark"] .badge-mkt{background:var(--info-soft);color:var(--info);border-color:rgba(64,128,184,.3)}
+[data-theme="dark"] .cumul-chip.green .chip-val{color:var(--ok)}
+[data-theme="dark"] .cumul-chip.red .chip-val{color:var(--err)}
+[data-theme="dark"] .cumul-chip.amber .chip-val{color:var(--warn)}
+[data-theme="dark"] .num-pos{color:var(--ok)}
+[data-theme="dark"] .num-neg{color:var(--err)}
+[data-theme="dark"] .num-warn{color:var(--warn)}
+[data-theme="dark"] .ch-value{color:var(--accent-ink)}
+[data-theme="dark"] .btn-export-main{background:var(--ok)}
+[data-theme="dark"] .btn-export-main:hover{filter:brightness(1.1)}
+
+/* En-tête impression — caché à l'écran */
+.print-header{display:none}
+
+/* ══════════════════════════════════════════════════════════
+   STYLES IMPRESSION — @media print
+══════════════════════════════════════════════════════════ */
+@media print {
+  /* Masquer tout ce qui ne fait pas partie de l'état */
+  .topbar, .sidebar, .breadcrumb-bar,
+  .filters-bar, .page-header, .cumul-chips,
+  .btn-print-main, .btn-export-main, .btn,
+  .btn-filter, .btn-reset,
+  nav, .nav, #sidebar,
+  .toast-container { display:none !important; }
+
+  /* Reset de mise en page */
+  body { margin:0; padding:0; background:#fff; font-family:'Arial',sans-serif; font-size:9pt; color:#000; }
+  .main-content, .content-wrapper, main, #main-content,
+  [class*="content"] { margin:0 !important; padding:0 !important; width:100% !important; max-width:none !important; }
+
+  /* Afficher l'en-tête impression */
+  .print-header { display:block !important; margin-bottom:14px; }
+
+  /* Cadre info résumé */
+  .print-meta-grid {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:0;
+    border:1.5px solid var(--ink);
+    border-radius:4px;
+    margin-bottom:12px;
+    overflow:hidden;
+  }
+  .print-meta-item {
+    padding:5px 9px;
+    border-right:1px solid #c0cad8;
+    font-size:7.5pt;
+  }
+  .print-meta-item:last-child{border-right:none}
+  .print-meta-label{font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-size:6.5pt;display:block;margin-bottom:1px}
+  .print-meta-val{font-weight:700;color:var(--ink);font-size:8.5pt}
+
+  /* Tableau */
+  .table-wrap { box-shadow:none; border:1.5px solid var(--ink); border-radius:0; overflow:visible; }
+  table { width:100%; border-collapse:collapse; font-size:8pt; page-break-inside:auto; }
+  thead { display:table-header-group; /* répéter l'en-tête sur chaque page */ }
+  tfoot { display:table-footer-group; }
+  tr { page-break-inside:avoid; }
+
+  th {
+    background:var(--ink) !important;
+    color:#fff !important;
+    padding:5px 7px;
+    font-size:7pt;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    border:1px solid #0f2240;
+    font-weight:700;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  td {
+    padding:4px 7px;
+    border:1px solid #d4dae3;
+    font-size:7.5pt;
+    color:#000;
+  }
+  tr:hover td { background:transparent; }
+
+  /* Lignes colorées en impression */
+  tr.row-report td {
+    background:#dbeafe !important;
+    font-weight:700;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  tr.row-cumul td {
+    background:#f1f5f9 !important;
+    font-weight:700;
+    border-top:2px solid var(--ink) !important;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  tr.row-entree td { background:#f0fdf4 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-sortie td { background:#fef2f2 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-cession td { background:#eff6ff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-acquittement td { background:#fffbeb !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  .num { font-family:monospace; font-size:8pt; }
+  .num-pos { color:#15803d !important; font-weight:700; }
+  .num-neg { color:#b91c1c !important; font-weight:700; }
+  .num-stock { color:var(--ink) !important; font-weight:700; }
+  .num-warn { color:#92400e !important; font-weight:700; }
+
+  /* Badges simplifiés pour impression */
+  .badge {
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:7pt;
+    font-weight:700;
+    border:1px solid #aaa !important;
+    background:transparent !important;
+    color:#000 !important;
+  }
+  .badge-entree { border-color:#166534 !important; color:#166534 !important; }
+  .badge-sortie { border-color:#b91c1c !important; color:#b91c1c !important; }
+  .badge-sd     { border-color:#92400e !important; color:#92400e !important; }
+  .badge-ac     { border-color:#166534 !important; color:#166534 !important; }
+  .badge-mkt    { border-color:#0c4a6e !important; color:#0c4a6e !important; }
+
+  /* Pied de page automatique */
+  @page {
+    margin:12mm 10mm 16mm 10mm;
+    size:A4 landscape;
+    @bottom-center {
+      content:"Page " counter(page) " / " counter(pages);
+      font-size:7pt;
+      color:#64748b;
+    }
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="print-header">
+  {# Bandeau société #}
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
+    <tr>
+      {% if societe.logo %}
+      <td style="width:60px;vertical-align:middle;padding-right:10px">
+        <img src="{{ societe.logo.url }}" style="max-height:50px;max-width:55px;object-fit:contain">
+      </td>
+      {% endif %}
+      <td style="vertical-align:middle">
+        <div style="font-size:14pt;font-weight:700;color:var(--ink);font-family:Arial,sans-serif">{{ societe.raison_sociale|default:"SGDS SANKE" }}</div>
+        <div style="font-size:8pt;color:#64748b;margin-top:2px">
+          {{ societe.nom_depot|default:"Dépôt Pétrolier" }}
+          {% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}
+          {% if societe.telephone %} · Tél : {{ societe.telephone }}{% endif %}
+        </div>
+      </td>
+      <td style="text-align:right;vertical-align:top;font-size:7.5pt;color:#64748b;white-space:nowrap">
+        Imprimé le : <strong id="print-date"></strong><br>
+        Par : <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+      </td>
+    </tr>
+  </table>
+
+  {# Trait séparateur #}
+  <div style="border-top:3px solid var(--ink);margin:5px 0 8px"></div>
+
+  {# Titre de l'état #}
+  <div style="text-align:center;margin-bottom:8px">
+    <div style="font-size:13pt;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em;font-family:Arial,sans-serif">ÉTAT GLOBAL DE STOCK</div>
+    <div style="font-size:9pt;color:#475569;margin-top:2px">
+      Produit : <strong>{{ produit_sel.nom|default:"—" }}</strong>
+      {% if marketeur_sel %} &nbsp;·&nbsp; Marketeur : <strong>{{ marketeur_sel.raison_sociale }}</strong>{% else %} &nbsp;·&nbsp; Tous les marketeurs{% endif %}
+      {% if date_debut or date_fin %}
+        &nbsp;·&nbsp; Période : <strong>{{ date_debut|default:"début" }} → {{ date_fin|default:"aujourd'hui" }}</strong>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Grille de métadonnées #}
+  {% if stock %}
+  <div class="print-meta-grid">
+    <div class="print-meta-item">
+      <span class="print-meta-label">Report initial</span>
+      <span class="print-meta-val">{{ stock.report_amb|floatformat:0|intcomma }} L</span>
+    </div>
+    <div class="print-meta-item">
+      <span class="print-meta-label">Total Entrées</span>
+      <span class="print-meta-val" style="color:#15803d">{{ stock.cumul_entrees_amb|floatformat:0|intcomma }} L</span>
+    </div>
+    <div class="print-meta-item">
+      <span class="print-meta-label">Total Sorties</span>
+      <span class="print-meta-val" style="color:#b91c1c">{{ stock.cumul_sorties_amb|floatformat:0|intcomma }} L</span>
+    </div>
+    <div class="print-meta-item">
+      <span class="print-meta-label">Solde Global</span>
+      <span class="print-meta-val" style="color:var(--ink)">{{ stock.stock_final_amb|floatformat:0|intcomma }} L</span>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Stock Global Tout Marketeur</h1>
+    <p class="page-subtitle">
+      {% if produit_sel %}{{ produit_sel.nom }}{% endif %}
+      {% if marketeur_sel %} — {{ marketeur_sel.raison_sociale }}{% else %} — Tous les marketeurs{% endif %}
+    </p>
+  </div>
+  {% if stock %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button onclick="lancerImpression()" class="btn-print-main">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Aperçu / Imprimer
+    </button>
+    <a href="{% url 'etat_stock_global_export' %}?produit={{ produit_sel.pk }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.pk }}{% endif %}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
+       class="btn-export-main">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter Excel
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Filtres ── #}
+<div class="filters-bar">
+  <form method="get" action="">
+    <div class="filters-row">
+      <div class="filter-group" style="min-width:200px">
+        <label>Produit</label>
+        <select name="produit" required>
+          <option value="">— Choisir un produit —</option>
+          {% for p in produits %}
+          <option value="{{ p.pk }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
+            {{ p.nom }}{% if p.famille %} ({{ p.famille.nom }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group" style="min-width:200px">
+        <label>Marketeur (optionnel)</label>
+        <select name="marketeur">
+          <option value="">— Tous les marketeurs —</option>
+          {% for m in tous_marketeurs %}
+          <option value="{{ m.pk }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>
+            {{ m.sigle|default:m.raison_sociale }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Date début</label>
+        <input type="date" name="date_debut" value="{{ date_debut }}">
+      </div>
+      <div class="filter-group">
+        <label>Date fin</label>
+        <input type="date" name="date_fin" value="{{ date_fin }}">
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+        <a href="{% url 'etat_stock_global' %}" class="btn-reset">Réinitialiser</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if not produit_sel %}
+<div class="empty-state">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 3h18"/></svg>
+  <p>Sélectionnez un <strong>produit</strong> pour afficher le stock global de tous les marketeurs.</p>
+</div>
+
+{% else %}
+
+{# ── En-tête info (écran seulement) ── #}
+<div class="carte-header">
+  <div class="carte-header-grid">
+    <div class="ch-item">
+      <span class="ch-label">Dépôt</span>
+      <span class="ch-value">{{ societe.nom_depot|default:"SGDS SANKE" }}</span>
+    </div>
+    <div class="ch-item">
+      <span class="ch-label">Produit</span>
+      <span class="ch-value">{{ produit_sel.nom }}</span>
+    </div>
+    <div class="ch-item">
+      <span class="ch-label">Marketeur</span>
+      <span class="ch-value">{% if marketeur_sel %}{{ marketeur_sel.raison_sociale }}{% else %}Tous{% endif %}</span>
+    </div>
+    <div class="ch-item">
+      <span class="ch-label">Régime</span>
+      <span class="ch-value"><span class="badge badge-sdac">SD + AC</span></span>
+    </div>
+    {% if date_debut or date_fin %}
+    <div class="ch-item">
+      <span class="ch-label">Période</span>
+      <span class="ch-value">
+        {% if date_debut %}{{ date_debut }}{% else %}Début{% endif %}
+        → {% if date_fin %}{{ date_fin }}{% else %}Aujourd'hui{% endif %}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if stock %}
+
+{# ── Chips résumé (écran) ── #}
+<div class="cumul-chips">
+  <div class="cumul-chip navy">
+    <span class="chip-label">Report</span>
+    <span class="chip-val">{{ stock.report_amb|floatformat:0|intcomma }} L</span>
+  </div>
+  <div class="cumul-chip green">
+    <span class="chip-label">Total Entrées Amb.</span>
+    <span class="chip-val">{{ stock.cumul_entrees_amb|floatformat:0|intcomma }} L</span>
+  </div>
+  {% if stock.cumul_manquants_amb %}
+  <div class="cumul-chip amber">
+    <span class="chip-label">Total Mq. Amb.</span>
+    <span class="chip-val">{{ stock.cumul_manquants_amb|floatformat:0|intcomma }} L</span>
+  </div>
+  {% endif %}
+  {% if stock.cumul_manquants_15c %}
+  <div class="cumul-chip amber">
+    <span class="chip-label">Total Mq. @15°C</span>
+    <span class="chip-val">{{ stock.cumul_manquants_15c|floatformat:0|intcomma }} L</span>
+  </div>
+  {% endif %}
+  <div class="cumul-chip red">
+    <span class="chip-label">Total Sorties Amb.</span>
+    <span class="chip-val">{{ stock.cumul_sorties_amb|floatformat:0|intcomma }} L</span>
+  </div>
+  <div class="cumul-chip navy">
+    <span class="chip-label">Solde Global Amb.</span>
+    <span class="chip-val">{{ stock.stock_final_amb|floatformat:0|intcomma }} L</span>
+  </div>
+</div>
+
+{# ── Tableau principal ── #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="left" style="width:72px">Date</th>
+        <th class="left">N° Document</th>
+        <th class="left" style="width:60px">N° C</th>
+        <th class="left">Marketeur</th>
+        <th class="left">Libellé</th>
+        <th style="width:48px">Rég.</th>
+        <th class="left" style="width:90px">Type</th>
+        <th>Entrées Amb. (L)</th>
+        <th>Mq. Amb. (L)</th>
+        <th>Mq. @15°C (L)</th>
+        <th>Sorties Amb. (L)</th>
+        <th>Solde Global (L)</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      {# REPORT #}
+      <tr class="row-report">
+        <td class="left" colspan="11" style="font-weight:700;letter-spacing:.04em">REPORT</td>
+        <td class="num num-stock">{{ stock.report_amb|floatformat:0|intcomma }}</td>
+      </tr>
+
+      {# Mouvements #}
+      {% for ligne in stock.lignes %}
+      <tr class="{% if ligne.sens == 'entree' %}row-entree{% elif ligne.sens == 'sortie' %}row-sortie{% elif ligne.sens == 'cession' %}row-cession{% elif ligne.sens == 'acquittement' %}row-acquittement{% endif %}">
+        <td class="left">{{ ligne.mouvement.date_mouvement|date:"d/m/Y" }}</td>
+        <td class="left" style="font-size:.75rem">{{ ligne.mouvement.numero_enregistrement|default:"—" }}</td>
+        <td class="left" style="font-size:.75rem">
+          {% if ligne.mouvement.numero_c %}{{ ligne.mouvement.numero_c }}{% else %}—{% endif %}
+        </td>
+        <td class="left">
+          {% with m=ligne.mouvement.marketeur %}
+          {% if m %}
+          <span class="badge badge-mkt">{{ m.sigle|default:m.raison_sociale }}</span>
+          {% else %}—{% endif %}
+          {% endwith %}
+        </td>
+        <td class="left">{{ ligne.libelle }}</td>
+        <td>
+          <span class="badge {% if ligne.regime_ligne == 'SD' %}badge-sd{% elif ligne.regime_ligne == 'AC' %}badge-ac{% else %}badge-acquittement{% endif %}">
+            {{ ligne.regime_ligne }}
+          </span>
+        </td>
+        <td class="left">
+          {% if ligne.sens == 'entree' %}<span class="badge badge-entree">Entrée</span>
+          {% elif ligne.sens == 'sortie' %}<span class="badge badge-sortie">Sortie</span>
+          {% elif ligne.sens == 'cession' %}<span class="badge badge-cession">Cession</span>
+          {% elif ligne.sens == 'acquittement' %}<span class="badge badge-acquittement">Acq.</span>
+          {% endif %}
+        </td>
+        <td class="num {% if ligne.vol_entree_amb %}num-pos{% endif %}">
+          {% if ligne.vol_entree_amb %}{{ ligne.vol_entree_amb|floatformat:0|intcomma }}{% else %}—{% endif %}
+        </td>
+        <td class="num {% if ligne.vol_manquant_amb and ligne.vol_manquant_amb != 0 %}num-warn{% endif %}">
+          {% if ligne.vol_manquant_amb %}{{ ligne.vol_manquant_amb|floatformat:2|intcomma }}{% else %}—{% endif %}
+        </td>
+        <td class="num {% if ligne.vol_manquant_15c and ligne.vol_manquant_15c != 0 %}num-warn{% endif %}">
+          {% if ligne.vol_manquant_15c %}{{ ligne.vol_manquant_15c|floatformat:2|intcomma }}{% else %}—{% endif %}
+        </td>
+        <td class="num {% if ligne.vol_sortie_amb %}num-neg{% endif %}">
+          {% if ligne.vol_sortie_amb %}{{ ligne.vol_sortie_amb|floatformat:0|intcomma }}{% else %}—{% endif %}
+        </td>
+        <td class="num num-stock">{{ ligne.stock_apres_amb|floatformat:0|intcomma }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="12" style="text-align:center;padding:28px;color:var(--muted)">
+          Aucun mouvement sur cette période.
+        </td>
+      </tr>
+      {% endfor %}
+
+      {# CUMUL #}
+      {% if stock.lignes %}
+      <tr class="row-cumul">
+        <td class="left" colspan="7" style="font-weight:700;letter-spacing:.04em">CUMUL PÉRIODE</td>
+        <td class="num num-pos">{{ stock.cumul_entrees_amb|floatformat:0|intcomma }}</td>
+        <td class="num num-warn">{% if stock.cumul_manquants_amb %}{{ stock.cumul_manquants_amb|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+        <td class="num num-warn">{% if stock.cumul_manquants_15c %}{{ stock.cumul_manquants_15c|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+        <td class="num num-neg">{{ stock.cumul_sorties_amb|floatformat:0|intcomma }}</td>
+        <td class="num num-stock">{{ stock.stock_final_amb|floatformat:0|intcomma }}</td>
+      </tr>
+      {% endif %}
+
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+<div class="empty-state">
+  <p>Aucun mouvement trouvé pour ce produit.</p>
+</div>
+{% endif %}
+{% endif %}
+
+<script>
+/* Injecter la date/heure dans l'en-tête impression */
+document.addEventListener('DOMContentLoaded', function () {
+  var el = document.getElementById('print-date');
+  if (el) {
+    var now = new Date();
+    el.textContent = now.toLocaleDateString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    }) + ' à ' + now.toLocaleTimeString('fr-FR', {
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+});
+
+function lancerImpression() {
+  /* Mise à jour de la date juste avant d'imprimer */
+  var el = document.getElementById('print-date');
+  if (el) {
+    var now = new Date();
+    el.textContent = now.toLocaleDateString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    }) + ' à ' + now.toLocaleTimeString('fr-FR', {
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+  window.print();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,190 @@
+﻿{% extends "base.html" %}
+{% load user_tags %}
+{% block title %}Modifier — {{ object.username }}{% endblock %}
+{% block breadcrumb %}
+  <a href="{% url 'users_liste' %}">Utilisateurs</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="{% url 'users_detail' object.pk %}">{{ object.username }}</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Modifier</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);max-width:780px;margin:0 auto}
+.form-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-l) 100%);padding:24px 32px;color:#fff;display:flex;align-items:center;gap:16px}
+.form-hero-avatar{width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:1.1rem;font-weight:700;color:#fff;overflow:hidden;flex-shrink:0}
+.form-hero-avatar img{width:100%;height:100%;object-fit:cover}
+.form-hero-title{font-family:inherit;font-size:1.05rem;font-weight:700;margin-bottom:4px}
+.form-hero-sub{font-size:.8rem;opacity:.6}
+.form-body{padding:28px 32px}
+.form-section{margin-bottom:28px}
+.form-section-title{font-family:inherit;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-label{font-size:.8rem;font-weight:600;color:var(--text)}
+.form-input{height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;color:var(--text);background:#fff;transition:all .2s}
+.form-input:focus{border-color:var(--orange);outline:none;box-shadow:0 0 0 3px rgba(232,118,10,.1)}
+
+.role-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.role-option{border:2px solid var(--border);border-radius:10px;padding:12px 10px;cursor:pointer;transition:all .18s;position:relative}
+.role-option:hover{border-color:var(--navy-l);background:#f8fafc}
+.role-option input{position:absolute;opacity:0;width:0;height:0}
+.role-option.selected-SUPERADMIN{border-color:#ef4444;background:#fef2f2}
+.role-option.selected-CHEF_DEPOT{border-color:#3b82f6;background:#eff6ff}
+.role-option.selected-OPERATEUR{border-color:#22c55e;background:#f0fdf4}
+.role-option.selected-COMPTABLE{border-color:#eab308;background:#fefce8}
+.role-option.selected-LECTEUR{border-color:#94a3b8;background:#f8fafc}
+.role-dot{width:8px;height:8px;border-radius:50%;margin-bottom:8px}
+.role-name{font-family:inherit;font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:3px}
+.role-desc{font-size:.68rem;color:var(--muted);line-height:1.35}
+
+.toggle-wrap{display:flex;align-items:center;gap:12px}
+.toggle{position:relative;width:42px;height:24px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;border-radius:24px;background:#cbd5e1;cursor:pointer;transition:background .2s}
+.toggle-slider::before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle input:checked + .toggle-slider{background:#22c55e}
+.toggle input:checked + .toggle-slider::before{transform:translateX(18px)}
+.toggle-label{font-size:.875rem;font-weight:500;color:var(--text)}
+
+.form-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 32px;border-top:1px solid var(--border);background:#f8fafc}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-card">
+  <div class="form-hero">
+    <div class="form-hero-avatar">
+      {% if object.profile.photo %}
+        <img src="{{ object.profile.photo.url }}" alt="">
+      {% else %}
+        {{ object.username|slice:":2"|upper }}
+      {% endif %}
+    </div>
+    <div>
+      <div class="form-hero-title">Modifier {{ object.get_full_name|default:object.username }}</div>
+      <div class="form-hero-sub">@{{ object.username }} — modification du profil et du rôle</div>
+    </div>
+  </div>
+
+  <form method="post" class="form-body" id="edit-form">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:.82rem;color:#991b1b;">
+      {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Identité -->
+    <div class="form-section">
+      <div class="form-section-title">Identité</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Prénom</label>
+          <input type="text" name="first_name" class="form-input {% if form.first_name.errors %}is-invalid{% endif %}"
+                 value="{{ object.first_name }}" placeholder="Prénom">
+          {% for e in form.first_name.errors %}<span class="form-field-error">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nom</label>
+          <input type="text" name="last_name" class="form-input {% if form.last_name.errors %}is-invalid{% endif %}"
+                 value="{{ object.last_name }}" placeholder="Nom">
+          {% for e in form.last_name.errors %}<span class="form-field-error">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-input {% if form.email.errors %}is-invalid{% endif %}"
+                 value="{{ object.email }}" placeholder="email@sgds.ml">
+          {% for e in form.email.errors %}<span class="form-field-error">{{ e }}</span>{% endfor %}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Téléphone</label>
+          <input type="text" name="telephone" class="form-input"
+                 value="{{ object.profile.telephone|default:'' }}" placeholder="+223 …">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fonction / Poste</label>
+          <input type="text" name="poste" class="form-input"
+                 value="{{ object.profile.poste|default:'' }}" placeholder="Ex : Opérateur">
+        </div>
+        <div class="form-group" style="justify-content:flex-end;padding-bottom:4px">
+          <label class="form-label">Compte actif</label>
+          <div class="toggle-wrap" style="margin-top:8px">
+            <label class="toggle">
+              <input type="checkbox" name="is_active"
+                     {% if object.is_active %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Accès Django</span>
+          </div>
+          <div class="toggle-wrap" style="margin-top:10px">
+            <label class="toggle">
+              <input type="checkbox" name="profil_actif"
+                     {% if object.profile.actif %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Profil RBAC actif</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rôle RBAC -->
+    <div class="form-section">
+      <div class="form-section-title">Rôle RBAC</div>
+      <div class="role-grid" id="role-grid">
+        {% for code, libelle in roles %}
+        <label class="role-option" id="role-{{ code }}" onclick="selectRole('{{ code }}')">
+          <input type="radio" name="role" value="{{ code }}"
+                 {% if object.profile.role == code %}checked{% endif %}>
+          <div class="role-dot" style="background:
+            {% if code == 'SUPERADMIN' %}#ef4444
+            {% elif code == 'CHEF_DEPOT' %}#3b82f6
+            {% elif code == 'OPERATEUR' %}#22c55e
+            {% elif code == 'COMPTABLE' %}#eab308
+            {% else %}#94a3b8{% endif %}"></div>
+          <div class="role-name">{{ libelle }}</div>
+          <div class="role-desc">
+            {% if code == 'SUPERADMIN' %}Accès complet + gestion utilisateurs
+            {% elif code == 'CHEF_DEPOT' %}Clôture périodes, validation jaugeages
+            {% elif code == 'OPERATEUR' %}Saisie mouvements/jaugeages uniquement
+            {% elif code == 'COMPTABLE' %}Lecture + exports comptables
+            {% else %}Lecture seule{% endif %}
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+  </form>
+
+  <div class="form-footer">
+    <a href="{% url 'users_detail' object.pk %}" class="btn btn-secondary">← Annuler</a>
+    <button type="submit" form="edit-form" class="btn btn-primary">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:currentColor;fill:none"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+      Enregistrer les modifications
+    </button>
+  </div>
+</div>
+
+<script>
+function selectRole(code) {
+  document.querySelectorAll('.role-option').forEach(el => { el.className = 'role-option'; });
+  document.getElementById('role-' + code).classList.add('selected-' + code);
+  document.querySelector('[value="' + code + '"]').checked = true;
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const checked = document.querySelector('[name="role"]:checked');
+  if (checked) selectRole(checked.value);
+
+  // Si des erreurs de formulaire Django existent, afficher un toast
+  const invalidFields = document.querySelectorAll('.is-invalid');
+  if (invalidFields.length && window.SGDS && window.SGDS.toast) {
+    window.SGDS.toast('Corrigez les erreurs dans le formulaire.', 'error');
+    invalidFields[0].focus();
+  }
+});
+</script>
+{% endblock %}

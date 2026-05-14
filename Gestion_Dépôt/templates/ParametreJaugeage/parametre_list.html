@@ -1,0 +1,139 @@
+﻿{% extends "base.html" %}
+{% load jaugeage_extras %}
+{% block title %}Paramètres de jaugeage{% endblock %}
+{% block nav_parametre %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Paramètres de jaugeage</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:20px 22px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.stat-val{font-family:inherit;font-size:2rem;font-weight:700;color:var(--navy);line-height:1}
+.stat-lbl{font-size:.75rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
+.stat-card.ok{background:linear-gradient(135deg,#065f46,#047857)}
+.stat-card.ok .stat-val,.stat-card.ok .stat-lbl{color:#fff}
+.stat-card.ok .stat-lbl{color:rgba(255,255,255,.6)}
+
+.table-wrap{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{background:var(--bg);font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:.84rem;vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:rgba(30,58,95,.025)}
+
+.cuve-num{font-family:inherit;font-weight:700;color:var(--navy)}
+.cuve-name{font-size:.72rem;color:var(--muted)}
+.val-mono{font-family:'Courier New',monospace;font-weight:600;color:var(--text)}
+
+.badge-ok{background:#d1fae5;color:#065f46;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
+.badge-ok::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge-missing{background:#fef3c7;color:#92400e;display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
+.badge-missing::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.prog-bar{height:4px;background:var(--border);border-radius:2px;margin-top:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--green);border-radius:2px;transition:width .4s}
+
+.actions{display:flex;gap:6px}
+.exp-date{font-size:.75rem}
+.exp-ok{color:#059669}
+.exp-soon{color:#d97706}
+.exp-late{color:var(--red)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Paramètres de jaugeage</h1>
+    <p class="page-subtitle">Configuration métrologique de chaque cuve (HTT, V(A), V/mn, certificat)</p>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stat-grid">
+  <div class="stat-card ok">
+    <div class="stat-val">{{ nb_configures }}</div>
+    <div class="stat-lbl">Cuves configurées</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val" style="color:var(--amber)">{{ total_cuves|add:"-1"|add:"1"|add:nb_configures|add:"-"|default:0 }}{{ total_cuves }}</div>
+    <div class="stat-lbl">Total cuves</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-val" style="color:{% if nb_configures < total_cuves %}var(--amber){% else %}var(--green){% endif %}">
+      {% if total_cuves > 0 %}{% widthratio nb_configures total_cuves 100 %}%{% else %}—{% endif %}
+    </div>
+    <div class="stat-lbl">Couverture</div>
+  </div>
+</div>
+
+<!-- Tableau -->
+<div class="table-wrap">
+  {% if cuves %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Cuve</th>
+        <th>Statut</th>
+        <th>HTT (mm)</th>
+        <th>Remplissage maxi (L)</th>
+        <th>V(A) (L)</th>
+        <th>V/mn (L/mm)</th>
+        <th>Proch. jaugeage</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cuve in cuves %}
+      {% with p=cuve.parametre_jaugeage %}
+      <tr>
+        <td>
+          <div class="cuve-num">{{ cuve.numero }}</div>
+          <div class="cuve-name">{{ cuve.designation }}</div>
+        </td>
+        <td>
+          {% if p %}
+            <span class="badge-ok">Configuré</span>
+          {% else %}
+            <span class="badge-missing">Non configuré</span>
+          {% endif %}
+        </td>
+        <td><span class="val-mono">{% if p %}{{ p.hauteur_totale_temoin|fmt_vol }}{% else %}—{% endif %}</span></td>
+        <td><span class="val-mono">{% if p %}{{ p.remplissage_maxi|fmt_vol:"2" }}{% else %}—{% endif %}</span></td>
+        <td><span class="val-mono">{% if p %}{{ p.v_a|fmt_vol:"2" }}{% else %}—{% endif %}</span></td>
+        <td><span class="val-mono">{% if p %}{{ p.v_mn|fmt_vol }}{% else %}—{% endif %}</span></td>
+        <td>
+          {% if p and p.date_prochain_jaugeage %}
+            <span class="exp-date exp-ok">{{ p.date_prochain_jaugeage|date:"d/m/Y" }}</span>
+          {% else %}
+            <span style="color:var(--muted)">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="actions">
+            {% if p %}
+            <a href="{% url 'parametre_detail' p.pk %}" class="btn btn-secondary" style="padding:5px 10px;font-size:.78rem">Voir</a>
+            {% endif %}
+            {% if not request.user.is_marketeur_role %}
+            <a href="{% url 'parametre_create_update' cuve.pk %}" class="btn btn-primary" style="padding:5px 10px;font-size:.78rem">
+              {% if p %}Modifier{% else %}Configurer{% endif %}
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center;padding:60px;color:var(--muted)">
+    <p>Aucune cuve enregistrée.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

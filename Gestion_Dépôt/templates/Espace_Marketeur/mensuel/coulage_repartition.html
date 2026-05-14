@@ -1,0 +1,128 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Mon Coulage Répartition{% endblock %}
+{% block nav_client_mensuel_coulage_repartition %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="{% url 'client_dashboard' %}">Mon Espace</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Coulage Répartition</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:200px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.source-badge{display:inline-flex;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+.source-snapshot{background:#dcfce7;color:#166534}
+.source-realtime{background:#fef3c7;color:#92400e}
+.alert-warning{background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;color:#92400e;font-size:.85rem;margin-bottom:16px}
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{padding:8px 10px;text-align:center;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+th.left{text-align:left}
+th.g{background:var(--navy);color:#fff;font-size:.7rem}
+td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+td.left{text-align:left}
+tr:hover td{background:rgba(240,244,248,.4)}
+tr.total-row td{background:#e8f0fe;font-weight:700;border-top:2px solid var(--navy)}
+.num{font-family:'JetBrains Mono',monospace;font-size:.8rem}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] tr.total-row td{background:rgba(59,130,246,.08)}
+[data-theme="dark"] .source-snapshot{background:var(--ok-soft);color:var(--ok)}
+[data-theme="dark"] .source-realtime{background:var(--warn-soft);color:var(--warn)}
+[data-theme="dark"] .alert-warning{background:var(--warn-soft);border-color:rgba(245,158,11,.3);color:var(--warn)}
+
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="RÉPARTITION DES FRAIS DE COULAGE" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Mon Coulage Répartition</h1>
+    <p class="page-subtitle">
+      {{ marketeur.raison_sociale }}
+      {% if periode %} — {{ periode }}{% endif %}
+      {% if source %}<span class="source-badge {% if source == 'SNAPSHOT' %}source-snapshot{% else %}source-realtime{% endif %}">{{ source }}</span>{% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and rapport %}
+    <a href="{% url 'client_mensuel_coulage_repartition_export' %}?periode_id={{ periode.pk }}"
+       class="btn-export-main">↓ Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}{% if p.statut == 'CLOTUREE' %} ✓{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if erreur %}
+<div class="alert-warning">⚠ {{ erreur }}</div>
+{% elif not rapport or not rapport.lignes %}
+<div class="empty-state"><p>Aucune donnée de coulage pour cette période{% if rapport %} pour votre compte{% endif %}.</p></div>
+{% else %}
+
+{% with produits=rapport.produits lignes=rapport.lignes %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="left" rowspan="2">Marketeur</th>
+        {% for p in produits %}<th class="g" colspan="8">{{ p.nom|upper }}</th>{% endfor %}
+        <th rowspan="2">Vol. Global (L)</th>
+        <th rowspan="2">PU (FCFA/L)</th>
+        <th rowspan="2">Montant (FCFA)</th>
+      </tr>
+      <tr>
+        {% for p in produits %}
+        <th>Brut Entrée</th><th>Coul. Entrée</th><th>Entrée Nette</th><th>Sortie</th>
+        <th>Base QP</th><th>Coef QP</th><th>QP Coul.</th><th>Vol. Sorti</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for ligne in lignes %}
+    <tr>
+      <td class="left"><strong>{{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}</strong></td>
+      {% for p in produits %}
+      {% comment %}Volumes par produit via Excel{% endcomment %}
+      <td colspan="8" class="num" style="text-align:center;font-size:.72rem;color:var(--muted)">→ voir export Excel</td>
+      {% endfor %}
+      <td class="num">{{ ligne.volume_global_sorti|floatformat:2|intcomma }}</td>
+      <td class="num">{{ ligne.prix_unitaire|floatformat:4 }}</td>
+      <td class="num"><strong>{{ ligne.montant|floatformat:2|intcomma }}</strong></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p style="font-size:.75rem;color:var(--muted);margin-top:8px">ℹ Utilisez <strong>↓ Excel</strong> pour la vue complète avec toutes les colonnes par produit.</p>
+{% endwith %}
+{% endif %}
+{% endblock %}

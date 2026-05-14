@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% load user_tags %}
+{% block title %}{{ utilisateur.get_full_name|default:utilisateur.username }}{% endblock %}
+{% block breadcrumb %}
+  <a href="{% url 'users_liste' %}">Utilisateurs</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">{{ utilisateur.username }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Profil utilisateur</h1>
+    <div class="ph-sub">Détails et historique d'actions</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start">
+  <!-- Colonne gauche -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <!-- Hero card -->
+    <div class="card" style="overflow:hidden">
+      <div style="background:var(--ink);padding:24px;position:relative;overflow:hidden">
+        <div style="position:absolute;inset:0;opacity:.08;background:radial-gradient(circle at 80% 20%,var(--accent) 0%,transparent 60%)"></div>
+        <div style="position:relative;display:flex;flex-direction:column;align-items:center;text-align:center">
+          <div style="width:68px;height:68px;border-radius:16px;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;color:#fff;margin-bottom:14px;overflow:hidden">
+            {% if utilisateur.profile.photo %}
+              <img src="{{ utilisateur.profile.photo.url }}" alt="" style="width:100%;height:100%;object-fit:cover">
+            {% else %}
+              {{ utilisateur.username|slice:":2"|upper }}
+            {% endif %}
+          </div>
+          <div style="font-size:1.1rem;font-weight:700;color:#fff;margin-bottom:3px">{{ utilisateur.get_full_name|default:utilisateur.username }}</div>
+          <div style="font-size:.82rem;color:rgba(255,255,255,.5);margin-bottom:10px">@{{ utilisateur.username }}</div>
+          {% if utilisateur.profile %}{% role_badge utilisateur %}{% endif %}
+        </div>
+      </div>
+      <div style="padding:14px 20px">
+        <a href="{% url 'users_modifier' utilisateur.pk %}" class="btn btn-accent" style="width:100%;justify-content:center">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Modifier
+        </a>
+      </div>
+    </div>
+
+    <!-- Infos du compte -->
+    <div class="detail-card">
+      <div class="detail-card-header">Informations du compte</div>
+      <div class="detail-card-body">
+        <div class="detail-field"><span class="detail-label">Email</span><span class="detail-value" style="font-size:.82rem">{{ utilisateur.email|default:"—" }}</span></div>
+        <div class="detail-field"><span class="detail-label">Téléphone</span><span class="detail-value">{{ utilisateur.profile.telephone|default:"—" }}</span></div>
+        <div class="detail-field"><span class="detail-label">Fonction</span><span class="detail-value">{{ utilisateur.profile.poste|default:"—" }}</span></div>
+        <div class="detail-field">
+          <span class="detail-label">Statut</span>
+          <span class="detail-value">
+            {% if utilisateur.is_active and utilisateur.profile.actif %}<span class="bdg ok">Actif</span>{% else %}<span class="bdg err">Inactif</span>{% endif %}
+          </span>
+        </div>
+        <div class="detail-field"><span class="detail-label">Admin Django</span><span class="detail-value">{% if utilisateur.is_staff %}Oui{% else %}Non{% endif %}</span></div>
+        <div class="detail-field"><span class="detail-label">Dernière IP</span><span class="detail-value mono" style="font-size:.78rem">{{ utilisateur.profile.derniere_ip|default:"—" }}</span></div>
+        <div class="detail-field"><span class="detail-label">Inscription</span><span class="detail-value" style="font-size:.8rem">{{ utilisateur.date_joined|date:"d/m/Y H:i" }}</span></div>
+      </div>
+    </div>
+
+    {% if utilisateur.profile.notes_admin %}
+    <div class="detail-card">
+      <div class="detail-card-header">Notes admin</div>
+      <div class="detail-card-body" style="padding:14px 20px;font-size:.855rem;line-height:1.6">{{ utilisateur.profile.notes_admin }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Colonne droite : audit -->
+  <div>
+    <div style="font-size:.95rem;font-weight:700;color:var(--ink);margin-bottom:14px">
+      Dernières actions
+      <span style="font-size:.75rem;font-weight:500;color:var(--muted);margin-left:8px">(30 dernières)</span>
+    </div>
+
+    <div class="card">
+      {% if dernieres_actions %}
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Horodatage</th>
+            <th>Action</th>
+            <th>Objet</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in dernieres_actions %}
+          <tr>
+            <td class="mono" style="font-size:.78rem;color:var(--muted);white-space:nowrap">{{ log.horodatage|date:"d/m/Y H:i:s" }}</td>
+            <td>
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:.72rem;font-weight:600;background:
+                {% if log.action == 'CREATE' %}#dcfce7;color:#166534
+                {% elif log.action == 'UPDATE' %}#fef9c3;color:#854d0e
+                {% elif log.action == 'DELETE' %}#fee2e2;color:#991b1b
+                {% elif log.action == 'LOGIN' %}#dbeafe;color:#1d4ed8
+                {% elif log.action == 'LOGOUT' %}#f1f5f9;color:#475569
+                {% elif log.action == 'LOGIN_FAILED' %}#fff7ed;color:#c2410c
+                {% elif log.action == 'EXPORT' %}#f3e8ff;color:#7e22ce
+                {% elif log.action == 'CLOSE' %}#f1f5f9;color:#334155
+                {% elif log.action == 'OPEN' %}#ccfbf1;color:#0f766e
+                {% else %}#f1f5f9;color:#475569{% endif %}">
+                {{ log.action|action_icon }} {{ log.get_action_display }}
+              </span>
+            </td>
+            <td style="font-size:.8rem">
+              {% if log.objet_type %}
+                <span style="color:var(--muted)">{{ log.objet_type }}</span>
+                {% if log.objet_repr %}<span style="font-size:.75rem;display:block;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ log.objet_repr }}">{{ log.objet_repr }}</span>{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <span style="padding:2px 7px;border-radius:5px;font-size:.7rem;font-weight:600;
+                {% if log.source == 'WEB' %}background:#eff6ff;color:#1e40af
+                {% elif log.source == 'ADMIN' %}background:#f3e8ff;color:#6b21a8
+                {% else %}background:#f1f5f9;color:#475569{% endif %}">
+                {{ log.source }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div style="padding:10px 16px;border-top:1px solid var(--border);text-align:center">
+        <a href="{% url 'users_audit' %}?user={{ utilisateur.pk }}" style="font-size:.8rem;color:var(--accent);font-weight:600;text-decoration:none">
+          Voir tout le journal d'audit →
+        </a>
+      </div>
+      {% else %}
+      <div class="tbl-empty" style="padding:40px 24px;text-align:center">
+        <p style="font-size:.855rem">Aucune action enregistrée pour cet utilisateur.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

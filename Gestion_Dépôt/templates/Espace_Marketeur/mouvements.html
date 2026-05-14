@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Mes mouvements — {{ mkt.raison_sociale }}{% endblock %}
+{% block nav_client_mouvements %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="{% url 'client_dashboard' %}">Mon Espace</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Mes mouvements</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Mes mouvements</h1>
+    <div class="ph-sub">{{ mkt.raison_sociale }} — tous les mouvements de produits</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'client_dashboard' %}" class="btn btn-ghost">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><polyline points="15 18 9 12 15 6"/></svg>
+      Retour
+    </a>
+  </div>
+</div>
+
+<!-- Totaux -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi">
+    <div class="kpi-label">Entrées @15°C</div>
+    <div class="kpi-val mono" style="color:var(--ok)">{{ totaux.vol_15c_entree|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Sorties @15°C</div>
+    <div class="kpi-val mono" style="color:var(--err)">{{ totaux.vol_15c_sortie|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Vol. ambiant entré</div>
+    <div class="kpi-val mono">{{ totaux.vol_amb_entree|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Vol. ambiant sorti</div>
+    <div class="kpi-val mono">{{ totaux.vol_amb_sortie|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  {% if totaux.vol_cession %}
+  <div class="kpi">
+    <div class="kpi-label">Cessions @15°C</div>
+    <div class="kpi-val mono" style="color:var(--info)">{{ totaux.vol_cession|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get" action="">
+  <div class="filter-bar">
+    <select name="type" class="select" style="min-width:150px">
+      <option value="">— Tous les types —</option>
+      {% for code, libelle in TYPE_CHOICES %}
+      <option value="{{ code }}" {% if type_filtre == code %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <select name="produit" class="select">
+      <option value="">— Tous les produits —</option>
+      {% for p in produits %}
+      <option value="{{ p.pk }}" {% if produit_filtre == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
+      {% endfor %}
+    </select>
+    <select name="regime" class="select">
+      <option value="">— Tous régimes —</option>
+      {% for code, libelle in REGIME_CHOICES %}
+      <option value="{{ code }}" {% if regime_filtre == code %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="date_debut" class="input" value="{{ date_debut }}" style="width:130px">
+    <input type="date" name="date_fin" class="input" value="{{ date_fin }}" style="width:130px">
+    <button type="submit" class="btn btn-accent btn-sm">Filtrer</button>
+    {% if type_filtre or produit_filtre or regime_filtre or date_debut or date_fin %}
+    <a href="{% url 'client_mouvements' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
+    {% endif %}
+    <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;margin-left:auto">
+      <strong style="color:var(--ink)">{{ total_count }}</strong> résultat{{ total_count|pluralize }}
+    </span>
+  </div>
+  </form>
+
+  {% if page_obj.object_list %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>N° Enregistrement</th>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Produit</th>
+        <th>Régime</th>
+        <th class="tar">Vol. ambiant (L)</th>
+        <th class="tar">Vol. @15°C (L)</th>
+        <th>Camion</th>
+        <th>Chauffeur</th>
+        <th>Info complémentaire</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mvt in page_obj %}
+      <tr>
+        <td class="mono" style="font-size:.75rem;color:var(--muted)">{{ mvt.numero_enregistrement|default:"—" }}</td>
+        <td style="white-space:nowrap">{{ mvt.date_mouvement|date:"d/m/Y" }}</td>
+        <td>
+          {% if mvt.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+          {% elif mvt.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+          {% elif mvt.type_mouvement == 'CESSION' %}<span class="bdg-type cession">Cession</span>
+          {% elif mvt.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg-type acquit">Acquittement</span>
+          {% else %}<span class="bdg">{{ mvt.get_type_mouvement_display }}</span>{% endif %}
+        </td>
+        <td style="font-weight:500">{{ mvt.produit.nom }}</td>
+        <td>
+          {% if mvt.regime_douanier == 'ACQUITTE' %}<span class="bdg ok">Acquitté</span>
+          {% else %}<span class="bdg warn">Sous douane</span>{% endif %}
+        </td>
+        <td class="num tar" style="color:var(--muted)">{% if mvt.volume_ambiant_principal %}{{ mvt.volume_ambiant_principal|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="num tar" style="font-weight:700">{% if mvt.volume_principal %}{{ mvt.volume_principal|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.78rem">{% if mvt.camion %}<span title="{{ mvt.camion.marque }} {{ mvt.camion.modele }}">{{ mvt.camion.immatriculation }}</span>{% else %}—{% endif %}</td>
+        <td style="font-size:.78rem">{% if mvt.chauffeur %}{{ mvt.chauffeur.nom_complet }}{% else %}—{% endif %}</td>
+        <td style="font-size:.75rem;color:var(--muted)">
+          {% if mvt.type_mouvement == 'ENTREE' %}
+            {% if mvt.provenance %}De : {{ mvt.provenance }}{% endif %}
+            {% if mvt.bl_client %}<br>BL : {{ mvt.bl_client }}{% endif %}
+          {% elif mvt.type_mouvement == 'SORTIE' %}
+            {% if mvt.destination %}Vers : {{ mvt.destination }}{% endif %}
+            {% if mvt.mode_reglement %}<br>{{ mvt.get_mode_reglement_display }}{% endif %}
+          {% elif mvt.type_mouvement == 'CESSION' %}
+            {% if mvt.cession_marketeur_destinataire %}→ {{ mvt.cession_marketeur_destinataire.sigle|default:mvt.cession_marketeur_destinataire.raison_sociale }}{% endif %}
+            {% if mvt.cession_motif %}<br>{{ mvt.cession_motif }}{% endif %}
+          {% elif mvt.type_mouvement == 'ACQUITTEMENT' %}
+            {% if mvt.acquittement_reference_declaration %}Réf : {{ mvt.acquittement_reference_declaration }}{% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination">
+    <span>Page {{ page_obj.number }} sur {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} résultat{{ page_obj.paginator.count|pluralize }})</span>
+    <span class="step-links">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}&type={{ type_filtre }}&produit={{ produit_filtre }}&regime={{ regime_filtre }}&date_debut={{ date_debut }}&date_fin={{ date_fin }}">‹</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+          <span class="current">{{ num }}</span>
+        {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+          <a href="?page={{ num }}&type={{ type_filtre }}&produit={{ produit_filtre }}&regime={{ regime_filtre }}&date_debut={{ date_debut }}&date_fin={{ date_fin }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}&type={{ type_filtre }}&produit={{ produit_filtre }}&regime={{ regime_filtre }}&date_debut={{ date_debut }}&date_fin={{ date_fin }}">›</a>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="tbl-empty" style="padding:48px 24px;text-align:center">
+    {% if type_filtre or produit_filtre or regime_filtre or date_debut or date_fin %}
+      Aucun mouvement ne correspond aux filtres sélectionnés.
+      <br><a href="{% url 'client_mouvements' %}" style="color:var(--accent);margin-top:8px;display:inline-block">Réinitialiser les filtres</a>
+    {% else %}
+      Aucun mouvement enregistré pour votre compte.
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

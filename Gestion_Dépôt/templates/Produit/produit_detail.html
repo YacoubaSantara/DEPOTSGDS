@@ -1,0 +1,124 @@
+﻿{% extends 'base.html' %}
+{% load jaugeage_extras %}
+{% block title %}{{ produit.nom }}{% endblock %}
+{% block nav_produit %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'produit_list' %}">Produits</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ produit.nom }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="hero" style="margin-bottom:20px">
+  <div class="hero-row">
+    <div>
+      <div class="hero-eyebrow">{{ produit.code }}</div>
+      <div class="hero-title">{{ produit.nom }}</div>
+      <div class="hero-meta">
+        <a href="{% url 'famille_detail' produit.famille.pk %}" style="display:inline-flex;align-items:center;gap:5px;color:inherit">
+          <span style="width:8px;height:8px;border-radius:50%;background:{{ produit.famille.couleur }};display:inline-block"></span>
+          {{ produit.famille.nom }}
+        </a>
+        &nbsp;·&nbsp; {{ produit.get_unite_mesure_display }}
+        &nbsp;·&nbsp;
+        {% if produit.statut == 'ACTIF' %}<span class="bdg ok">Actif</span>
+        {% elif produit.statut == 'INACTIF' %}<span class="bdg">Inactif</span>
+        {% else %}<span class="bdg warn">Discontinué</span>{% endif %}
+        &nbsp;·&nbsp; Stock : <span class="mono">{{ produit.stock_actuel|fmt_vol }}&thinsp;L</span>
+        {% if produit.seuil_alerte and produit.stock_actuel < produit.seuil_alerte %}
+        <span class="bdg err" style="margin-left:4px">ALERTE STOCK</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="hero-actions">
+      <a href="{% url 'produit_list' %}" class="hero-btn">← Retour</a>
+      <a href="{% url 'produit_update' produit.pk %}" class="hero-btn primary">Modifier</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Caractéristiques -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Caractéristiques</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Nom</span><span style="font-size:.85rem;font-weight:600">{{ produit.nom }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Code</span><span><code style="background:var(--bg);padding:2px 8px;border-radius:5px;color:var(--navy)">{{ produit.code }}</code></span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Famille</span><span style="font-size:.85rem;font-weight:500">{{ produit.famille.nom }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Unité de mesure</span><span style="font-size:.85rem;font-weight:500">{{ produit.get_unite_mesure_display }}</span></div>
+        {% if produit.prix_unitaire %}
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Prix unitaire</span><span style="font-size:.85rem;font-weight:500">{{ produit.prix_unitaire }} FCFA</span></div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.78rem;color:var(--muted)">Frais de passage</span>
+          <span style="font-size:.85rem;font-weight:500">
+            {% if produit.prix_passage %}<span class="mono">{{ produit.prix_passage|floatformat:4 }} FCFA/L</span>
+            {% else %}<span style="color:var(--muted);font-size:.8rem">Tarif global</span>{% endif %}
+          </span>
+        </div>
+        {% if produit.seuil_alerte %}
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Seuil d'alerte</span><span style="font-size:.85rem;font-weight:500;color:var(--warn)">{{ produit.seuil_alerte|floatformat:0 }} {{ produit.get_unite_mesure_display }}</span></div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Statut</span><span>{% if produit.statut == 'ACTIF' %}<span class="bdg ok">Actif</span>{% elif produit.statut == 'INACTIF' %}<span class="bdg">Inactif</span>{% else %}<span class="bdg warn">Discontinué</span>{% endif %}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.78rem;color:var(--muted)">Stock actuel</span>
+          <span class="mono" style="font-size:.85rem;font-weight:600;color:var(--navy)">{{ produit.stock_actuel|fmt_vol }}&thinsp;L
+            {% if produit.seuil_alerte and produit.stock_actuel < produit.seuil_alerte %}<span class="bdg err" style="font-size:.65rem;margin-left:4px">Alerte</span>{% endif %}
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Dernière MAJ stock</span><span style="font-size:.85rem;color:var(--muted)">{% if produit.date_maj_stock %}{{ produit.date_maj_stock|date:"d/m/Y à H:i" }}{% else %}—{% endif %}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Créé le</span><span style="font-size:.85rem;font-weight:500">{{ produit.date_creation|date:"d/m/Y" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:9px 0"><span style="font-size:.78rem;color:var(--muted)">Modifié le</span><span style="font-size:.85rem;font-weight:500">{{ produit.date_modification|date:"d/m/Y à H:i" }}</span></div>
+      </div>
+      {% if produit.notes %}
+      <div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:8px;font-size:.82rem;color:var(--muted);line-height:1.6">{{ produit.notes }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Cuves liées -->
+  <div class="card">
+    <div class="card-h">
+      <div class="card-h-title">Cuves stockant ce produit</div>
+      <a href="{% url 'cuve_create' %}" style="font-size:.75rem;color:var(--orange);font-weight:600;text-decoration:none;margin-left:auto">+ Ajouter</a>
+    </div>
+    <div class="card-b">
+      {% if cuves %}
+      <div style="display:flex;flex-direction:column;gap:10px">
+        {% for cuve in cuves %}
+        <a href="{% url 'cuve_detail' cuve.pk %}" style="text-decoration:none;display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+          <span style="font-family:inherit;font-size:.78rem;font-weight:700;color:var(--navy);background:var(--bg-alt,#e8f0fb);padding:3px 8px;border-radius:6px">{{ cuve.numero }}</span>
+          <div style="flex:1">
+            <div style="font-size:.85rem;font-weight:600;color:var(--text)">{{ cuve.designation }}</div>
+            {% if cuve.localisation %}<div style="font-size:.73rem;color:var(--muted);margin-top:1px">{{ cuve.localisation }}</div>{% endif %}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:4px">{{ cuve.taux_remplissage }}%</div>
+            <div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="height:100%;border-radius:3px;width:{{ cuve.taux_remplissage }}%;background:{% if cuve.taux_remplissage > 70 %}var(--ok,#16a34a){% elif cuve.taux_remplissage > 30 %}var(--orange){% else %}var(--err){% endif %}"></div>
+            </div>
+          </div>
+          {% if cuve.statut == 'ACTIVE' %}<span class="bdg ok" style="font-size:.65rem">Active</span>
+          {% elif cuve.statut == 'EN_MAINTENANCE' %}<span class="bdg warn" style="font-size:.65rem">Maintenance</span>
+          {% elif cuve.statut == 'HORS_SERVICE' %}<span class="bdg err" style="font-size:.65rem">Hors service</span>
+          {% else %}<span class="bdg" style="font-size:.65rem">Inactive</span>{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+        <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--border);fill:none;margin-bottom:10px"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+        <div style="font-size:.85rem">Aucune cuve ne stocke ce produit</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:20px">
+  <a href="{% url 'produit_delete' produit.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce produit</a>
+</div>
+{% endblock %}

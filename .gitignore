@@ -1,0 +1,33 @@
+# Environnement virtuel Python
+env/
+venv/
+.env
+
+# Claude Code settings
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Django
+*.log
+db.sqlite3
+local_settings.py
+media/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

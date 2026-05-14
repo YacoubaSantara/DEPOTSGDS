@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Marketeurs{% endblock %}
+{% block nav_marketeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Marketeurs</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Marketeurs</h1>
+    <p class="ph-sub">Gestion des sociétés partenaires</p>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'marketeur_create' %}" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau Marketeur
+    </a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" style="margin-bottom:24px">
+  <div class="kpi">
+    <div class="kpi-label">Total marketeurs</div>
+    <div class="kpi-val mono">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Actifs</div>
+    <div class="kpi-val mono">{{ nb_actif }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Suspendus</div>
+    <div class="kpi-val mono">{{ nb_suspendu }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Blacklistés</div>
+    <div class="kpi-val mono">{{ nb_black }}</div>
+  </div>
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get">
+  <div class="filter-bar">
+    <div style="position:relative;flex:1;min-width:200px">
+      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);fill:none;pointer-events:none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="search-input" type="text" name="q" value="{{ q }}" placeholder="Rechercher par nom, sigle, ville…"/>
+    </div>
+    <select class="select" name="statut" onchange="this.form.submit()">
+      <option value="">Tous les statuts</option>
+      <option value="ACTIF"     {% if statut == 'ACTIF'     %}selected{% endif %}>Actif</option>
+      <option value="INACTIF"   {% if statut == 'INACTIF'   %}selected{% endif %}>Inactif</option>
+      <option value="SUSPENDU"  {% if statut == 'SUSPENDU'  %}selected{% endif %}>Suspendu</option>
+      <option value="BLACKLIST" {% if statut == 'BLACKLIST' %}selected{% endif %}>Blacklisté</option>
+    </select>
+    <select class="select" name="ville" onchange="this.form.submit()">
+      <option value="">Toutes les villes</option>
+      {% for v in villes %}
+        <option value="{{ v }}" {% if ville == v %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-accent btn-sm">
+      <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Rechercher
+    </button>
+    {% if q or statut or ville %}
+      <a href="{% url 'marketeur_list' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
+    {% endif %}
+    <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;margin-left:auto">{{ count }} résultat{% if count != 1 %}s{% endif %}</span>
+  </div>
+  </form>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Société</th>
+        <th>Forme</th>
+        <th>Ville</th>
+        <th>Téléphone</th>
+        <th>Email</th>
+        <th>Statut</th>
+        <th class="tar">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mkt in marketeurs %}
+      <tr class="clickable" onclick="window.location='{% url 'marketeur_detail' mkt.pk %}'">
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            {% if mkt.logo %}
+              <img style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0" src="{{ mkt.logo.url }}" alt="{{ mkt.raison_sociale }}"/>
+            {% else %}
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff;background:var(--navy);flex-shrink:0">{{ mkt.raison_sociale|slice:":2"|upper }}</div>
+            {% endif %}
+            <div>
+              <div style="font-weight:600">{{ mkt.raison_sociale }}</div>
+              <div style="font-size:.72rem;color:var(--muted)">{{ mkt.sigle|default:"—" }}</div>
+            </div>
+          </div>
+        </td>
+        <td>{{ mkt.forme_juridique }}</td>
+        <td>{{ mkt.ville }}</td>
+        <td class="mono">{{ mkt.telephone }}</td>
+        <td>{{ mkt.email|default:"—" }}</td>
+        <td>
+          {% if mkt.statut == 'ACTIF' %}<span class="bdg ok">{{ mkt.get_statut_display }}</span>
+          {% elif mkt.statut == 'SUSPENDU' %}<span class="bdg warn">{{ mkt.get_statut_display }}</span>
+          {% elif mkt.statut == 'BLACKLIST' %}<span class="bdg err">{{ mkt.get_statut_display }}</span>
+          {% else %}<span class="bdg info">{{ mkt.get_statut_display }}</span>{% endif %}
+        </td>
+        <td class="tar" onclick="event.stopPropagation()">
+          <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+            <a href="{% url 'marketeur_detail' mkt.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'marketeur_update' mkt.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'marketeur_delete' mkt.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty">
+        <td colspan="7">
+          Aucun marketeur trouvé.
+          {% if q or statut or ville %}Modifiez vos filtres ou <a href="{% url 'marketeur_list' %}">réinitialisez</a>.{% else %}Commencez par <a href="{% url 'marketeur_create' %}">ajouter un marketeur</a>.{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

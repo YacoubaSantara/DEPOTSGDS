@@ -1,0 +1,101 @@
+﻿{% extends "base.html" %}
+{% block title %}Paramètres — {{ parametre.cuve.numero }}{% endblock %}
+{% block nav_parametre %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'parametre_list' %}">Paramètres jaugeage</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">{{ parametre.cuve.numero }}</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.hero{background:linear-gradient(135deg,#064e3b 0%,#065f46 100%);border-radius:var(--radius);padding:26px 30px;margin-bottom:24px;color:#fff;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.hero-tag{font-size:.65rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:6px}
+.hero-title{font-family:inherit;font-size:1.6rem;font-weight:700}
+.hero-sub{font-size:.85rem;color:rgba(255,255,255,.65);margin-top:4px}
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
+
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.info-card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);overflow:hidden}
+.info-card-header{background:var(--bg);padding:14px 18px;border-bottom:1px solid var(--border);font-family:inherit;font-size:.85rem;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px}
+.info-card-header svg{width:15px;height:15px;stroke:var(--orange);fill:none}
+.info-body{padding:16px 18px;display:flex;flex-direction:column;gap:0}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-label{font-size:.78rem;color:var(--muted);font-weight:500}
+.info-value{font-size:.88rem;font-weight:700;color:var(--text);font-family:'Courier New',monospace}
+.info-value.text{font-family:inherit;font-weight:600}
+.badge-pompe{background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hero">
+  <div>
+    <div class="hero-tag">Paramètres de jaugeage</div>
+    <div class="hero-title">{{ parametre.cuve.numero }}</div>
+    <div class="hero-sub">{{ parametre.cuve.designation }}</div>
+  </div>
+  <div class="hero-actions">
+    {% if parametre.is_pompe %}<span class="badge-pompe">Pompe (index)</span>{% endif %}
+    {% if not request.user.is_marketeur_role %}
+    <a href="{% url 'parametre_create_update' parametre.cuve.pk %}" class="btn btn-primary" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Modifier
+    </a>
+    <a href="{% url 'parametre_delete' parametre.pk %}" class="btn btn-danger" style="background:rgba(220,38,38,.25);border:1px solid rgba(220,38,38,.4);color:#fca5a5">Supprimer</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="info-grid">
+  <!-- Caractéristiques physiques -->
+  <div class="info-card">
+    <div class="info-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Caractéristiques physiques
+    </div>
+    <div class="info-body">
+      <div class="info-row"><span class="info-label">HTT — Hauteur Totale Témoin</span><span class="info-value">{{ parametre.hauteur_totale_temoin }} mm</span></div>
+      <div class="info-row"><span class="info-label">Hml — Hauteur min. livraison</span><span class="info-value">{{ parametre.hauteur_min_livraison }} mm</span></div>
+      <div class="info-row"><span class="info-label">Correction creux (L2)</span><span class="info-value">{{ parametre.correction_creux }} mm</span></div>
+      <div class="info-row"><span class="info-label">Remplissage maxi</span><span class="info-value">{{ parametre.remplissage_maxi|floatformat:0 }} L</span></div>
+    </div>
+  </div>
+
+  <!-- Certificat -->
+  <div class="info-card">
+    <div class="info-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Certificat de jaugeage
+    </div>
+    <div class="info-body">
+      <div class="info-row"><span class="info-label">V(A) — Volume certificat</span><span class="info-value">{{ parametre.v_a }} L</span></div>
+      <div class="info-row"><span class="info-label">V/mn — Volume par mm</span><span class="info-value">{{ parametre.v_mn }} L/mm</span></div>
+      <div class="info-row"><span class="info-label">Référence certificat</span><span class="info-value text">{{ parametre.reference_certificat|default:"—" }}</span></div>
+      <div class="info-row"><span class="info-label">Date certificat</span><span class="info-value text">{{ parametre.date_certificat|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="info-row"><span class="info-label">Organisme</span><span class="info-value text">{{ parametre.organisme_certificateur|default:"—" }}</span></div>
+      <div class="info-row"><span class="info-label">Prochain jaugeage</span><span class="info-value text">{{ parametre.date_prochain_jaugeage|date:"d/m/Y"|default:"—" }}</span></div>
+    </div>
+  </div>
+</div>
+
+{% if parametre.notes %}
+<div style="background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:16px 20px;margin-bottom:16px">
+  <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Notes</div>
+  <p style="font-size:.875rem;color:var(--text)">{{ parametre.notes }}</p>
+</div>
+{% endif %}
+
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <a href="{% url 'parametre_list' %}" class="btn btn-secondary">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Retour à la liste
+  </a>
+  <a href="{% url 'cuve_detail' parametre.cuve.pk %}" class="btn btn-secondary">
+    Voir la cuve
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  </a>
+</div>
+{% endblock %}

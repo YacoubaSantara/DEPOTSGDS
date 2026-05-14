@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% load jaugeage_extras %}
+{% block title %}Jaugeages{% endblock %}
+{% block page_title %}Jaugeages{% endblock %}
+
+{% block extra_head %}
+<style>
+.nb-mesures{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;font-weight:700}
+.stock-bandeau{background:var(--ink);border-radius:var(--radius);padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.stock-bandeau-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+.stock-items{display:flex;align-items:center;gap:0;flex:1;flex-wrap:wrap}
+.stock-item{display:flex;align-items:center;gap:8px;padding:0 16px;border-right:1px solid rgba(255,255,255,.12)}
+.stock-item:first-child{padding-left:0}
+.stock-item:last-child{border-right:none}
+.stock-nom{font-size:11.5px;color:rgba(255,255,255,.65);font-weight:500}
+.stock-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--accent-light,#f4b87e)}
+.stock-maj{margin-left:auto;font-size:11px;color:rgba(255,255,255,.4);white-space:nowrap;padding-left:16px}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Jaugeages</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Jaugeages</h1>
+    <div class="ph-sub">Historique des jaugeages journaliers du dépôt</div>
+  </div>
+  {% if not request.user.is_marketeur_role %}
+  <div class="ph-actions">
+    <a href="{% url 'jaugeage_create' %}" class="btn btn-accent">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau jaugeage
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Bandeau stock actuel par produit -->
+{% if stocks_produits %}
+<div class="stock-bandeau">
+  <div class="stock-bandeau-title">Stock&nbsp;actuel</div>
+  <div class="stock-items">
+    {% for p in stocks_produits %}
+    <div class="stock-item">
+      <span class="stock-nom">{{ p.nom }}</span>
+      <span class="stock-val">{{ p.stock_actuel|fmt_vol }}&thinsp;L</span>
+    </div>
+    {% endfor %}
+    {% if date_derniere_maj %}
+    <span class="stock-maj">MAJ&nbsp;: {{ date_derniere_maj|date:"d/m/Y" }} à {{ date_derniere_maj|date:"H:i" }}</span>
+    {% else %}
+    <span class="stock-maj" style="font-style:italic">Aucun jaugeage validé</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- KPI strip -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi" style="background:var(--ink);color:#fff">
+    <div class="kpi-label" style="color:rgba(255,255,255,.6)">Total jaugeages</div>
+    <div class="kpi-val mono" style="color:#fff">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Avant (AVR)</div>
+    <div class="kpi-val mono" style="color:var(--info)">{{ nb_avr }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Après (APR)</div>
+    <div class="kpi-val mono kpi-val-apr">{{ nb_apr }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Normal (J)</div>
+    <div class="kpi-val mono" style="color:var(--ok)">{{ nb_j }}</div>
+  </div>
+</div>
+
+<!-- Filtres -->
+<div class="card" style="margin-bottom:16px">
+  <form method="get" class="filter-bar">
+    <div class="filter-group">
+      <label>Recherche</label>
+      <input type="text" class="input" name="q" value="{{ q }}" placeholder="Opérateur, dépôt…" style="min-width:180px">
+    </div>
+    <div class="filter-group">
+      <label>Type</label>
+      <select class="select" name="type_jaugeage">
+        <option value="">Tous</option>
+        {% for val,lbl in type_choices %}
+        <option value="{{ val }}" {% if type_jaugeage == val %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Début</label>
+      <input type="date" class="input" name="date_debut" value="{{ date_debut }}" style="width:130px">
+    </div>
+    <div class="filter-group">
+      <label>Fin</label>
+      <input type="date" class="input" name="date_fin" value="{{ date_fin }}" style="width:130px">
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <button type="submit" class="btn btn-sm btn-accent">Filtrer</button>
+      {% if q or type_jaugeage or date_debut or date_fin %}
+      <a href="{% url 'jaugeage_list' %}" class="btn btn-sm btn-ghost">Réinitialiser</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Table -->
+<div class="card">
+  {% if jaugeages_with_totals %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Heure</th>
+        <th>Opérateur</th>
+        <th>Mesures</th>
+        <th class="tar">Vol. total amb</th>
+        <th class="tar">Vol. total @15°C</th>
+        <th>Statut</th>
+        <th>Créé le</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for j, vol_total, vol_vad in jaugeages_with_totals %}
+      <tr class="clickable" onclick="window.location='{% url 'jaugeage_detail' j.pk %}'">
+        <td class="mono" style="font-weight:700">{{ j.date_jaugeage|date:"d/m/Y" }}</td>
+        <td>
+          {% if j.type_jaugeage == 'AVR' %}<span class="bdg info">Avant</span>
+          {% elif j.type_jaugeage == 'APR' %}<span class="bdg bdg-apr">Après</span>
+          {% else %}<span class="bdg ok">Normal</span>
+          {% endif %}
+        </td>
+        <td class="mono">{{ j.heure_jaugeage|time:"H:i"|default:"—" }}</td>
+        <td>{{ j.operateur|default:"—" }}</td>
+        <td><span class="nb-mesures">{{ j.mesures.count }}</span></td>
+        <td class="num tar">
+          {% if vol_vad %}<span class="mono">{{ vol_vad|fmt_vol }}&nbsp;L</span>
+          {% else %}<span style="color:var(--border)">—</span>{% endif %}
+        </td>
+        <td class="num tar">
+          {% if vol_total %}<span class="mono" style="color:var(--ok)">{{ vol_total|fmt_vol }}&nbsp;L</span>
+          {% else %}<span style="color:var(--border)">—</span>{% endif %}
+        </td>
+        <td>
+          {% if j.est_valide %}<span class="bdg ok">Validé</span>
+          {% else %}<span class="bdg warn">Brouillon</span>{% endif %}
+        </td>
+        <td class="mono" style="font-size:11px;color:var(--muted)">{{ j.date_creation|date:"d/m/Y H:i" }}</td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px">
+            <a href="{% url 'jaugeage_detail' j.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            {% if not request.user.is_marketeur_role %}
+            <a href="{% url 'jaugeage_saisie' j.pk %}" class="btn btn-sm btn-accent">Saisie</a>
+            {% endif %}
+            <a href="{% url 'jaugeage_rapport' j.pk %}" class="btn btn-sm btn-ghost" title="Rapport A4">
+              <svg viewBox="0 0 24 24" stroke-width="2" style="width:12px;height:12px;stroke:currentColor;fill:none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="tbl-empty" style="padding:60px 20px;text-align:center">
+    <svg viewBox="0 0 24 24" stroke-width="1.5" style="width:44px;height:44px;stroke:var(--border);fill:none;margin-bottom:12px;display:block;margin-inline:auto"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+    <div style="font-weight:600;font-size:13.5px;color:var(--ink);margin-bottom:6px">Aucun jaugeage trouvé</div>
+    <p style="font-size:12.5px;color:var(--muted)">{% if q or type_jaugeage or date_debut or date_fin %}Aucun résultat pour ces filtres.{% else %}Commencez par créer un nouveau jaugeage.{% endif %}</p>
+    {% if not request.user.is_marketeur_role and not q and not type_jaugeage and not date_debut and not date_fin %}
+    <a href="{% url 'jaugeage_create' %}" class="btn btn-accent" style="margin-top:14px">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Créer le premier jaugeage
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

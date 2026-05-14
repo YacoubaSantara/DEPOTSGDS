@@ -1,0 +1,160 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Stock Fermeture{% endblock %}
+{% block nav_etat_mensuel_stock_fermeture %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="#">États</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Stock Fermeture</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:160px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;text-decoration:none}
+.produit-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:24px;overflow:hidden;box-shadow:var(--shadow)}
+.produit-title{background:var(--navy);color:#fff;padding:12px 18px;font-weight:700;font-size:.95rem}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{padding:9px 14px;text-align:left;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border)}
+th.right{text-align:right}
+td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text)}
+td.right{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.82rem}
+tr.section-header td{background:#f0f4f8;font-weight:700;color:var(--navy);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+tr.total-row td{background:#e8f0fe;font-weight:700;border-top:2px solid var(--navy)}
+tr.stock-fin-row td{background:#fff9c4;font-weight:700;border-top:2px solid #e6b800}
+tr.physique-row td{background:#e8f5e9;font-weight:700}
+tr.perte-row td{background:#fce8e6;color:#c62828;font-weight:700}
+tr.gain-row td{background:#e8f5e9;color:#2e7d32;font-weight:700}
+.num-zero{color:var(--muted);opacity:.5}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr.section-header td{background:var(--surface-2);color:var(--accent-ink)}
+[data-theme="dark"] tr.total-row td{background:rgba(59,130,246,.08)}
+[data-theme="dark"] tr.stock-fin-row td{background:rgba(245,158,11,.1);border-top-color:var(--warn)}
+[data-theme="dark"] tr.physique-row td{background:rgba(34,197,94,.08)}
+[data-theme="dark"] tr.perte-row td{background:rgba(239,68,68,.1);color:var(--err)}
+[data-theme="dark"] tr.gain-row td{background:rgba(34,197,94,.08);color:var(--ok)}
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="STOCKS DE FERMETURE" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Stock de Fermeture</h1>
+    <p class="page-subtitle">
+      {% if periode %}{{ periode }}{% else %}Sélectionnez une période{% endif %}
+      {% if produit_filtre %} — {{ produit_filtre.nom|upper }}{% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and lignes %}
+    <a href="{% url 'etat_mensuel_stock_fermeture_export' %}?periode_id={{ periode.pk }}{% if produit_filtre %}&produit_id={{ produit_filtre.pk }}{% endif %}"
+       class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Produit</label>
+        <select name="produit_id">
+          <option value="">— Tous les produits —</option>
+          {% for p in produits %}<option value="{{ p.pk }}" {% if produit_filtre and produit_filtre.pk == p.pk %}selected{% endif %}>{{ p.nom }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+        <a href="{% url 'etat_mensuel_stock_fermeture' %}" class="btn-reset">Réinitialiser</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if not periode %}
+<div class="empty-state"><p>Aucune période comptable disponible.</p></div>
+{% elif not lignes %}
+<div class="empty-state"><p>Aucune donnée pour cette période{% if produit_filtre %} et ce produit{% endif %}.</p></div>
+{% else %}
+{% for ligne in lignes %}
+<div class="produit-block">
+  <div class="produit-title">{{ ligne.produit.nom|upper }}</div>
+  <table>
+    <thead>
+      <tr><th style="width:50%">Désignation</th><th class="right">V AMB (L)</th><th class="right">V @15°C (L)</th></tr>
+    </thead>
+    <tbody>
+      <tr class="section-header"><td colspan="3">STOCK</td></tr>
+      <tr>
+        <td><strong>Stock de départ</strong></td>
+        <td class="right">{{ ligne.stock_debut_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.stock_debut_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="section-header"><td colspan="3">ENTRÉES</td></tr>
+      <tr><td>&nbsp;&nbsp;Réceptions SD CC</td>
+        <td class="right {% if ligne.rec_sd_amb == 0 %}num-zero{% endif %}">{{ ligne.rec_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.rec_sd_15c == 0 %}num-zero{% endif %}">{{ ligne.rec_sd_15c|floatformat:2|intcomma }}</td></tr>
+      <tr><td>&nbsp;&nbsp;Réceptions AC CC</td>
+        <td class="right {% if ligne.rec_ac_amb == 0 %}num-zero{% endif %}">{{ ligne.rec_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.rec_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.rec_ac_15c|floatformat:2|intcomma }}</td></tr>
+      <tr><td>&nbsp;&nbsp;Cessions reçues</td>
+        <td class="right {% if ligne.cess_recues_amb == 0 %}num-zero{% endif %}">{{ ligne.cess_recues_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.cess_recues_15c == 0 %}num-zero{% endif %}">{{ ligne.cess_recues_15c|floatformat:2|intcomma }}</td></tr>
+      <tr class="total-row"><td>Total Entrées</td>
+        <td class="right">{{ ligne.total_entrees_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.total_entrees_15c|floatformat:2|intcomma }}</td></tr>
+      <tr class="section-header"><td colspan="3">SORTIES</td></tr>
+      <tr><td>&nbsp;&nbsp;Livraisons AC</td>
+        <td class="right {% if ligne.livr_ac_amb == 0 %}num-zero{% endif %}">{{ ligne.livr_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.livr_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.livr_ac_15c|floatformat:2|intcomma }}</td></tr>
+      <tr><td>&nbsp;&nbsp;Livraisons SD</td>
+        <td class="right {% if ligne.livr_sd_amb == 0 %}num-zero{% endif %}">{{ ligne.livr_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.livr_sd_15c == 0 %}num-zero{% endif %}">{{ ligne.livr_sd_15c|floatformat:2|intcomma }}</td></tr>
+      <tr><td>&nbsp;&nbsp;Cessions émises</td>
+        <td class="right {% if ligne.cess_emises_amb == 0 %}num-zero{% endif %}">{{ ligne.cess_emises_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.cess_emises_15c == 0 %}num-zero{% endif %}">{{ ligne.cess_emises_15c|floatformat:2|intcomma }}</td></tr>
+      <tr><td>&nbsp;&nbsp;Coulage installation</td>
+        <td class="right {% if ligne.coul_install_amb == 0 %}num-zero{% endif %}">{{ ligne.coul_install_amb|floatformat:2|intcomma }}</td>
+        <td class="right num-zero">—</td></tr>
+      <tr class="total-row"><td>Total Sorties</td>
+        <td class="right">{{ ligne.total_sorties_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.total_sorties_15c|floatformat:2|intcomma }}</td></tr>
+      <tr class="section-header"><td colspan="3">STOCK FIN DE MOIS</td></tr>
+      <tr class="stock-fin-row"><td>Stock comptable (fin)</td>
+        <td class="right">{{ ligne.stock_fin_comptable_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.stock_fin_comptable_15c|floatformat:2|intcomma }}</td></tr>
+      {% if ligne.stock_fin_physique_amb is not None %}
+      <tr class="physique-row"><td>Stock physique (jaugeage)</td>
+        <td class="right">{{ ligne.stock_fin_physique_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{% if ligne.stock_fin_physique_15c %}{{ ligne.stock_fin_physique_15c|floatformat:2|intcomma }}{% else %}—{% endif %}</td></tr>
+      {% if ligne.perte_gain_amb is not None %}
+      <tr class="{% if ligne.perte_gain_amb < 0 %}perte-row{% else %}gain-row{% endif %}">
+        <td>{% if ligne.perte_gain_amb < 0 %}Perte{% else %}Gain{% endif %}</td>
+        <td class="right">{{ ligne.perte_gain_amb|floatformat:2|intcomma }}</td>
+        <td class="right num-zero">—</td></tr>
+      {% endif %}{% endif %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

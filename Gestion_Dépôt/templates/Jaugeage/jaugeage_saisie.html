@@ -1,0 +1,1173 @@
+﻿{% extends "base.html" %}
+{% load jaugeage_extras %}
+{% block title %}Saisie — {{ jaugeage.date_jaugeage|date:"d/m/Y" }}{% endblock %}
+{% block nav_jaugeage %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'jaugeage_list' %}">Jaugeages</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'jaugeage_detail' jaugeage.pk %}">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Saisie</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Hero header ──────────────────────────────────────────── */
+.rjj-hero{
+  background:linear-gradient(135deg,#060f1e 0%,#0f2240 60%,var(--ink) 100%);
+  border-radius:var(--radius);padding:20px 26px;margin-bottom:16px;
+  color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap
+}
+.rjj-hero-left{display:flex;flex-direction:column;gap:3px}
+.rjj-tag{font-size:.6rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:2px}
+.rjj-title{font-family:inherit;font-size:1.35rem;font-weight:700}
+.rjj-sub{font-size:.78rem;color:rgba(255,255,255,.5);margin-top:2px}
+.rjj-hero-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ── Totaux summary bar ───────────────────────────────────── */
+.totaux-bar{display:grid;gap:12px;margin-bottom:16px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.total-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.total-card.depot{background:var(--navy);border-color:var(--navy)}
+.total-card.depot .tc-label{color:rgba(255,255,255,.55)}
+.total-card.depot .tc-val{color:#fff}
+.total-card.ambiant{background:linear-gradient(135deg,#7c2d12,#9a3412);border-color:#ea580c}
+.total-card.ambiant .tc-label{color:rgba(255,220,180,.75)}
+.total-card.ambiant .tc-val{color:#fed7aa}
+.tc-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tc-val{font-family:inherit;font-size:1.25rem;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+.tc-produit{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+
+/* ── Formset errors ───────────────────────────────────────── */
+.formset-errors{background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.82rem;color:#991b1b}
+.formset-errors ul{margin:4px 0 0 16px}
+
+/* ── Wrapper du tableau ───────────────────────────────────── */
+.saisie-wrap{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px}
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ── Tableau colonne-par-cuve ─────────────────────────────── */
+.rjj-table{width:100%;border-collapse:collapse;font-size:.75rem}
+.rjj-table td,.rjj-table th{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:0}
+.rjj-table td:last-child,.rjj-table th:last-child{border-right:none}
+
+/* Cellule label (1ère colonne, sticky) */
+.td-lbl{
+  position:sticky;left:0;z-index:3;background:#f8fafc;
+  min-width:150px;max-width:175px;padding:7px 10px;
+  font-size:.7rem;font-weight:600;color:var(--muted);
+  border-right:2px solid var(--border) !important;white-space:nowrap;
+  letter-spacing:.01em
+}
+.td-lbl.section-sep{
+  background:var(--bg);font-size:.62rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:.1em;
+  color:var(--navy);padding-top:8px
+}
+.td-lbl.sec-calc{color:#059669}
+.auto-badge{font-size:.55rem;font-weight:700;background:#e0f2fe;color:#0369a1;border-radius:3px;padding:1px 4px;margin-left:4px;text-transform:uppercase;vertical-align:middle}
+
+/* En-tête groupe produit */
+.th-prod{
+  text-align:center;padding:8px 6px;font-family:inherit;
+  font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  border-bottom:2px solid var(--border) !important;
+}
+
+/* Numéro de cuve */
+.th-cuve{
+  text-align:center;padding:10px 8px;
+  font-family:inherit;font-size:.85rem;font-weight:700;
+  color:var(--navy);background:#fff;
+  position:sticky;top:0;z-index:2
+}
+.cuve-designation{font-family:inherit;font-size:.62rem;font-weight:400;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:85px}
+
+/* Cellule info param (non éditable) */
+.td-info{
+  text-align:center;padding:5px 8px;
+  font-family:'Courier New',monospace;font-size:.72rem;color:var(--text);
+  background:#fafbfc;white-space:nowrap
+}
+.td-info .badge-prod{
+  display:inline-block;padding:2px 7px;border-radius:10px;
+  font-size:.62rem;font-weight:700;font-family:inherit
+}
+
+/* Cellule saisie (inputs) */
+.td-input{text-align:center;padding:4px 5px;background:#fff;vertical-align:middle}
+.td-input.has-error{background:#fff1f1}
+.td-input input{
+  width:80px;padding:5px 6px;border:1.5px solid #e2e8f0;border-radius:6px;
+  font-size:.76rem;text-align:center;font-family:'Courier New',monospace;
+  background:#fff;color:var(--text);transition:border-color .15s,background .15s
+}
+.td-input input:focus{border-color:var(--navy-l);background:#eff6ff;outline:none;box-shadow:0 0 0 2px rgba(30,58,95,.08)}
+.td-input input.inp-changed{border-color:var(--orange);background:#fff7ed}
+.td-input input.inp-error{border-color:var(--red);background:#fff1f1}
+.td-input .err-msg{font-size:.6rem;color:var(--red);display:block;margin-top:2px}
+
+/* Séparateur de section */
+.tr-section .td-lbl{background:#f1f5f9;padding:6px 10px}
+.tr-section td{background:#f1f5f9}
+
+/* Cellule calc (valeur calculée) */
+.td-calc{
+  text-align:center;padding:6px 8px;
+  font-family:'Courier New',monospace;font-size:.76rem;font-weight:600;
+  color:#059669;background:#f0fdf4;white-space:nowrap;min-width:80px
+}
+.td-calc.calc-empty{color:#cbd5e1;background:transparent;font-weight:400}
+.td-calc.calc-neg{color:var(--red);background:#fff1f1}
+.td-calc.calc-preview{color:#0369a1;background:#eff6ff}  /* valeur JS live */
+
+/* Ligne Vol. ambiant dépôt — mise en avant (orange) */
+.tr-vad .td-lbl{background:#7c2d12;color:#fed7aa;font-weight:800;border-right-color:#7c2d12 !important}
+.tr-vad .td-calc{
+  background:#9a3412;color:#fed7aa;font-size:.82rem;font-weight:800;
+  border-bottom:2px solid #ea580c !important
+}
+.tr-vad .td-calc.calc-empty{background:#fff7ed;color:#fdba74;font-weight:400;font-size:.76rem}
+
+/* Ligne V@15°C — mise en avant */
+.tr-v15c .td-lbl{background:#064e3b;color:#6ee7b7;font-weight:800;border-right-color:#064e3b !important}
+.tr-v15c .td-calc{
+  background:#065f46;color:#6ee7b7;font-size:.82rem;font-weight:800;
+  border-bottom:2px solid #059669 !important
+}
+.tr-v15c .td-calc.calc-empty{background:#f0fdf4;color:#a7f3d0;font-weight:400;font-size:.76rem}
+
+/* ── Boutons hero (contraste sur fond navy) ───────────────── */
+.btn-hero-print{
+  background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.45);
+  backdrop-filter:blur(4px)
+}
+.btn-hero-print:hover{background:rgba(255,255,255,.22);border-color:#fff;color:#fff}
+.btn-hero-back{
+  background:rgba(255,255,255,.07);color:rgba(255,255,255,.9);border:1.5px solid rgba(255,255,255,.25)
+}
+.btn-hero-back:hover{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.5)}
+
+/* ── Barre d'actions sticky ───────────────────────────────── */
+.form-actions{
+  display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  position:sticky;bottom:0;z-index:20;
+  background:var(--card);border-top:2px solid var(--border);
+  padding:14px 20px;margin:0 -0px;
+  box-shadow:0 -6px 24px rgba(0,0,0,.10);
+}
+.btn-save{padding:11px 28px;font-size:.875rem;font-weight:700;letter-spacing:.02em}
+
+/* Bouton retour (navy solid) */
+.btn-retour{
+  background:var(--navy);color:#fff;border:none;
+  box-shadow:0 2px 8px rgba(30,58,95,.25)
+}
+.btn-retour:hover{background:#16304f;color:#fff;transform:translateY(-1px)}
+
+/* ── Ligne pied de tableau (totaux) ───────────────────────── */
+.tr-tfoot td{border-top:3px solid #ea580c}
+.td-tfoot-lbl{
+  position:sticky;left:0;z-index:3;
+  background:#7c2d12;color:#fed7aa;
+  min-width:150px;max-width:175px;padding:8px 10px;
+  font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+  border-right:2px solid #9a3412 !important;white-space:nowrap
+}
+.td-tfoot-val{
+  background:#9a3412;color:#fed7aa;
+  text-align:center;padding:8px 10px;
+  font-family:'Courier New',monospace;font-size:.82rem;font-weight:800;
+  white-space:nowrap;letter-spacing:.01em
+}
+.td-tfoot-val.empty{background:#fff7ed;color:#fdba74;font-weight:400;font-size:.76rem}
+
+/* ── No-param ─────────────────────────────────────────────── */
+.td-no-param{text-align:center;background:#fffbeb;color:#d97706;font-size:.68rem;font-style:italic;padding:6px}
+
+/* ── Banneau validation ────────────────────────────────────── */
+.banner-valide{
+  display:flex;align-items:center;gap:12px;
+  background:#dcfce7;border:1.5px solid #86efac;border-radius:8px;
+  padding:12px 18px;margin-bottom:16px;color:#14532d;font-size:.87rem;font-weight:600
+}
+.banner-valide svg{width:20px;height:20px;stroke:#16a34a;fill:none;flex-shrink:0}
+.banner-valide-info{font-weight:400;font-size:.78rem;color:#166534;margin-top:1px}
+
+/* ── Bouton Valider (vert) ─────────────────────────────────── */
+.btn-valider{
+  background:#16a34a;color:#fff;border:none;
+  box-shadow:0 2px 8px rgba(22,163,74,.3);
+  padding:11px 22px;font-size:.875rem;font-weight:700
+}
+.btn-valider:hover{background:#15803d;color:#fff;transform:translateY(-1px)}
+
+/* ── Bouton Déverrouiller ──────────────────────────────────── */
+.btn-deverrouiller{
+  background:#fff;color:#92400e;border:1.5px solid #f59e0b;
+  font-weight:600;padding:10px 18px
+}
+.btn-deverrouiller:hover{background:#fef3c7;border-color:#d97706;color:#78350f}
+
+/* ── Fieldset disabled (état verrouillé) ───────────────────── */
+fieldset[disabled] .td-input input,
+fieldset[disabled] .td-input select{
+  background:#f1f5f9 !important;color:#94a3b8 !important;cursor:not-allowed;
+  border-color:#e2e8f0 !important
+}
+fieldset[disabled] .hint-hd{opacity:.6}
+
+/* ══════════════════════════════════════════════════
+   DARK MODE overrides pour jaugeage_saisie
+══════════════════════════════════════════════════ */
+
+/* Hero — gradient fixé (var(--ink) clair en dark donne un dégradé bizarre) */
+[data-theme="dark"] .rjj-hero {
+  background: linear-gradient(135deg,#060f1e 0%,#0f2240 60%,var(--surface-2) 100%);
+}
+
+/* Card ambiant (orange brûlé) */
+[data-theme="dark"] .total-card.ambiant {
+  background: linear-gradient(135deg,#3d1508,#5a1f0a);
+  border-color: #c45010;
+}
+[data-theme="dark"] .total-card.ambiant .tc-label { color:rgba(240,168,120,.7); }
+[data-theme="dark"] .total-card.ambiant .tc-val   { color:var(--accent-ink); }
+
+/* Cellule label (colonne sticky) */
+[data-theme="dark"] .td-lbl {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+[data-theme="dark"] .td-lbl.section-sep {
+  background: var(--bg);
+  color: var(--accent-ink);
+}
+[data-theme="dark"] .td-lbl.sec-calc { color: var(--ok); }
+
+/* En-tête numéro de cuve */
+[data-theme="dark"] .th-cuve {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Cellules info paramètres */
+[data-theme="dark"] .td-info {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+/* Séparateur de section */
+[data-theme="dark"] .tr-section td       { background: var(--surface-2); }
+[data-theme="dark"] .tr-section .td-lbl  { background: var(--surface-2); }
+
+/* Cellules de saisie */
+[data-theme="dark"] .td-input            { background: var(--surface-2); }
+[data-theme="dark"] .td-input.has-error  { background: var(--err-soft); }
+[data-theme="dark"] .td-input input,
+[data-theme="dark"] .td-input select {
+  background: var(--surface-2);
+  border-color: var(--border-2);
+  color: var(--ink);
+}
+[data-theme="dark"] .td-input input:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(212,104,31,.15);
+}
+[data-theme="dark"] .td-input input.inp-changed {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+[data-theme="dark"] .td-input input.inp-error {
+  background: var(--err-soft);
+  border-color: var(--err);
+}
+
+/* Cellules de calcul */
+[data-theme="dark"] .td-calc {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+[data-theme="dark"] .td-calc.calc-empty   { background: transparent; color: var(--muted-2); }
+[data-theme="dark"] .td-calc.calc-neg     { color: var(--err); background: var(--err-soft); }
+[data-theme="dark"] .td-calc.calc-preview { color: var(--info); background: var(--info-soft); }
+
+/* Ligne Vol. ambiant dépôt (orange) */
+[data-theme="dark"] .tr-vad .td-lbl {
+  background: #3d1508;
+  color: var(--accent-ink);
+  border-right-color: #3d1508 !important;
+}
+[data-theme="dark"] .tr-vad .td-calc {
+  background: #5a1f0a;
+  color: var(--accent-ink);
+  border-bottom-color: #c45010 !important;
+}
+[data-theme="dark"] .tr-vad .td-calc.calc-empty {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Ligne V@15°C (vert) */
+[data-theme="dark"] .tr-v15c .td-lbl {
+  background: #053321;
+  color: var(--ok);
+  border-right-color: #053321 !important;
+}
+[data-theme="dark"] .tr-v15c .td-calc {
+  background: #074330;
+  color: var(--ok);
+  border-bottom-color: var(--ok) !important;
+}
+[data-theme="dark"] .tr-v15c .td-calc.calc-empty {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+/* Pied de tableau ambiant (orange) */
+[data-theme="dark"] .td-tfoot-lbl {
+  background: #3d1508;
+  color: var(--accent-ink);
+  border-right-color: #5a1f0a !important;
+}
+[data-theme="dark"] .td-tfoot-val {
+  background: #5a1f0a;
+  color: var(--accent-ink);
+}
+[data-theme="dark"] .td-tfoot-val.empty {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Auto-badge (calc automatique) */
+[data-theme="dark"] .auto-badge {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+/* Cellule no-param */
+[data-theme="dark"] .td-no-param {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* Erreurs formset */
+[data-theme="dark"] .formset-errors {
+  background: var(--err-soft);
+  border-color: var(--err);
+  color: #f08070;
+}
+
+/* Bandeau jaugeage validé */
+[data-theme="dark"] .banner-valide {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+[data-theme="dark"] .banner-valide svg     { stroke: var(--ok); }
+[data-theme="dark"] .banner-valide-info    { color: var(--ok); opacity: .8; }
+
+/* Bouton Valider */
+[data-theme="dark"] .btn-valider {
+  background: var(--ok);
+  box-shadow: 0 2px 8px rgba(76,172,70,.3);
+}
+[data-theme="dark"] .btn-valider:hover { background: #3d9c38; color: #fff; }
+
+/* Bouton Déverrouiller */
+[data-theme="dark"] .btn-deverrouiller {
+  background: var(--surface-2);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+[data-theme="dark"] .btn-deverrouiller:hover {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* Bouton retour */
+[data-theme="dark"] .btn-retour {
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+[data-theme="dark"] .btn-retour:hover {
+  background: var(--border-2);
+  color: var(--ink);
+}
+
+/* Barre d'actions sticky */
+[data-theme="dark"] .form-actions {
+  background: var(--surface);
+  border-top-color: var(--border);
+  box-shadow: 0 -6px 24px rgba(0,0,0,.35);
+}
+
+/* Inputs désactivés (jaugeage verrouillé) */
+[data-theme="dark"] fieldset[disabled] .td-input input,
+[data-theme="dark"] fieldset[disabled] .td-input select {
+  background: var(--bg) !important;
+  color: var(--muted) !important;
+  border-color: var(--border) !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Hero ──────────────────────────────────────────────────── #}
+<div class="rjj-hero">
+  <div class="rjj-hero-left">
+    <div class="rjj-tag">Saisie des mesures · RJJ</div>
+    <div class="rjj-title">
+      {{ jaugeage.date_jaugeage|date:"d/m/Y" }} —
+      {% if jaugeage.type_jaugeage == 'AVR' %}Avant livraison
+      {% elif jaugeage.type_jaugeage == 'APR' %}Après livraison
+      {% else %}Jaugeage normal{% endif %}
+      {% if jaugeage.heure_jaugeage %} · {{ jaugeage.heure_jaugeage|time:"H:i" }}{% endif %}
+    </div>
+    <div class="rjj-sub">{{ jaugeage.depot }} · Opérateur : {{ jaugeage.operateur|default:"—" }} · T°réf. {{ jaugeage.temperature_reference }}°C</div>
+  </div>
+  <div class="rjj-hero-right">
+    <a href="{% url 'jaugeage_rapport' jaugeage.pk %}" class="btn btn-hero-print" target="_blank">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+      Imprimer / PDF
+    </a>
+    <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-hero-back">
+      <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      Retour au détail
+    </a>
+  </div>
+</div>
+
+{# ── Totaux ────────────────────────────────────────────────── #}
+{% if totaux_groupes %}
+<div class="totaux-bar">
+  {% for tg in totaux_groupes %}
+  <div class="total-card">
+    <div class="tc-label">
+      {% if tg.produit %}
+      <span class="tc-produit" style="background:{{ tg.produit.famille.couleur|default:'#64748b' }}"></span>
+      {{ tg.produit.nom }}
+      {% else %}Sans produit{% endif %}
+    </div>
+    <div class="tc-val" id="js-total-{{ forloop.counter0 }}">
+      {% if tg.total %}{{ tg.total|fmt_vol }}&nbsp;L{% else %}—{% endif %}
+    </div>
+    {% if tg.total_v15c %}
+    <div class="tc-sub" style="font-size:.72rem;color:#059669;margin-top:2px">
+      @15°C : {{ tg.total_v15c|fmt_vol }}&nbsp;L
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="total-card ambiant">
+    <div class="tc-label">Vol. ambiant total dépôt</div>
+    <div class="tc-val" id="js-total-depot">{% if total_depot %}{{ total_depot|fmt_vol }}&nbsp;L{% else %}—{% endif %}</div>
+  </div>
+  <div class="total-card" style="border-left:3px solid #059669">
+    <div class="tc-label">Vol. total @15°C dépôt</div>
+    <div class="tc-val" style="color:#059669" id="js-total-v15c-depot">{% if total_v15c_depot %}{{ total_v15c_depot|fmt_vol }}&nbsp;L{% else %}—{% endif %}</div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Erreurs formset ───────────────────────────────────────── #}
+{% if formset.errors %}
+<div class="formset-errors">
+  <strong>Erreurs de validation :</strong>
+  <ul>
+    {% for form_errors in formset.errors %}
+      {% for field, errors in form_errors.items %}
+        {% for error in errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+      {% endfor %}
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# ── Bandeau : jaugeage validé ────────────────────────────── #}
+{% if jaugeage.est_valide %}
+<div class="banner-valide">
+  <svg viewBox="0 0 24 24" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+  <div>
+    <div>Ce jaugeage a été validé — les modifications sont verrouillées.</div>
+    <div class="banner-valide-info">
+      Validé le {{ jaugeage.date_validation|date:"d/m/Y à H:i" }}
+      {% if jaugeage.valide_par %}par {{ jaugeage.valide_par.get_full_name|default:jaugeage.valide_par.username }}{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Formulaire principal ──────────────────────────────────── #}
+<form method="post" id="rjj-form">
+  {% csrf_token %}
+  {{ formset.management_form }}
+
+  {# Hidden fields de chaque form du formset (id, jaugeage) #}
+  <div aria-hidden="true" style="display:none">
+    {% for form, mesure in all_cuves %}
+      {% for hf in form.hidden_fields %}{{ hf }}{% endfor %}
+    {% endfor %}
+  </div>
+
+  {# Fieldset disabled quand le jaugeage est validé — bloque visuellement les inputs #}
+  {% if jaugeage.est_valide %}<fieldset disabled style="border:0;padding:0;margin:0">{% endif %}
+  <div class="saisie-wrap">
+    <div class="table-scroll">
+    <table class="rjj-table" id="rjj-table">
+      <thead>
+
+        {# ── Ligne 1 : Groupes produit ── #}
+        <tr>
+          <td class="td-lbl" style="vertical-align:middle;background:#fff;border-bottom:2px solid var(--border)">
+            <span style="font-family:inherit;font-size:.75rem;font-weight:700;color:var(--navy)">RJJ — {{ jaugeage.date_jaugeage|date:"d/m/Y" }}</span>
+          </td>
+          {% for pg in product_groups %}
+          <th class="th-prod" colspan="{{ pg.count }}"
+              style="
+                background:{% if pg.produit %}{{ pg.produit.famille.couleur|default:'var(--ink)' }}18{% else %}#f1f5f9{% endif %};
+                color:{% if pg.produit %}{{ pg.produit.famille.couleur|default:'var(--navy)' }}{% else %}var(--muted){% endif %};
+                border-left:3px solid {% if pg.produit %}{{ pg.produit.famille.couleur|default:'var(--navy)' }}{% else %}var(--border){% endif %};">
+            {{ pg.produit.nom|default:"Sans produit" }}
+          </th>
+          {% endfor %}
+        </tr>
+
+        {# ── Ligne 2 : Numéros et désignations cuves ── #}
+        <tr>
+          <td class="td-lbl" style="background:#fff;font-size:.7rem;color:var(--muted)">Cuve</td>
+          {% for form, mesure in all_cuves %}
+          <th class="th-cuve"
+              style="border-left:{% if forloop.first %}none{% else %}1px solid var(--border){% endif %};
+                     {% for pg in product_groups %}{% if forloop.first and forloop.parentloop.first %}border-left:3px solid {% if pg.produit %}{{ pg.produit.famille.couleur|default:'var(--navy)' }}{% else %}var(--border){% endif %};{% endif %}{% endfor %}"
+              data-col="{{ forloop.counter0 }}">
+            {{ mesure.cuve.numero }}
+            <div class="cuve-designation" title="{{ mesure.cuve.designation }}">{{ mesure.cuve.designation|truncatechars:18 }}</div>
+          </th>
+          {% endfor %}
+        </tr>
+
+        {# ── Lignes info paramètres (non éditables) ── #}
+
+        {# Produit #}
+        <tr>
+          <td class="td-lbl">Produit</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-info">
+            {% if mesure.cuve.produit %}
+            <span class="badge-prod" style="background:{{ mesure.cuve.produit.famille.couleur|default:'#64748b' }}20;color:{{ mesure.cuve.produit.famille.couleur|default:'#64748b' }}">
+              {{ mesure.cuve.produit.code }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# HTT #}
+        <tr>
+          <td class="td-lbl">HTT (mm)</td>
+          {% for form, mesure in all_cuves %}
+          {% with p=mesure.cuve.parametre_jaugeage %}
+          <td class="td-info">{{ p.hauteur_totale_temoin|fmt_mm|default:"—" }}</td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# Remplissage maxi #}
+        <tr>
+          <td class="td-lbl">Rempli. max. (L)</td>
+          {% for form, mesure in all_cuves %}
+          {% with p=mesure.cuve.parametre_jaugeage %}
+          <td class="td-info">{{ p.remplissage_maxi|fmt_vol|default:"—" }}</td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# V(A) #}
+        <tr>
+          <td class="td-lbl">V(A) (L)</td>
+          {% for form, mesure in all_cuves %}
+          {% with p=mesure.cuve.parametre_jaugeage %}
+          <td class="td-info">{{ p.v_a|fmt_vol|default:"—" }}</td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# V/mn #}
+        <tr style="border-bottom:2px solid var(--border)">
+          <td class="td-lbl">V/mn (L/mm)</td>
+          {% for form, mesure in all_cuves %}
+          {% with p=mesure.cuve.parametre_jaugeage %}
+          <td class="td-info">{{ p.v_mn|default:"—" }}</td>
+          {% endwith %}
+          {% endfor %}
+        </tr>
+
+        {# ── Section : Saisie opérateur ── #}
+        <tr class="tr-section">
+          <td class="td-lbl section-sep">Saisie opérateur</td>
+          {% for form, mesure in all_cuves %}
+          <td style="background:#f1f5f9"></td>
+          {% endfor %}
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+        {# ── Creux mesuré ── #}
+        <tr>
+          <td class="td-lbl">Creux mesuré (mm)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.creux_mesure.errors %}has-error{% endif %}">
+            {{ form.creux_mesure }}
+            {% if form.creux_mesure.errors %}
+            <span class="err-msg">{{ form.creux_mesure.errors.0 }}</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Hauteur décimale (hint lecture seule — guide V(A)) ── #}
+        <tr class="tr-hd-hint">
+          <td class="td-lbl" style="color:#92400e;font-size:0.78rem;">
+            ↓ Haut. décimale (mm)<br>
+            <span style="font-weight:400;opacity:.8;">→ chercher V(A) dans le cahier</span>
+          </td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc hint-hd {% if mesure.hauteur_decimal is None %}calc-empty{% endif %}"
+              id="hint-hd-{{ forloop.counter0 }}"
+              style="background:#fef3c7;color:#92400e;font-weight:600;font-size:0.9rem;text-align:center;">
+            {% if mesure.hauteur_decimal is not None %}{{ mesure.hauteur_decimal }}{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── V(A) certificat (saisie opérateur) ── #}
+        <tr>
+          <td class="td-lbl" style="color:#92400e;">V(A) certificat (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.v_a_saisi.errors %}has-error{% endif %}"
+              style="background:#fffbeb;">
+            {{ form.v_a_saisi }}
+            {% if form.v_a_saisi.errors %}
+            <span class="err-msg">{{ form.v_a_saisi.errors.0 }}</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── T1 ── #}
+        <tr>
+          <td class="td-lbl">T1 (5/6 h) °C</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.t1.errors %}has-error{% endif %}">
+            {{ form.t1 }}{% if form.t1.errors %}<span class="err-msg">{{ form.t1.errors.0 }}</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── T2 ── #}
+        <tr>
+          <td class="td-lbl">T2 (1/2 h) °C</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.t2.errors %}has-error{% endif %}">
+            {{ form.t2 }}{% if form.t2.errors %}<span class="err-msg">{{ form.t2.errors.0 }}</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── T3 ── #}
+        <tr>
+          <td class="td-lbl">T3 (1/6 h) °C</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.t3.errors %}has-error{% endif %}">
+            {{ form.t3 }}{% if form.t3.errors %}<span class="err-msg">{{ form.t3.errors.0 }}</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Température observée densité ── #}
+        <tr>
+          <td class="td-lbl">T° obs. densité (°C)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.temperature_obs.errors %}has-error{% endif %}">
+            {{ form.temperature_obs }}{% if form.temperature_obs.errors %}<span class="err-msg">{{ form.temperature_obs.errors.0 }}</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Densité moyenne ── #}
+        <tr>
+          <td class="td-lbl">Densité moy. (kg/m³)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input {% if form.densite_moyenne.errors %}has-error{% endif %}">
+            {{ form.densite_moyenne }}{% if form.densite_moyenne.errors %}<span class="err-msg">{{ form.densite_moyenne.errors.0 }}</span>{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── D@15°C (auto-calculé, on conserve la valeur soumise) ── #}
+        <tr>
+          <td class="td-lbl">D@15°C (kg/m³)<span class="auto-badge">auto</span></td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input">{{ form.densite_15c }}</td>
+          {% endfor %}
+        </tr>
+
+        {# ── Facteur Vcf (auto-calculé) ── #}
+        <tr style="border-bottom:1px solid var(--border)">
+          <td class="td-lbl">Facteur Vcf<span class="auto-badge">auto</span></td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input">{{ form.facteur_vcf }}</td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. tuyauterie ── #}
+        <tr>
+          <td class="td-lbl">Vol. tuyauterie (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input">{{ form.volume_tuyauterie }}</td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. eau ── #}
+        <tr>
+          <td class="td-lbl">Vol. eau (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input">{{ form.volume_eau }}</td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. additionnel ── #}
+        <tr style="border-bottom:2px solid var(--border)">
+          <td class="td-lbl">Vol. additionnel (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-input">{{ form.volume_additionnel }}</td>
+          {% endfor %}
+        </tr>
+
+        {# ── Section : Calculs automatiques ── #}
+        <tr class="tr-section">
+          <td class="td-lbl section-sep sec-calc">⚡ Calculs (après enregistrement)</td>
+          {% for form, mesure in all_cuves %}
+          <td style="background:#f0fdf4"></td>
+          {% endfor %}
+        </tr>
+
+        {# ── Creux corrigé ── #}
+        <tr>
+          <td class="td-lbl">Creux corrigé (mm)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.creux_corrige is None %}calc-empty{% endif %}"
+              id="calc-cc-{{ forloop.counter0 }}">
+            {{ mesure.creux_corrige|fmt_mm|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Hauteur produit ── #}
+        <tr>
+          <td class="td-lbl">Hauteur produit (mm)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.hauteur_produit is None %}calc-empty{% endif %}"
+              id="calc-hp-{{ forloop.counter0 }}">
+            {{ mesure.hauteur_produit|fmt_mm|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Hauteur décimal / Surplus ── #}
+        <tr>
+          <td class="td-lbl">Haut. décimal / surplus</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.hauteur_decimal is None %}calc-empty{% endif %}"
+              id="calc-hd-{{ forloop.counter0 }}">
+            {% if mesure.hauteur_decimal is not None %}
+            {{ mesure.hauteur_decimal }} / {{ mesure.surplus }}
+            {% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. ambiant bac ── #}
+        <tr>
+          <td class="td-lbl">Vol. ambiant bac (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.volume_ambiant_bac is None %}calc-empty{% endif %}"
+              id="calc-vab-{{ forloop.counter0 }}">
+            {{ mesure.volume_ambiant_bac|fmt_vol|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. physique ── #}
+        <tr>
+          <td class="td-lbl">Vol. physique (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.volume_physique is None %}calc-empty{% endif %}"
+              id="calc-vphys-{{ forloop.counter0 }}">
+            {{ mesure.volume_physique|fmt_vol|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. ambiant dépôt ── #}
+        <tr class="tr-vad">
+          <td class="td-lbl">Vol. ambiant dépôt (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.volume_ambiant_depot is None %}calc-empty{% endif %}"
+              id="calc-vad-{{ forloop.counter0 }}">
+            {{ mesure.volume_ambiant_depot|fmt_vol|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Température moyenne ── #}
+        <tr>
+          <td class="td-lbl">Température moy. (°C)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.temperature_moyenne is None %}calc-empty{% endif %}"
+              id="calc-tmoy-{{ forloop.counter0 }}">
+            {{ mesure.temperature_moyenne|fmt_temp|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Densité @15°C calculée ── #}
+        <tr>
+          <td class="td-lbl">Densité @15°C (kg/m³)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.densite_15c is None %}calc-empty{% endif %}"
+              id="calc-d15-{{ forloop.counter0 }}">
+            {{ mesure.densite_15c|fmt_density|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Facteur Vcf calculé ── #}
+        <tr>
+          <td class="td-lbl">Facteur Vcf</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.facteur_vcf is None %}calc-empty{% endif %}"
+              id="calc-vcf-{{ forloop.counter0 }}">
+            {{ mesure.facteur_vcf|fmt_vcf|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. standard @15°C — LIGNE PRINCIPALE ── #}
+        <tr class="tr-v15c">
+          <td class="td-lbl">Vol. standard @15°C (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc {% if mesure.volume_standard_15c_calcule is None %}calc-empty{% endif %}"
+              id="calc-v15c-{{ forloop.counter0 }}">
+            {{ mesure.volume_standard_15c_calcule|fmt_vol|default:"—" }}
+          </td>
+          {% endfor %}
+        </tr>
+
+        {# ── Vol. disponible ── #}
+        <tr>
+          <td class="td-lbl">Vol. disponible (L)</td>
+          {% for form, mesure in all_cuves %}
+          <td class="td-calc
+              {% if mesure.volume_disponible is None %}calc-empty
+              {% elif mesure.volume_disponible < 0 %}calc-neg
+              {% endif %}"
+              id="calc-vdispo-{{ forloop.counter0 }}">
+            {% if mesure.volume_disponible is not None %}
+              {{ mesure.volume_disponible|fmt_vol }}
+            {% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+
+      </tbody>
+
+      {# ── Pied de tableau : totaux Vol. ambiant dépôt par groupe ── #}
+      <tfoot>
+        <tr class="tr-tfoot">
+          <td class="td-tfoot-lbl">Σ&nbsp;Vol.&nbsp;ambiant</td>
+          {% for pg in product_groups %}
+          <td class="td-tfoot-val {% if not pg.total_vad %}empty{% endif %}"
+              colspan="{{ pg.count }}"
+              id="tfoot-grp-{{ forloop.counter0 }}">
+            {% if pg.total_vad %}{{ pg.total_vad|fmt_vol }}&nbsp;L{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        <tr class="tr-tfoot" style="border-top:2px solid #059669">
+          <td class="td-tfoot-lbl" style="background:#065f46;border-right-color:#064e3b !important">Σ&nbsp;Vol.&nbsp;@15°C</td>
+          {% for pg in product_groups %}
+          <td class="td-tfoot-val {% if not pg.total_v15c %}empty{% endif %}"
+              colspan="{{ pg.count }}"
+              id="tfoot-v15c-grp-{{ forloop.counter0 }}"
+              style="background:#065f46;color:#6ee7b7">
+            {% if pg.total_v15c %}{{ pg.total_v15c|fmt_vol }}&nbsp;L{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+      </tfoot>
+
+    </table>
+    </div>
+  </div>
+  {% if jaugeage.est_valide %}</fieldset>{% endif %}
+
+  {# ── Barre d'actions sticky ────────────────────────────────── #}
+  <div class="form-actions">
+    {# Bouton Fermer — toujours présent #}
+    <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-secondary">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:currentColor;fill:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Fermer
+    </a>
+
+    {% if not jaugeage.est_valide %}
+      {# Jaugeage en brouillon : bouton Enregistrer + Valider (staff) #}
+      <button type="submit" class="btn btn-primary btn-save">
+        <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Enregistrer toutes les mesures
+      </button>
+      {% if user.is_staff %}
+      <form method="post" action="{% url 'jaugeage_valider' jaugeage.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-valider"
+          onclick="return confirm('Êtes-vous sûr de vouloir valider ce jaugeage ?\nUne fois validé, les mesures ne pourront plus être modifiées.')">
+          <svg viewBox="0 0 24 24" stroke-width="2.5" style="width:16px;height:16px;stroke:currentColor;fill:none"><polyline points="20 6 9 17 4 12"/></svg>
+          Valider le jaugeage ✓
+        </button>
+      </form>
+      {% endif %}
+    {% else %}
+      {# Jaugeage validé : bouton Déverrouiller (staff uniquement) #}
+      {% if user.is_staff %}
+      <form method="post" action="{% url 'jaugeage_devalider' jaugeage.pk %}" style="margin:0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-deverrouiller"
+          onclick="return confirm('Êtes-vous sûr de vouloir déverrouiller ce jaugeage ?\nIl pourra de nouveau être modifié.')">
+          🔓 Déverrouiller
+        </button>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</form>
+
+{# ── Paramètres JS pour les calculs temps réel ────────────── #}
+<script>
+(function () {
+  'use strict';
+
+  /* Theme helper */
+  const isDark = () => document.documentElement.dataset.theme === 'dark';
+
+
+  /* ── 1. Paramètres des cuves (injectés depuis Django) ── */
+  const productGroupCounts = [{% for pg in product_groups %}{{ pg.count }}{% if not forloop.last %},{% endif %}{% endfor %}];
+  const groupStarts = [];
+  { let s = 0; productGroupCounts.forEach(c => { groupStarts.push(s); s += c; }); }
+
+  const cuveParams = [
+    {% for form, mesure in all_cuves %}
+    {
+      htt:  {% if mesure.cuve.parametre_jaugeage %}{{ mesure.cuve.parametre_jaugeage.hauteur_totale_temoin }}{% else %}null{% endif %},
+      cc:   {% if mesure.cuve.parametre_jaugeage %}{{ mesure.cuve.parametre_jaugeage.correction_creux }}{% else %}null{% endif %},
+      va:   {% if mesure.cuve.parametre_jaugeage %}{{ mesure.cuve.parametre_jaugeage.v_a }}{% else %}null{% endif %},
+      vmn:  {% if mesure.cuve.parametre_jaugeage %}{{ mesure.cuve.parametre_jaugeage.v_mn }}{% else %}null{% endif %},
+      rmax: {% if mesure.cuve.parametre_jaugeage %}{{ mesure.cuve.parametre_jaugeage.remplissage_maxi }}{% else %}null{% endif %},
+      ok:   {% if mesure.cuve.parametre_jaugeage %}true{% else %}false{% endif %}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  /* Volume ambiant dépôt par colonne — pré-initialisé avec les valeurs serveur */
+  const vadByCol  = [
+    {% for form, mesure in all_cuves %}
+    {% if mesure.volume_ambiant_depot %}{{ mesure.volume_ambiant_depot }}{% else %}null{% endif %}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ];
+  /* Volume standard @15°C par colonne — pré-initialisé avec les valeurs serveur */
+  const v15cByCol = [
+    {% for form, mesure in all_cuves %}
+    {% if mesure.volume_standard_15c_calcule %}{{ mesure.volume_standard_15c_calcule }}{% else %}null{% endif %}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ];
+
+  /* ── 2. Helpers ── */
+  function n(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    const f = parseFloat(v);
+    return isNaN(f) ? null : f;
+  }
+
+  function fmtVol(v) {
+    if (v === null) return '—';
+    return Math.round(v).toLocaleString('fr-FR').replace(/\s/g, '\u202f') + ' L';
+  }
+  function fmtN(v, dec) {
+    if (v === null) return '—';
+    return v.toFixed(dec);
+  }
+
+  function updateTotaux() {
+    let depotTotal = null;
+    productGroupCounts.forEach((cnt, gi) => {
+      let gTotal = null;
+      let g15c   = null;
+      for (let c = groupStarts[gi]; c < groupStarts[gi] + cnt; c++) {
+        if (vadByCol[c]  !== null) { if (gTotal === null) gTotal = 0; gTotal += vadByCol[c]; }
+        if (v15cByCol[c] !== null) { if (g15c   === null) g15c   = 0; g15c   += v15cByCol[c]; }
+      }
+      const txt    = gTotal !== null ? fmtVol(gTotal) : '—';
+      const hasVal = gTotal !== null;
+      /* top bar */
+      const topEl = document.getElementById(`js-total-${gi}`);
+      if (topEl) topEl.textContent = txt;
+      /* tfoot ambiant */
+      const footEl = document.getElementById(`tfoot-grp-${gi}`);
+      if (footEl) {
+        footEl.textContent = hasVal ? txt : '—';
+        footEl.className = 'td-tfoot-val' + (hasVal ? '' : ' empty');
+      }
+      /* tfoot @15°C */
+      const foot15El = document.getElementById(`tfoot-v15c-grp-${gi}`);
+      if (foot15El) {
+        foot15El.textContent = g15c !== null ? fmtVol(g15c) : '—';
+        foot15El.className = 'td-tfoot-val' + (g15c === null ? ' empty' : '');
+        if (isDark()) {
+          foot15El.style.background = g15c !== null ? '#074330' : '#053321';
+        } else {
+          foot15El.style.background = g15c !== null ? '#065f46' : '#064e3b';
+        }
+        foot15El.style.color = '#6ee7b7';
+      }
+      if (gTotal !== null) { if (depotTotal === null) depotTotal = 0; depotTotal += gTotal; }
+    });
+    const depotEl = document.getElementById('js-total-depot');
+    if (depotEl) depotEl.textContent = depotTotal !== null ? fmtVol(depotTotal) : '—';
+  }
+
+  function getInp(col, field) {
+    return document.querySelector(`input[name="form-${col}-${field}"]`);
+  }
+
+  function setCell(id, text, cls) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.className = el.className.replace(/\bcalc-\S+/g, '').trim();
+    if (cls) el.classList.add(cls);
+    /* preview = valeur JS live (bleu) */
+    if (text !== '—') el.classList.add('calc-preview');
+    else el.classList.add('calc-empty');
+  }
+
+  /* ── 3. Calcul d'une colonne ── */
+  function calcCol(col) {
+    const p = cuveParams[col];
+    if (!p || !p.ok) return;
+
+    const creux  = n(getInp(col, 'creux_mesure')?.value);
+    const vaSaisi = n(getInp(col, 'v_a_saisi')?.value);
+    const t1     = n(getInp(col, 't1')?.value);
+    const t2     = n(getInp(col, 't2')?.value);
+    const t3     = n(getInp(col, 't3')?.value);
+    const vcf    = n(getInp(col, 'facteur_vcf')?.value);
+    const vAdd   = n(getInp(col, 'volume_additionnel')?.value) ?? 0;
+    const vTuy   = n(getInp(col, 'volume_tuyauterie')?.value) ?? 0;
+    const vEau   = n(getInp(col, 'volume_eau')?.value) ?? 0;
+
+    let cc=null, hp=null, hd=null, surplus=null, vab=null,
+        vphys=null, vad=null, tmoy=null, v15c=null, vdispo=null;
+
+    if (creux !== null && p.cc !== null) {
+      cc = creux - p.cc;
+      if (p.htt !== null) {
+        hp = p.htt - cc;
+        surplus = hp % 10;
+        hd = hp - surplus;
+        /* Priorité : V(A) saisi par l'opérateur > V(A) par défaut du paramètre */
+        const va = vaSaisi !== null ? vaSaisi : p.va;
+        if (va !== null && p.vmn !== null) {
+          vab   = va + p.vmn * surplus;
+          vphys = vab + vTuy - vEau;
+          vad   = vab + vAdd;
+          if (p.rmax !== null) vdispo = p.rmax - vad;
+          if (vcf !== null)    v15c   = vad * vcf;
+        }
+      }
+    }
+
+    if (t1 !== null && t2 !== null && t3 !== null) {
+      tmoy = (t1 + t2 + t3) / 3;
+    }
+
+    vadByCol[col]  = vad;
+    v15cByCol[col] = v15c;
+    updateTotaux();
+
+    /* Mise à jour du hint Hauteur décimale dans la section saisie */
+    const hintHd = document.getElementById(`hint-hd-${col}`);
+    if (hintHd) {
+      hintHd.textContent = hd !== null ? Math.round(hd) : '—';
+      hintHd.className = 'td-calc hint-hd' + (hd === null ? ' calc-empty' : '');
+      if (hd !== null) {
+        hintHd.style.background = isDark() ? '#2a1808' : '#fef3c7';
+        hintHd.style.color      = isDark() ? '#f0a878' : '#92400e';
+      }
+    }
+
+    setCell(`calc-cc-${col}`,    cc    !== null ? fmtN(cc, 0)    : '—', null);
+    setCell(`calc-hp-${col}`,    hp    !== null ? fmtN(hp, 0)    : '—', null);
+    setCell(`calc-hd-${col}`,    hd    !== null ? `${Math.round(hd)} / ${Math.round(surplus)}` : '—', null);
+    setCell(`calc-vab-${col}`,   vab   !== null ? fmtVol(vab)    : '—', null);
+    setCell(`calc-vphys-${col}`, vphys !== null ? fmtVol(vphys)  : '—', null);
+    setCell(`calc-vad-${col}`,   vad   !== null ? fmtVol(vad)    : '—', null);
+    setCell(`calc-tmoy-${col}`,  tmoy  !== null ? fmtN(tmoy, 2)  : '—', null);
+
+    /* V@15°C — mis en avant */
+    const v15El = document.getElementById(`calc-v15c-${col}`);
+    if (v15El) {
+      v15El.textContent = v15c !== null ? fmtVol(v15c) : '—';
+      v15El.className = 'td-calc' + (v15c === null ? ' calc-empty' : '');
+    }
+
+    /* Vol. disponible — rouge si négatif */
+    const vdEl = document.getElementById(`calc-vdispo-${col}`);
+    if (vdEl) {
+      vdEl.textContent = vdispo !== null ? fmtVol(vdispo) : '—';
+      vdEl.className = 'td-calc' + (vdispo === null ? ' calc-empty' : vdispo < 0 ? ' calc-neg' : '');
+    }
+  }
+
+  /* ── 4. Init et binding ── */
+  const FIELDS = [
+    'creux_mesure','v_a_saisi','t1','t2','t3','temperature_obs',
+    'densite_moyenne','facteur_vcf',
+    'volume_additionnel','volume_tuyauterie','volume_eau'
+  ];
+
+  /* Afficher les totaux initiaux depuis les valeurs serveur (sans écraser avec null) */
+  updateTotaux();
+
+  for (let col = 0; col < cuveParams.length; col++) {
+    FIELDS.forEach(f => {
+      const inp = getInp(col, f);
+      if (inp) {
+        inp.addEventListener('input', () => {
+          inp.classList.add('inp-changed');
+          calcCol(col);
+        });
+      }
+    });
+  }
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,183 @@
+﻿{% extends "base.html" %}
+{% load user_tags %}
+
+{% block title %}Rôles{% endblock %}
+{% block nav_roles %}active{% endblock %}
+
+{% block content %}
+<style>
+.roles-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--ink) 60%,var(--ink) 100%);padding:36px 40px 32px;position:relative;overflow:hidden}
+.roles-hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
+.roles-hero-title{font-family:inherit;font-size:1.75rem;font-weight:700;color:#fff;margin-bottom:6px}
+.roles-hero-sub{font-size:.875rem;color:rgba(255,255,255,.55);margin-bottom:24px}
+.stat-strip{display:flex;gap:12px;flex-wrap:wrap}
+.stat-chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:6px 16px;display:flex;align-items:center;gap:8px;backdrop-filter:blur(4px)}
+.stat-chip-num{font-family:inherit;font-size:1rem;font-weight:700;color:#fff}
+.stat-chip-lbl{font-size:.75rem;color:rgba(255,255,255,.6)}
+.hero-actions{position:absolute;top:36px;right:40px;display:flex;gap:10px}
+.btn-orange{background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:.875rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:all .2s;font-family:inherit}
+.btn-orange:hover{background:#d4690a;transform:translateY(-1px);box-shadow:0 4px 16px rgba(232,118,10,.4)}
+
+.roles-body{padding:32px 40px}
+.roles-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--border);overflow:hidden}
+.roles-table{width:100%;border-collapse:collapse}
+.roles-table thead tr{background:linear-gradient(90deg,var(--navy) 0%,var(--ink) 100%)}
+.roles-table thead th{padding:14px 18px;text-align:left;font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7);white-space:nowrap}
+.roles-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer}
+.roles-table tbody tr:last-child{border-bottom:none}
+.roles-table tbody tr:hover{background:#f8fafc}
+.roles-table td{padding:14px 18px;font-size:.875rem;color:var(--text);vertical-align:middle}
+
+.role-badge-colored{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:.8rem;font-weight:600;font-family:inherit}
+
+.badge-red   {background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+.badge-orange{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.badge-yellow{background:#fefce8;color:#a16207;border:1px solid #fde68a}
+.badge-green {background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.badge-blue  {background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.badge-indigo{background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe}
+.badge-purple{background:#faf5ff;color:#7e22ce;border:1px solid #e9d5ff}
+.badge-pink  {background:#fdf2f8;color:#be185d;border:1px solid #fbcfe8}
+.badge-gray  {background:#f8fafc;color:#475569;border:1px solid #e2e8f0}
+
+.code-mono{font-family:'Courier New',monospace;font-size:.78rem;background:#f1f5f9;color:#334155;padding:3px 8px;border-radius:5px;letter-spacing:.04em}
+.badge-count{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 8px;border-radius:11px;font-size:.72rem;font-weight:700;font-family:inherit}
+.badge-users{background:#eff6ff;color:#1d4ed8}
+.badge-perms{background:#f0fdf4;color:#15803d}
+
+.actions-cell{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.btn-action{padding:5px 12px;border-radius:7px;font-size:.78rem;font-weight:600;border:none;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px;transition:all .15s;font-family:inherit}
+.btn-view{background:#eff6ff;color:#1d4ed8}
+.btn-view:hover{background:#dbeafe}
+.btn-edit{background:#f8fafc;color:#475569;border:1px solid #e2e8f0}
+.btn-edit:hover{background:#f1f5f9}
+.btn-delete{background:#fef2f2;color:#b91c1c}
+.btn-delete:hover{background:#fee2e2}
+
+.empty-state{padding:64px 40px;text-align:center;color:var(--muted)}
+.empty-icon{font-size:3rem;margin-bottom:16px;opacity:.4}
+.empty-title{font-family:inherit;font-size:1.1rem;font-weight:600;color:var(--text);margin-bottom:8px}
+
+@media(max-width:768px){
+  .roles-hero{padding:24px 20px 20px}
+  .hero-actions{position:static;margin-top:16px}
+  .roles-body{padding:20px}
+  .roles-table{display:block;overflow-x:auto}
+}
+</style>
+
+<div class="roles-hero">
+  <div class="hero-actions">
+    {% has_role request.user 'SUPERADMIN' as is_sa %}
+    {% if is_sa %}
+    <a href="{% url 'roles_creer' %}" class="btn-orange">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau rôle
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="roles-hero-title">🛡️ Gestion des Rôles</div>
+  <div class="roles-hero-sub">Définissez qui peut faire quoi dans l'application SGDS SANKE</div>
+
+  <div class="stat-strip">
+    <div class="stat-chip">
+      <span class="stat-chip-num">{{ roles|length }}</span>
+      <span class="stat-chip-lbl">Rôle{{ roles|length|pluralize }} total{{ roles|length|pluralize }}</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-chip-num">5</span>
+      <span class="stat-chip-lbl">Rôles système 🔒</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-chip-num">{{ roles|length|add:"-5" }}</span>
+      <span class="stat-chip-lbl">Rôles personnalisés</span>
+    </div>
+  </div>
+</div>
+
+<div class="roles-body">
+  
+
+  <div class="roles-card">
+    {% if roles %}
+    <table class="roles-table">
+      <thead>
+        <tr>
+          <th>Rôle</th>
+          <th>Code</th>
+          <th style="text-align:center">Utilisateurs</th>
+          <th style="text-align:center">Permissions</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for role in roles %}
+        <tr onclick="window.location='{% url 'roles_detail' role.pk %}'">
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class="role-badge-colored badge-{{ role.couleur }}">
+                {{ role.nom }}
+                {% if role.systeme %}<span title="Rôle système" style="font-size:.7rem">🔒</span>{% endif %}
+              </span>
+            </div>
+            {% if role.description %}
+            <div style="font-size:.75rem;color:var(--muted);margin-top:4px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              {{ role.description|truncatechars:60 }}
+            </div>
+            {% endif %}
+          </td>
+          <td><span class="code-mono">{{ role.code }}</span></td>
+          <td style="text-align:center">
+            <span class="badge-count badge-users">{{ role.nb_users }}</span>
+          </td>
+          <td style="text-align:center">
+            <span class="badge-count badge-perms">{{ role.nb_perms }}</span>
+          </td>
+          <td onclick="event.stopPropagation()">
+            <div class="actions-cell">
+              <a href="{% url 'roles_detail' role.pk %}" class="btn-action btn-view">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Voir
+              </a>
+              {% has_role request.user 'SUPERADMIN' as is_sa2 %}
+              {% if is_sa2 %}
+              <a href="{% url 'roles_modifier' role.pk %}" class="btn-action btn-edit">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Modifier
+              </a>
+              {% if not role.systeme and role.nb_users == 0 %}
+              <form method="post" action="{% url 'roles_supprimer' role.pk %}" style="display:inline"
+                    onsubmit="return confirm('Supprimer le rôle « {{ role.nom }} » ? Cette action est irréversible.')">
+                {% csrf_token %}
+                <button type="submit" class="btn-action btn-delete">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                  Supprimer
+                </button>
+              </form>
+              {% endif %}
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">🛡️</div>
+      <div class="empty-title">Aucun rôle trouvé</div>
+      <div style="font-size:.875rem">Lancez les migrations pour créer les rôles système.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:16px;text-align:right">
+    <a href="{% url 'permissions_liste' %}" style="font-size:.8rem;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:color .2s"
+       onmouseover="this.style.color='var(--navy)'" onmouseout="this.style.color='var(--muted)'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Consulter le référentiel des permissions →
+    </a>
+  </div>
+</div>
+{% endblock %}

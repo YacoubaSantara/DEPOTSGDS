@@ -1,0 +1,326 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Global Mensuel Dépôt{% endblock %}
+{% block nav_etat_mensuel_global_depot %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="#">États</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Global Mensuel Dépôt</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ══════════════════════════════════════════════════════════
+   STYLES ÉCRAN
+══════════════════════════════════════════════════════════ */
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:160px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none}
+.btn-print-main{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.btn-print-main:hover{background:#16304f;transform:translateY(-1px);box-shadow:0 4px 14px rgba(30,58,95,.3)}
+.btn-export-main{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:#16a34a;color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none;transition:all .2s}
+.btn-export-main:hover{background:#15803d}
+
+.section-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow)}
+.section-title{padding:12px 18px;font-weight:700;font-size:.9rem;display:flex;align-items:center;gap:8px}
+.section-entree .section-title{background:#dcfce7;color:#166534}
+.section-sortie .section-title{background:#fee2e2;color:#991b1b}
+.section-cession .section-title{background:#dbeafe;color:#1e40af}
+.section-acquittement .section-title{background:#fef3c7;color:#92400e}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{padding:8px 12px;text-align:left;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+th.right{text-align:right}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+td.right{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.8rem}
+td.center{text-align:center}
+tr:hover td{background:rgba(240,244,248,.4)}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-flex;padding:2px 8px;border-radius:20px;font-size:.67rem;font-weight:600}
+.badge-sd{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
+.badge-ac{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
+.num{font-family:'JetBrains Mono',monospace}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] .section-entree .section-title{background:var(--ok-soft);color:var(--ok)}
+[data-theme="dark"] .section-sortie .section-title{background:var(--err-soft);color:var(--err)}
+[data-theme="dark"] .section-cession .section-title{background:var(--info-soft);color:var(--info)}
+[data-theme="dark"] .section-acquittement .section-title{background:var(--warn-soft);color:var(--warn)}
+[data-theme="dark"] .badge-sd{background:var(--warn-soft);color:var(--warn);border-color:rgba(245,158,11,.3)}
+[data-theme="dark"] .badge-ac{background:var(--ok-soft);color:var(--ok);border-color:rgba(34,197,94,.3)}
+[data-theme="dark"] .btn-export-main{background:var(--ok)}
+[data-theme="dark"] .btn-export-main:hover{filter:brightness(1.1)}
+
+/* En-tête impression — caché à l'écran */
+.print-header{display:none}
+
+/* ══════════════════════════════════════════════════════════
+   STYLES IMPRESSION — @media print
+══════════════════════════════════════════════════════════ */
+@media print {
+  .topbar,.sidebar,.breadcrumb-bar,.filters-bar,.page-header,
+  .btn-print-main,.btn-export-main,.btn,.no-print { display:none !important; }
+
+  body { margin:0; padding:0; background:#fff; font-family:'Arial',sans-serif; font-size:9pt; color:#000; }
+  .main-content,.content-wrapper,main,[class*="content"] { margin:0 !important; padding:0 !important; width:100% !important; }
+
+  .print-header { display:block !important; margin-bottom:14px; }
+
+  /* Sections */
+  .section-block { box-shadow:none; border:1.5px solid var(--ink); border-radius:0; margin-bottom:14px; page-break-inside:avoid; }
+  .section-title { padding:6px 10px; font-size:9pt; font-weight:700; }
+  .section-entree .section-title  { background:#dcfce7 !important; color:#166534 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .section-sortie .section-title  { background:#fee2e2 !important; color:#991b1b !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .section-cession .section-title { background:#dbeafe !important; color:#1e40af !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .section-acquittement .section-title { background:#fef3c7 !important; color:#92400e !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  table { font-size:8pt; border-collapse:collapse; width:100%; page-break-inside:auto; }
+  thead { display:table-header-group; }
+  tr { page-break-inside:avoid; }
+  th {
+    background:var(--ink) !important; color:#fff !important; padding:4px 7px;
+    font-size:7pt; text-transform:uppercase; border:1px solid #0f2240;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  td { padding:3px 7px; border:1px solid #d4dae3; font-size:7.5pt; }
+  tr:hover td { background:transparent; }
+  td.right { font-family:monospace; font-size:7.5pt; }
+
+  .badge {
+    padding:1px 4px; border-radius:2px; font-size:6.5pt;
+    font-weight:700; border:1px solid #aaa !important;
+    background:transparent !important; color:#000 !important;
+  }
+  .badge-sd { border-color:#92400e !important; color:#92400e !important; }
+  .badge-ac { border-color:#166534 !important; color:#166534 !important; }
+
+  @page {
+    margin:12mm 10mm 16mm 10mm;
+    size:A4 landscape;
+  }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="print-header">
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
+    <tr>
+      {% if societe.logo %}
+      <td style="width:60px;vertical-align:middle;padding-right:10px">
+        <img src="{{ societe.logo.url }}" style="max-height:50px;max-width:55px;object-fit:contain">
+      </td>
+      {% endif %}
+      <td style="vertical-align:middle">
+        <div style="font-size:14pt;font-weight:700;color:var(--ink)">{{ societe.raison_sociale|default:"SGDS SANKE" }}</div>
+        <div style="font-size:8pt;color:#64748b;margin-top:2px">
+          {{ societe.nom_depot|default:"Dépôt Pétrolier" }}
+          {% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}
+          {% if societe.telephone %} · Tél : {{ societe.telephone }}{% endif %}
+        </div>
+      </td>
+      <td style="text-align:right;vertical-align:top;font-size:7.5pt;color:#64748b;white-space:nowrap">
+        Imprimé le : <strong id="print-date"></strong><br>
+        Par : <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
+      </td>
+    </tr>
+  </table>
+  <div style="border-top:3px solid var(--ink);margin:5px 0 8px"></div>
+  <div style="text-align:center;margin-bottom:8px">
+    <div style="font-size:13pt;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em">ÉTAT GLOBAL MENSUEL — DÉPÔT</div>
+    <div style="font-size:9pt;color:#475569;margin-top:2px">
+      Période : <strong>{% if periode %}{{ periode }}{% else %}—{% endif %}</strong>
+      {% if marketeur_sel %} &nbsp;·&nbsp; Marketeur : <strong>{{ marketeur_sel.raison_sociale }}</strong>{% else %} &nbsp;·&nbsp; Tous les marketeurs{% endif %}
+    </div>
+  </div>
+</div>
+
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">État Global Mensuel Dépôt</h1>
+    <p class="page-subtitle">
+      {% if periode %}{{ periode }}{% endif %}
+      {% if marketeur_sel %} — {{ marketeur_sel.raison_sociale }}{% else %} — Tous les marketeurs{% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button onclick="lancerImpression()" class="btn-print-main">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Aperçu / Imprimer
+    </button>
+    {% if periode and rapport.mouvements %}
+    <a href="{% url 'etat_mensuel_global_depot_export' %}?periode_id={{ periode.pk }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.pk }}{% endif %}"
+       class="btn-export-main">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter Excel
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Marketeur (optionnel)</label>
+        <select name="marketeur">
+          <option value="">— Tous —</option>
+          {% for m in marketeurs %}<option value="{{ m.pk }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>{{ m.sigle|default:m.raison_sociale }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+        <a href="{% url 'etat_mensuel_global_depot' %}" class="btn-reset">Réinitialiser</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if not periode %}
+<div class="empty-state"><p>Aucune période comptable disponible.</p></div>
+{% elif not rapport.mouvements %}
+<div class="empty-state"><p>Aucun mouvement pour cette période.</p></div>
+{% else %}
+
+{% with par_type=rapport.par_type %}
+
+{% if par_type.ENTREE %}
+<div class="section-block section-entree">
+  <div class="section-title">📥 Entrées ({{ par_type.ENTREE|length }})</div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>N°Enreg.</th><th>Marketeur</th>
+      <th class="center" style="text-align:center">Rég.</th><th>Produit</th><th>Provenance</th>
+      <th class="right">V Amb (L)</th><th class="right">V @15°C (L)</th>
+    </tr></thead>
+    <tbody>
+    {% for m in par_type.ENTREE %}
+    <tr>
+      <td>{{ m.date_mouvement }}</td>
+      <td style="font-size:.75rem;color:var(--muted)">{{ m.numero_enregistrement|default:"—" }}</td>
+      <td>{{ m.marketeur.sigle|default:m.marketeur.raison_sociale }}</td>
+      <td class="center" style="text-align:center"><span class="badge {% if m.regime_douanier == 'SOUS_DOUANE' %}badge-sd{% else %}badge-ac{% endif %}">{% if m.regime_douanier == 'SOUS_DOUANE' %}SD{% else %}AC{% endif %}</span></td>
+      <td>{{ m.produit.nom }}</td>
+      <td>{{ m.provenance|default:"—" }}</td>
+      <td class="right num">{{ m.volume_ambiant_recu|default:0|floatformat:2|intcomma }}</td>
+      <td class="right num">{{ m.volume_15c_recu|default:0|floatformat:2|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if par_type.SORTIE %}
+<div class="section-block section-sortie">
+  <div class="section-title">📤 Sorties ({{ par_type.SORTIE|length }})</div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>N°Enreg.</th><th>Marketeur</th>
+      <th style="text-align:center">Rég.</th><th>Produit</th><th>Destination</th>
+      <th class="right">V Amb (L)</th><th class="right">V @15°C (L)</th><th>Mode règl.</th>
+    </tr></thead>
+    <tbody>
+    {% for m in par_type.SORTIE %}
+    <tr>
+      <td>{{ m.date_mouvement }}</td>
+      <td style="font-size:.75rem;color:var(--muted)">{{ m.numero_enregistrement|default:"—" }}</td>
+      <td>{{ m.marketeur.sigle|default:m.marketeur.raison_sociale }}</td>
+      <td style="text-align:center"><span class="badge {% if m.regime_douanier == 'SOUS_DOUANE' %}badge-sd{% else %}badge-ac{% endif %}">{% if m.regime_douanier == 'SOUS_DOUANE' %}SD{% else %}AC{% endif %}</span></td>
+      <td>{{ m.produit.nom }}</td>
+      <td>{{ m.destination|default:m.code_destination|default:"BON DE SORTIE" }}</td>
+      <td class="right num">{{ m.volume_ambiant_sortie|default:0|floatformat:2|intcomma }}</td>
+      <td class="right num">{{ m.volume_15c_sortie|default:0|floatformat:2|intcomma }}</td>
+      <td style="font-size:.75rem">{{ m.mode_reglement|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if par_type.CESSION %}
+<div class="section-block section-cession">
+  <div class="section-title">🔄 Cessions ({{ par_type.CESSION|length }})</div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>N°Enreg.</th><th>Cédant</th><th>Destinataire</th>
+      <th>Produit</th><th class="right">V Amb (L)</th><th class="right">V @15°C (L)</th>
+    </tr></thead>
+    <tbody>
+    {% for m in par_type.CESSION %}
+    <tr>
+      <td>{{ m.date_mouvement }}</td>
+      <td style="font-size:.75rem;color:var(--muted)">{{ m.numero_enregistrement|default:"—" }}</td>
+      <td>{{ m.marketeur.sigle|default:m.marketeur.raison_sociale }}</td>
+      <td>{% if m.cession_marketeur_destinataire %}{{ m.cession_marketeur_destinataire.sigle|default:m.cession_marketeur_destinataire.raison_sociale }}{% else %}—{% endif %}</td>
+      <td>{{ m.produit.nom }}</td>
+      <td class="right num">{{ m.cession_volume_ambiant|default:0|floatformat:2|intcomma }}</td>
+      <td class="right num">{{ m.cession_volume_15c|default:0|floatformat:2|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if par_type.ACQUITTEMENT %}
+<div class="section-block section-acquittement">
+  <div class="section-title">⚖ Acquittements ({{ par_type.ACQUITTEMENT|length }})</div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>N°Enreg.</th><th>Marketeur</th><th>Produit</th>
+      <th class="right">V Amb (L)</th><th class="right">V @15°C (L)</th>
+    </tr></thead>
+    <tbody>
+    {% for m in par_type.ACQUITTEMENT %}
+    <tr>
+      <td>{{ m.date_mouvement }}</td>
+      <td style="font-size:.75rem;color:var(--muted)">{{ m.numero_enregistrement|default:"—" }}</td>
+      <td>{{ m.marketeur.sigle|default:m.marketeur.raison_sociale }}</td>
+      <td>{{ m.produit.nom }}</td>
+      <td class="right num">{{ m.volume_ambiant_sortie|default:0|floatformat:2|intcomma }}</td>
+      <td class="right num">{{ m.volume_15c_sortie|default:0|floatformat:2|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endwith %}
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var el = document.getElementById('print-date');
+  if (el) {
+    var now = new Date();
+    el.textContent = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
+      + ' à ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+  }
+});
+function lancerImpression() {
+  var el = document.getElementById('print-date');
+  if (el) {
+    var now = new Date();
+    el.textContent = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
+      + ' à ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+  }
+  window.print();
+}
+</script>
+{% endblock %}

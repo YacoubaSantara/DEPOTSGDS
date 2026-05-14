@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Badge — {{ chauffeur.nom_complet }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:     #1E3A5F;
+      --navy-d:   #0F1E30;
+      --navy-l:   #2A5080;
+      --orange:   #E8760A;
+      --orange-l: #F4903A;
+    }
+
+    /* ── PAGE (ÉCRAN) ─────────────────────────────── */
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #080F1C;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 20px 56px;
+      gap: 36px;
+    }
+
+    /* Halo lumineux derrière le badge */
+    body::before {
+      content: '';
+      position: fixed;
+      width: 700px;
+      height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(232,118,10,.10) 0%, transparent 65%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Grille de points subtile */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── EN-TÊTE DE PAGE ────────────────────────── */
+    .page-header {
+      text-align: center;
+      z-index: 1;
+      animation: fadeUp .4s ease both;
+    }
+
+    .page-label {
+      font-size: .7rem;
+      font-weight: 600;
+      color: rgba(255,255,255,.3);
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .page-name {
+      font-family: 'Sora', sans-serif;
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.01em;
+    }
+
+    /* ── BADGE ──────────────────────────────────── */
+    .badge-scene {
+      perspective: 1400px;
+      z-index: 1;
+      animation: fadeUp .4s ease .1s both;
+    }
+
+    .badge-flip {
+      transition: transform .6s cubic-bezier(.23,1,.32,1);
+      transform-style: preserve-3d;
+    }
+
+    .badge-scene:hover .badge-flip {
+      transform: rotateY(-10deg) rotateX(5deg);
+    }
+
+    .badge {
+      width: 310px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.07),
+        0 4px 24px rgba(0,0,0,.25),
+        0 20px 60px rgba(0,0,0,.5),
+        0 48px 100px rgba(0,0,0,.35);
+      position: relative;
+    }
+
+    /* Reflet holographique au survol */
+    .badge::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        118deg,
+        transparent 25%,
+        rgba(255,255,255,.07) 45%,
+        rgba(255,255,255,.18) 52%,
+        rgba(255,255,255,.07) 59%,
+        transparent 75%
+      );
+      opacity: 0;
+      transition: opacity .4s;
+      pointer-events: none;
+      z-index: 10;
+      border-radius: 18px;
+    }
+
+    .badge-scene:hover .badge::before { opacity: 1; }
+
+    /* ── HEADER DU BADGE ───────────────────────── */
+    .badge-header {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-l) 100%);
+      padding: 16px 18px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Cercles décoratifs */
+    .badge-header::before {
+      content: '';
+      position: absolute;
+      right: -30px; top: -30px;
+      width: 120px; height: 120px;
+      border: 22px solid rgba(255,255,255,.04);
+      border-radius: 50%;
+    }
+
+    .badge-header::after {
+      content: '';
+      position: absolute;
+      right: 28px; top: -18px;
+      width: 70px; height: 70px;
+      border: 14px solid rgba(232,118,10,.18);
+      border-radius: 50%;
+    }
+
+    .badge-header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .badge-logo-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-logo-icon {
+      width: 34px; height: 34px;
+      background: var(--orange);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 10px rgba(232,118,10,.5);
+    }
+
+    .badge-logo-icon svg {
+      width: 18px; height: 18px;
+      stroke: #fff; fill: none; stroke-width: 2;
+    }
+
+    .badge-logo-name {
+      font-family: 'Sora', sans-serif;
+      font-size: .9rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: .04em;
+      line-height: 1;
+    }
+
+    .badge-logo-sub {
+      font-size: .62rem;
+      color: rgba(255,255,255,.45);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .badge-tag {
+      font-family: 'Sora', sans-serif;
+      font-size: .58rem;
+      font-weight: 700;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--orange);
+      background: rgba(232,118,10,.15);
+      border: 1px solid rgba(232,118,10,.35);
+      padding: 4px 9px;
+      border-radius: 5px;
+    }
+
+    /* Barre accent orange */
+    .badge-accent {
+      height: 3px;
+      background: linear-gradient(90deg, var(--orange) 0%, var(--orange-l) 55%, transparent 100%);
+    }
+
+    /* ── CORPS DU BADGE ─────────────────────────── */
+    .badge-body {
+      padding: 22px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Avatar */
+    .badge-avatar {
+      width: 78px; height: 78px;
+      border-radius: 50%;
+      border: 3px solid var(--navy);
+      background: var(--navy);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Sora', sans-serif;
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 20px rgba(30,58,95,.35);
+    }
+
+    .badge-avatar img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    /* Nom */
+    .badge-name {
+      font-family: 'Sora', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--navy);
+      text-align: center;
+      line-height: 1.2;
+      letter-spacing: -.01em;
+    }
+
+    .badge-role {
+      font-size: .68rem;
+      color: rgba(30,58,95,.45);
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-weight: 600;
+      margin-top: 5px;
+      margin-bottom: 14px;
+    }
+
+    /* Chips info */
+    .badge-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: .7rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .chip svg {
+      width: 10px; height: 10px;
+      stroke: currentColor; fill: none; stroke-width: 2.5;
+    }
+
+    .chip-emp {
+      background: rgba(30,58,95,.08);
+      color: var(--navy);
+      font-family: 'Sora', sans-serif;
+      letter-spacing: .04em;
+    }
+
+    .chip-permis {
+      background: rgba(109,40,217,.08);
+      color: #6d28d9;
+    }
+
+    .chip-tel {
+      background: rgba(5,150,105,.08);
+      color: #059669;
+    }
+
+    .chip-camion {
+      background: rgba(30,58,95,.06);
+      color: #1E3A5F;
+      font-family: 'Sora', sans-serif;
+      letter-spacing: .03em;
+    }
+
+    .chip-actif    { background: #dcfce7; color: #15803d; }
+    .chip-inactif  { background: #f1f5f9; color: #64748b; }
+    .chip-suspendu { background: #fef3c7; color: #b45309; }
+
+    /* Séparateur */
+    .badge-sep {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #E2E8F0 20%, #E2E8F0 80%, transparent);
+      margin-bottom: 18px;
+    }
+
+    /* Zone QR */
+    .badge-qr-zone {
+      width: 100%;
+      background: #F7F9FC;
+      border: 1.5px dashed #CBD5E1;
+      border-radius: 12px;
+      padding: 14px 14px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-qr-zone img {
+      width: 100px; height: 100px;
+      display: block;
+      border-radius: 4px;
+    }
+
+    .qr-scan-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .qr-scan-row svg {
+      width: 11px; height: 11px;
+      stroke: rgba(30,58,95,.35); fill: none; stroke-width: 2;
+    }
+
+    .qr-scan-label {
+      font-size: .6rem;
+      color: rgba(30,58,95,.35);
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-weight: 600;
+    }
+
+    /* ── FOOTER DU BADGE ─────────────────────────── */
+    .badge-footer {
+      background: var(--orange);
+      padding: 9px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .badge-footer::before {
+      content: '';
+      position: absolute;
+      right: -20px; top: 50%;
+      transform: translateY(-50%);
+      width: 80px; height: 80px;
+      border: 18px solid rgba(255,255,255,.08);
+      border-radius: 50%;
+    }
+
+    .badge-footer svg {
+      width: 12px; height: 12px;
+      stroke: rgba(255,255,255,.7); fill: none; stroke-width: 2;
+      flex-shrink: 0;
+    }
+
+    .badge-footer-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: .68rem;
+      font-weight: 700;
+      color: rgba(255,255,255,.92);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    /* ── BARRE D'ACTIONS ─────────────────────────── */
+    .action-bar {
+      display: flex;
+      gap: 12px;
+      z-index: 1;
+      animation: fadeUp .4s ease .2s both;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .btn-print {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 26px;
+      border-radius: 11px;
+      background: var(--orange);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: background .15s, transform .15s, box-shadow .15s;
+      box-shadow: 0 4px 18px rgba(232,118,10,.4);
+      letter-spacing: .01em;
+    }
+
+    .btn-print:hover {
+      background: var(--orange-l);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(232,118,10,.5);
+    }
+
+    .btn-print svg {
+      width: 16px; height: 16px;
+      stroke: currentColor; fill: none; stroke-width: 2;
+    }
+
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 26px;
+      border-radius: 11px;
+      background: rgba(255,255,255,.05);
+      color: rgba(255,255,255,.65);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,.1);
+      transition: background .15s, color .15s;
+    }
+
+    .btn-back:hover {
+      background: rgba(255,255,255,.09);
+      color: rgba(255,255,255,.85);
+    }
+
+    .btn-back svg {
+      width: 16px; height: 16px;
+      stroke: currentColor; fill: none; stroke-width: 2;
+    }
+
+    /* ── HINT ─────────────────────────────────────── */
+    .hint {
+      font-size: .75rem;
+      color: rgba(255,255,255,.2);
+      text-align: center;
+      z-index: 1;
+      animation: fadeUp .4s ease .3s both;
+    }
+
+    /* ── ANIMATIONS ──────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* ── IMPRESSION ──────────────────────────────── */
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+      body {
+        background: white !important;
+        min-height: auto;
+        padding: 8mm;
+        display: block;
+        gap: 0;
+      }
+
+      body::before,
+      body::after { display: none; }
+
+      .page-header,
+      .action-bar,
+      .hint { display: none; }
+
+      .badge-scene {
+        display: flex;
+        justify-content: center;
+      }
+
+      .badge-flip { transform: none !important; }
+
+      .badge {
+        width: 54mm;
+        border-radius: 3mm;
+        box-shadow: none !important;
+        border: 0.3mm solid #ccc;
+        page-break-inside: avoid;
+      }
+
+      .badge::before { display: none; }
+
+      /* Header */
+      .badge-header { padding: 3mm 4mm 2.5mm; }
+      .badge-logo-icon { width: 7mm; height: 7mm; border-radius: 1.5mm; }
+      .badge-logo-icon svg { width: 3.5mm; height: 3.5mm; }
+      .badge-logo-name { font-size: 2.6mm; }
+      .badge-logo-sub  { font-size: 1.7mm; }
+      .badge-tag       { font-size: 1.5mm; padding: 0.6mm 1.8mm; }
+      .badge-accent    { height: 0.7mm; }
+
+      /* Body */
+      .badge-body { padding: 4mm 4mm 3.5mm; }
+      .badge-avatar { width: 15mm; height: 15mm; font-size: 5.5mm; margin-bottom: 3mm; border-width: 0.6mm; }
+      .badge-name   { font-size: 3.5mm; }
+      .badge-role   { font-size: 1.9mm; margin-top: 1.2mm; margin-bottom: 3mm; }
+      .badge-chips  { gap: 1.5mm; margin-bottom: 3.5mm; }
+      .chip         { font-size: 1.8mm; padding: 0.8mm 2mm; gap: 1mm; }
+      .chip svg     { width: 2.2mm; height: 2.2mm; }
+      .badge-sep    { margin-bottom: 3.5mm; }
+
+      /* QR */
+      .badge-qr-zone  { padding: 2.5mm; border-radius: 2mm; gap: 1.5mm; }
+      .badge-qr-zone img { width: 22mm; height: 22mm; }
+      .qr-scan-label  { font-size: 1.7mm; }
+      .qr-scan-row svg { width: 2.4mm; height: 2.4mm; }
+
+      /* Footer */
+      .badge-footer { padding: 2mm 4mm; }
+      .badge-footer svg { width: 2.5mm; height: 2.5mm; }
+      .badge-footer-text { font-size: 1.8mm; }
+      .badge-footer::before { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- En-tête de page (masqué à l'impression) -->
+  <div class="page-header">
+    <div class="page-label">Badge d'identification · SGDS</div>
+    <div class="page-name">{{ chauffeur.nom_complet }}</div>
+  </div>
+
+  <!-- Badge -->
+  <div class="badge-scene">
+    <div class="badge-flip">
+      <div class="badge">
+
+        <!-- Header -->
+        <div class="badge-header">
+          <div class="badge-header-inner">
+            <div class="badge-logo-group">
+              <div class="badge-logo-icon">
+                <!-- Icône dépôt/camion citerne -->
+                <svg viewBox="0 0 24 24">
+                  <rect x="1" y="3" width="15" height="13" rx="1"/>
+                  <path d="M16 8h4l3 5v3h-7V8z"/>
+                  <circle cx="5.5" cy="18.5" r="2.5"/>
+                  <circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+              </div>
+              <div>
+                <div class="badge-logo-name">SGDS · SANKE</div>
+                <div class="badge-logo-sub">Gestion de Dépôt</div>
+              </div>
+            </div>
+            <div class="badge-tag">CHAUFFEUR</div>
+          </div>
+        </div>
+
+        <!-- Barre orange -->
+        <div class="badge-accent"></div>
+
+        <!-- Corps -->
+        <div class="badge-body">
+
+          <!-- Avatar -->
+          <div class="badge-avatar">
+            {% if chauffeur.photo %}
+              <img src="{{ chauffeur.photo.url }}" alt="{{ chauffeur.nom_complet }}">
+            {% else %}
+              {{ chauffeur.prenom|first|upper }}{{ chauffeur.nom|first|upper }}
+            {% endif %}
+          </div>
+
+          <!-- Nom -->
+          <div class="badge-name">{{ chauffeur.nom_complet }}</div>
+          <div class="badge-role">Chauffeur Citerne</div>
+
+          <!-- Chips -->
+          <div class="badge-chips">
+            {% if chauffeur.numero_employe %}
+            <span class="chip chip-emp">
+              <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+              {{ chauffeur.numero_employe }}
+            </span>
+            {% endif %}
+            <span class="chip chip-permis">
+              <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              Permis {{ chauffeur.categorie_permis }}
+            </span>
+            {% if chauffeur.telephone %}
+            <span class="chip chip-tel">
+              <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.63 19.79 19.79 0 01.1 4a2 2 0 012-2.18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 9.91a16 16 0 006.07 6.07l.44-.44a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+              {{ chauffeur.telephone }}
+            </span>
+            {% endif %}
+            {% if chauffeur.camion %}
+            <span class="chip chip-camion">
+              <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+              {{ chauffeur.camion.immatriculation }}
+            </span>
+            {% endif %}
+            <span class="chip chip-{{ chauffeur.statut|lower }}">
+              {{ chauffeur.get_statut_display }}
+            </span>
+          </div>
+
+          <div class="badge-sep"></div>
+
+          <!-- Zone QR -->
+          <div class="badge-qr-zone">
+            <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code — {{ chauffeur.numero_employe }}">
+            <div class="qr-scan-row">
+              <svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2"/><path d="M17 3h2a2 2 0 012 2v2"/><path d="M21 17v2a2 2 0 01-2 2h-2"/><path d="M7 21H5a2 2 0 01-2-2v-2"/></svg>
+              <span class="qr-scan-label">Scanner pour identifier ce chauffeur</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="badge-footer">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <div class="badge-footer-text">
+            {% if chauffeur.marketeur %}{{ chauffeur.marketeur.raison_sociale }}{% else %}SANKE — Dépôt Pétrolier{% endif %}
+          </div>
+        </div>
+
+      </div><!-- /.badge -->
+    </div><!-- /.badge-flip -->
+  </div><!-- /.badge-scene -->
+
+  <!-- Actions -->
+  <div class="action-bar">
+    <button class="btn-print" onclick="window.print()">
+      <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Imprimer le badge
+    </button>
+    <a href="{% url 'chauffeur_detail' chauffeur.pk %}" class="btn-back">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      Retour à la fiche
+    </a>
+  </div>
+
+  <div class="hint">Survolez le badge pour l'effet 3D &nbsp;·&nbsp; Imprimez sur papier épais (A4) puis découpez</div>
+
+</body>
+</html>

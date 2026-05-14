@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Supprimer {{ produit.nom }}{% endblock %}
+{% block nav_produit %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'produit_list' %}">Produits</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{% url 'produit_detail' produit.pk %}">{{ produit.nom }}</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:520px">
+  <div class="card-h">
+    <div class="card-h-title" style="color:var(--err)">Confirmer la suppression</div>
+  </div>
+  <div class="card-b">
+    <p>Êtes-vous sûr de vouloir supprimer <strong>{{ produit.nom }}</strong> ?</p>
+    <p style="font-size:.85rem;color:var(--muted);margin-top:6px">
+      {{ produit.code }} · {{ produit.famille.nom }} · {{ produit.nb_cuves }} cuve{{ produit.nb_cuves|pluralize }}
+    </p>
+    {% if produit.nb_cuves > 0 %}
+    <div class="alert alert-warn" style="margin-top:12px">
+      <strong>Attention :</strong> {{ produit.nb_cuves }} cuve{{ produit.nb_cuves|pluralize }} utilise{{ produit.nb_cuves|pluralize:"nt" }} ce produit. La suppression sera bloquée.
+    </div>
+    {% endif %}
+    <div class="alert alert-error" style="margin-top:12px">Cette action est irréversible.</div>
+    <form method="post" style="display:flex;gap:8px;margin-top:16px">
+      {% csrf_token %}
+      <a href="{% url 'produit_detail' produit.pk %}" class="btn">Annuler</a>
+      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

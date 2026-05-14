@@ -1,0 +1,52 @@
+﻿{% extends 'base.html' %}
+{% block title %}Supprimer {{ cuve.numero }}{% endblock %}
+{% block nav_cuve %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'cuve_list' %}">Cuves</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{% url 'cuve_detail' cuve.pk %}">{{ cuve.numero }}</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:520px;margin:40px auto">
+  <div style="background:#fff;border-radius:16px;padding:36px;border:1.5px solid #fee2e2;box-shadow:0 4px 24px rgba(220,38,38,.1);text-align:center">
+    <div style="width:64px;height:64px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px">
+      <svg viewBox="0 0 24 24" style="width:28px;height:28px;stroke:#dc2626;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+    </div>
+    <h2 style="font-family:inherit;font-size:1.25rem;font-weight:700;color:var(--ink);margin-bottom:8px">Supprimer cette cuve ?</h2>
+    <p style="font-size:.875rem;color:#64748b;margin-bottom:6px">Vous êtes sur le point de supprimer :</p>
+    <div style="background:#f8fafc;border-radius:10px;padding:14px;margin:16px 0;text-align:left">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <code style="background:#e8f0fb;padding:4px 10px;border-radius:6px;font-size:.85rem;font-weight:700;color:var(--ink);flex-shrink:0">{{ cuve.numero }}</code>
+        <div>
+          <div style="font-weight:700;color:var(--ink);font-size:.9rem">{{ cuve.designation }}</div>
+          {% if cuve.produit %}<div style="font-size:.75rem;color:#64748b">Produit : {{ cuve.produit.nom }}</div>{% endif %}
+        </div>
+      </div>
+      <!-- Mini barre de remplissage -->
+      <div style="font-size:.72rem;color:#94a3b8;margin-bottom:5px">Niveau actuel : {{ cuve.taux_remplissage }}% ({{ cuve.niveau_actuel|floatformat:0 }} / {{ cuve.capacite_totale|floatformat:0 }} L)</div>
+      <div style="height:8px;background:#e8edf5;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:{{ cuve.taux_remplissage }}%;background:var(--accent);border-radius:4px"></div>
+      </div>
+    </div>
+    {% if cuve.niveau_actuel > 0 %}
+    <div style="background:#fef3c7;border-radius:8px;padding:12px;margin-bottom:16px;font-size:.8rem;color:#92400e;text-align:left;border-left:3px solid #f59e0b">
+      <strong>Attention :</strong> Cette cuve contient encore {{ cuve.niveau_actuel|floatformat:0 }} litres. Assurez-vous que la cuve est vidée avant suppression.
+    </div>
+    {% else %}
+    <p style="font-size:.8rem;color:#dc2626;margin-bottom:16px">Cette action est irréversible.</p>
+    {% endif %}
+    <form method="post" style="display:flex;gap:12px;justify-content:center">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger" style="padding:10px 24px">
+        <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        Confirmer la suppression
+      </button>
+      <a href="{% url 'cuve_detail' cuve.pk %}" class="btn btn-secondary" style="padding:10px 24px">Annuler</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

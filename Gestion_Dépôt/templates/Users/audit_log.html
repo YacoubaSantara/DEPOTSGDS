@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load user_tags %}
+{% block title %}Journal d'audit{% endblock %}
+{% block breadcrumb %}
+  <span class="breadcrumb-current">Journal d'audit</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.audit-detail-row{display:none;border-bottom:1px solid var(--border)}
+.audit-detail-row td{background:color-mix(in srgb,var(--info) 5%,var(--surface));padding:12px 14px 14px}
+.audit-detail-inner{display:grid;grid-template-columns:1fr 2fr;gap:16px;font-size:.8rem}
+.change-table{width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;font-size:.78rem}
+.change-table th{background:var(--ink);color:rgba(255,255,255,.8);padding:6px 10px;text-align:left;font-weight:600;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase}
+.change-table td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.change-table tr:last-child td{border-bottom:none}
+.val-avant{color:var(--err);background:#fef2f2;padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.75rem;word-break:break-all}
+.val-apres{color:var(--ok);background:#f0fdf4;padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.75rem;word-break:break-all}
+.expand-icon{transition:transform .2s;color:var(--muted)}
+.expanded .expand-icon{transform:rotate(90deg)}
+</style>
+{% endblock %}
+
+{% block content %}
+{% load user_tags %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Journal d'audit</h1>
+    <div class="ph-sub">Traçabilité complète des actions — conformité douanière SGDS Sanké</div>
+  </div>
+  <div class="ph-actions">
+    <a href="?{{ request.GET.urlencode }}&export=csv" class="btn btn-ghost">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exporter CSV
+    </a>
+  </div>
+</div>
+
+<!-- Stats rapides -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi">
+    <div class="kpi-label">Entrées totales</div>
+    <div class="kpi-val mono">{{ page_obj.paginator.count }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Filtrées</div>
+    <div class="kpi-val mono" style="color:var(--ok)">{{ page_obj.paginator.count }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Pages</div>
+    <div class="kpi-val mono" style="color:var(--accent)">{{ page_obj.paginator.num_pages }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Par page</div>
+    <div class="kpi-val mono">50</div>
+  </div>
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get">
+  <div class="filter-bar" style="flex-wrap:wrap">
+    <select name="user" class="select">
+      <option value="">Tous les utilisateurs</option>
+      {% for u in users_filtres %}
+        <option value="{{ u.pk }}" {% if filtres.user == u.pk|stringformat:"s" %}selected{% endif %}>
+          {{ u.get_full_name|default:u.username }}
+        </option>
+      {% endfor %}
+    </select>
+    <select name="objet" class="select">
+      <option value="">Tous les objets</option>
+      {% for t in objets_types %}
+        <option value="{{ t }}" {% if filtres.objet == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <select name="action" class="select">
+      <option value="">Toutes les actions</option>
+      {% for code, libelle in actions_choices %}
+        <option value="{{ code }}" {% if filtres.action == code %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="date_from" class="input" value="{{ filtres.date_from }}" style="width:130px">
+    <input type="date" name="date_to" class="input" value="{{ filtres.date_to }}" style="width:130px">
+    <button type="submit" class="btn btn-accent btn-sm">Filtrer</button>
+    <a href="{% url 'users_audit' %}" class="btn btn-ghost btn-sm">Reset</a>
+  </div>
+  </form>
+
+  {% if logs %}
+  <table class="tbl" id="audit-table">
+    <thead>
+      <tr>
+        <th style="width:36px"></th>
+        <th>Horodatage</th>
+        <th>Utilisateur</th>
+        <th>Action</th>
+        <th>Objet</th>
+        <th>Description</th>
+        <th>Source</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr class="audit-row clickable" data-idx="{{ forloop.counter }}" onclick="toggleRow({{ forloop.counter }}, this)">
+        <td>
+          <svg class="expand-icon" viewBox="0 0 24 24" stroke-width="2.5" style="width:14px;height:14px;stroke:currentColor;fill:none"><path d="M9 18l6-6-6-6"/></svg>
+        </td>
+        <td class="mono" style="font-size:.77rem;color:var(--muted);white-space:nowrap">
+          {{ log.horodatage|date:"d/m/Y" }}<br>
+          <strong style="color:var(--ink)">{{ log.horodatage|date:"H:i:s" }}</strong>
+        </td>
+        <td>
+          {% if log.user %}
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:7px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;color:#fff;flex-shrink:0">{{ log.user.username|slice:":2"|upper }}</div>
+            <div>
+              <div style="font-weight:600;font-size:.82rem;line-height:1.2">{{ log.user.get_full_name|default:log.user.username }}</div>
+              <div style="font-size:.72rem;color:var(--muted)">@{{ log.user.username }}</div>
+            </div>
+          </div>
+          {% elif log.user_username_snapshot %}
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:28px;height:28px;border-radius:7px;background:var(--muted);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;color:#fff">??</div>
+            <div>
+              <div style="font-weight:600;font-size:.82rem;color:var(--muted)">{{ log.user_username_snapshot }}</div>
+              <div style="font-size:.72rem;color:var(--muted)">compte supprimé</div>
+            </div>
+          </div>
+          {% else %}
+          <span style="color:var(--muted);font-size:.8rem;font-style:italic">Système</span>
+          {% endif %}
+        </td>
+        <td>
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:.72rem;font-weight:600;background:
+            {% if log.action == 'CREATE' %}#dcfce7;color:#166534
+            {% elif log.action == 'UPDATE' %}#fef9c3;color:#854d0e
+            {% elif log.action == 'DELETE' %}#fee2e2;color:#991b1b
+            {% elif log.action == 'LOGIN' %}#dbeafe;color:#1d4ed8
+            {% elif log.action == 'LOGOUT' %}#f1f5f9;color:#475569
+            {% elif log.action == 'LOGIN_FAILED' %}#fff7ed;color:#c2410c
+            {% elif log.action == 'EXPORT' %}#f3e8ff;color:#7e22ce
+            {% elif log.action == 'VALIDATE' %}#dcfce7;color:#166534
+            {% elif log.action == 'CLOSE' %}#f1f5f9;color:#334155
+            {% elif log.action == 'OPEN' %}#ccfbf1;color:#0f766e
+            {% else %}#f1f5f9;color:#475569{% endif %}">
+            {{ log.action|action_icon }} {{ log.get_action_display }}
+          </span>
+        </td>
+        <td>
+          {% if log.objet_type %}
+          <span style="font-size:.8rem;font-weight:600">{{ log.objet_type }}</span>
+          {% if log.objet_repr %}<div style="font-size:.73rem;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ log.objet_repr }}">{{ log.objet_repr }}</div>{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td style="font-size:.78rem;color:var(--muted);max-width:180px">{{ log.description|default:"—"|truncatechars:60 }}</td>
+        <td>
+          <span style="padding:2px 7px;border-radius:5px;font-size:.68rem;font-weight:700;
+            {% if log.source == 'WEB' %}background:#eff6ff;color:#1e40af
+            {% elif log.source == 'ADMIN' %}background:#f3e8ff;color:#6b21a8
+            {% else %}background:#f1f5f9;color:#475569{% endif %}">
+            {{ log.source }}
+          </span>
+        </td>
+        <td class="mono" style="font-size:.75rem;color:var(--muted);white-space:nowrap">{{ log.ip_address|default:"—" }}</td>
+      </tr>
+
+      <tr class="audit-detail-row" id="detail-{{ forloop.counter }}">
+        <td colspan="8">
+          <div class="audit-detail-inner">
+            <div>
+              <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Détails</div>
+              <table style="font-size:.78rem;width:100%">
+                <tr><td style="color:var(--muted);padding:3px 0;width:100px">ID objet</td><td style="font-weight:600">{{ log.objet_id|default:"—" }}</td></tr>
+                <tr><td style="color:var(--muted);padding:3px 0">Repr.</td><td class="mono" style="font-size:.73rem;word-break:break-all">{{ log.objet_repr|default:"—" }}</td></tr>
+                <tr><td style="color:var(--muted);padding:3px 0">User-Agent</td><td style="font-size:.72rem;color:var(--muted);word-break:break-all">{{ log.user_agent|default:"—"|truncatechars:80 }}</td></tr>
+                {% if log.description %}<tr><td style="color:var(--muted);padding:3px 0">Note</td><td>{{ log.description }}</td></tr>{% endif %}
+              </table>
+            </div>
+            <div>
+              <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">
+                Changements{% if not log.changements %}<span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0"> — aucun détail enregistré</span>{% endif %}
+              </div>
+              {% if log.changements %}
+              <table class="change-table">
+                <thead><tr><th>Champ</th><th>Avant</th><th>Après</th></tr></thead>
+                <tbody>
+                  {% for champ, vals in log.changements.items %}
+                  <tr>
+                    <td style="font-weight:600;white-space:nowrap">{{ champ }}</td>
+                    <td><span class="val-avant">{{ vals.avant|default:"vide" }}</span></td>
+                    <td><span class="val-apres">{{ vals.apres|default:"vide" }}</span></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% else %}
+              <div style="color:var(--muted);font-style:italic;font-size:.78rem">
+                {% if log.action == 'LOGIN' or log.action == 'LOGOUT' or log.action == 'LOGIN_FAILED' %}
+                  Événement d'authentification — pas de données modifiées
+                {% elif log.action == 'CREATE' %}
+                  Création — données initiales non tracées dans les changements
+                {% elif log.action == 'DELETE' %}
+                  Suppression — objet représenté ci-contre
+                {% else %}
+                  Aucun détail de changement disponible
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination">
+    <span>{{ page_obj.start_index }}–{{ page_obj.end_index }} sur {{ page_obj.paginator.count }} entrées</span>
+    <span class="step-links">
+      {% if page_obj.has_previous %}
+        <a href="?page=1{% for k,v in filtres.items %}{% if v %}&{{ k }}={{ v }}{% endif %}{% endfor %}">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% for k,v in filtres.items %}{% if v %}&{{ k }}={{ v }}{% endif %}{% endfor %}">‹</a>
+      {% endif %}
+      <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% for k,v in filtres.items %}{% if v %}&{{ k }}={{ v }}{% endif %}{% endfor %}">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% for k,v in filtres.items %}{% if v %}&{{ k }}={{ v }}{% endif %}{% endfor %}">»</a>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="tbl-empty" style="padding:64px 24px;text-align:center">
+    <p style="font-weight:600;margin-bottom:6px">Aucune entrée d'audit</p>
+    <p style="font-size:.82rem">Aucune action ne correspond aux filtres sélectionnés.</p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function toggleRow(idx, row) {
+  const detail = document.getElementById('detail-' + idx);
+  const isOpen = detail.style.display === 'table-row';
+  document.querySelectorAll('.audit-detail-row').forEach(r => r.style.display = 'none');
+  document.querySelectorAll('.audit-row').forEach(r => r.classList.remove('expanded'));
+  if (!isOpen) {
+    detail.style.display = 'table-row';
+    row.classList.add('expanded');
+  }
+}
+</script>
+{% endblock %}

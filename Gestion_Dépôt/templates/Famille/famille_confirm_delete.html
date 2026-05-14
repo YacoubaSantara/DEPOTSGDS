@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Supprimer {{ famille.nom }}{% endblock %}
+{% block nav_famille %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'famille_list' %}">Familles</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{% url 'famille_detail' famille.pk %}">{{ famille.nom }}</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:520px">
+  <div class="card-h">
+    <div class="card-h-title" style="color:var(--err)">Confirmer la suppression</div>
+  </div>
+  <div class="card-b">
+    <p>Êtes-vous sûr de vouloir supprimer <strong>{{ famille.nom }}</strong> ?</p>
+    <p style="font-size:.85rem;color:var(--muted);margin-top:6px">
+      Code : {{ famille.code }} · {{ famille.nb_produits }} produit{{ famille.nb_produits|pluralize }}
+    </p>
+    {% if famille.nb_produits > 0 %}
+    <div class="alert alert-warn" style="margin-top:12px">
+      <strong>Attention :</strong> Cette famille contient {{ famille.nb_produits }} produit{{ famille.nb_produits|pluralize }}.
+      La suppression est bloquée si des produits y sont rattachés.
+    </div>
+    {% endif %}
+    <div class="alert alert-error" style="margin-top:12px">Cette action est irréversible.</div>
+    <form method="post" style="display:flex;gap:8px;margin-top:16px">
+      {% csrf_token %}
+      <a href="{% url 'famille_detail' famille.pk %}" class="btn">Annuler</a>
+      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

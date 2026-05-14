@@ -1,0 +1,126 @@
+﻿{% extends "base.html" %}
+{% load humanize coulage_tags %}
+{% block title %}Mes Frais de Passage{% endblock %}
+{% block nav_client_mensuel_frais_passage %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="{% url 'client_dashboard' %}">Mon Espace</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Frais de Passage</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:200px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.mode-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow)}
+.mode-title{padding:11px 18px;font-weight:700;font-size:.9rem;background:#f0f4f8;border-bottom:1px solid var(--border);color:var(--navy)}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th{padding:9px 12px;text-align:right;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+th.left{text-align:left}
+td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+td.left{text-align:left}
+tr:hover td{background:rgba(240,244,248,.4)}
+tr:last-child td{border-bottom:none}
+.num{font-family:'JetBrains Mono',monospace;font-size:.84rem}
+.summary-chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;box-shadow:var(--shadow)}
+.chip-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px}
+.chip-val{font-family:inherit;font-weight:700;font-size:.96rem;color:var(--navy)}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] .mode-title{background:var(--surface-2) !important;color:var(--ink)}
+[data-theme="dark"] .chip-val{color:var(--accent-ink)}
+
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="ÉTAT DES FRAIS DE PASSAGE" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Mes Frais de Passage</h1>
+    <p class="page-subtitle">{{ marketeur.raison_sociale }}{% if periode %} — {{ periode }}{% endif %}</p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and rapport %}
+    <a href="{% url 'client_mensuel_frais_passage_export' %}?periode_id={{ periode.pk }}"
+       class="btn-export-main">↓ Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end"><button type="submit" class="btn-filter">Afficher</button></div>
+    </div>
+  </form>
+</div>
+
+{% if not rapport or not rapport.modes %}
+<div class="empty-state"><p>Aucune facturation de frais de passage pour cette période.</p></div>
+{% else %}
+
+{% if rapport.total_general %}
+<div class="summary-chips">
+  <div class="chip">
+    <span class="chip-label">Volume Global Sorti</span>
+    <span class="chip-val">{{ rapport.total_general.volume_global|floatformat:2|intcomma }} L</span>
+  </div>
+  <div class="chip">
+    <span class="chip-label">Montant Total (FCFA)</span>
+    <span class="chip-val">{{ rapport.total_general.montant|floatformat:2|intcomma }}</span>
+  </div>
+</div>
+{% endif %}
+
+{% for mode_data in rapport.modes %}
+<div class="mode-block">
+  <div class="mode-title">{{ mode_data.mode_libelle }}</div>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">Marketeur</th>
+        {% for p in rapport.produits %}<th>{{ p.nom }} (L)</th>{% endfor %}
+        <th>Vol. Global (L)</th>
+        <th>Motif</th>
+        <th>PU (FCFA/L)</th>
+        <th>Montant (FCFA)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for ligne in mode_data.lignes %}
+    <tr>
+      <td class="left"><strong>{{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}</strong></td>
+      {% for p in rapport.produits %}<td class="num">{{ ligne.volumes_par_produit|lookup_id:p|default:"—"|floatformat:2|intcomma }}</td>{% endfor %}
+      <td class="num">{{ ligne.volume_global|floatformat:2|intcomma }}</td>
+      <td style="font-size:.78rem;text-align:left">{{ ligne.motif|default:"Chargement" }}</td>
+      <td class="num">{{ ligne.pu|floatformat:4 }}</td>
+      <td class="num"><strong>{{ ligne.montant|floatformat:2|intcomma }}</strong></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+<p style="font-size:.75rem;color:var(--muted)">ℹ Volumes détaillés par produit disponibles via <strong>↓ Excel</strong>.</p>
+{% endif %}
+{% endblock %}

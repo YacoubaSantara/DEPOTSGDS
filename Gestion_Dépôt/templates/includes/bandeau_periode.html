@@ -1,0 +1,14 @@
+{% if not periode_ouverte %}
+<div style="background:#dc2626;color:#fff;padding:.6rem 1.5rem;font-size:.875rem;font-weight:600;text-align:center;display:flex;align-items:center;justify-content:center;gap:.75rem;z-index:200;position:relative;">
+  <span>⚠️ Aucune période comptable n'est ouverte.
+    Toutes les saisies (mouvements, jaugeages) sont bloquées.
+  </span>
+  {% if request.user.is_staff %}
+    <a href="{% url 'periode_liste' %}" style="color:#fef08a;text-decoration:underline;white-space:nowrap;">
+      Ouvrir la période →
+    </a>
+  {% else %}
+    <span style="color:rgba(255,255,255,.75);">Contactez un administrateur.</span>
+  {% endif %}
+</div>
+{% endif %}

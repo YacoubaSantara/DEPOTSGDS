@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Supprimer jaugeage{% endblock %}
+{% block page_title %}Supprimer jaugeage{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'jaugeage_list' %}">Jaugeages</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'jaugeage_detail' jaugeage.pk %}">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:540px;margin:32px auto">
+  <div class="card" style="overflow:hidden;border-color:var(--err-soft,#fecaca)">
+    <div style="background:var(--err-soft,#fef2f2);padding:20px 24px;border-bottom:1px solid var(--err-soft,#fecaca);display:flex;align-items:center;gap:14px">
+      <div style="width:44px;height:44px;border-radius:10px;background:rgba(168,51,28,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--err)" stroke-width="2" style="width:22px;height:22px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--err)">Supprimer ce jaugeage</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Cette action est irréversible</div>
+      </div>
+    </div>
+    <div style="padding:20px 24px">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span style="color:var(--muted)">Date</span>
+        <span style="font-weight:600">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span style="color:var(--muted)">Type</span>
+        <span style="font-weight:600">{{ jaugeage.get_type_jaugeage_display }}</span>
+      </div>
+      {% if jaugeage.heure_jaugeage %}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span style="color:var(--muted)">Heure</span>
+        <span style="font-weight:600">{{ jaugeage.heure_jaugeage|time:"H:i" }}</span>
+      </div>
+      {% endif %}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span style="color:var(--muted)">Opérateur</span>
+        <span style="font-weight:600">{{ jaugeage.operateur|default:"—" }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:12.5px">
+        <span style="color:var(--muted)">Mesures</span>
+        <span style="font-weight:600">{{ jaugeage.mesures.count }} cuve(s)</span>
+      </div>
+      <div class="alert alert-warning" style="margin-top:14px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Toutes les mesures de ce jaugeage seront également supprimées ({{ jaugeage.mesures.count }} mesure(s)).
+      </div>
+    </div>
+    <div style="padding:16px 24px;background:var(--surface-2);display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)">
+      <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-ghost">Annuler</a>
+      <form method="post" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+          Oui, supprimer définitivement
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

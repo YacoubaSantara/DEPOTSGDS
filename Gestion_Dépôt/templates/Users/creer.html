@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Nouvel utilisateur{% endblock %}
+{% block breadcrumb %}
+  <a href="{% url 'users_liste' %}">Utilisateurs</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Nouveau</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.role-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px}
+.role-option{border:2px solid var(--border);border-radius:10px;padding:12px 10px;cursor:pointer;transition:all .18s;position:relative;background:var(--surface)}
+.role-option:hover{border-color:var(--accent);background:var(--bg)}
+.role-option input{position:absolute;opacity:0;width:0;height:0}
+.role-option.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.role-dot{width:8px;height:8px;border-radius:50%;margin-bottom:8px}
+.role-name{font-size:.78rem;font-weight:700;color:var(--ink);margin-bottom:3px}
+.role-desc{font-size:.68rem;color:var(--muted);line-height:1.35}
+.pwd-bar{height:4px;border-radius:2px;margin-top:6px;background:var(--border);transition:background .2s,width .2s}
+.pwd-msg{font-size:.72rem;margin-top:4px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:780px;margin:0 auto;overflow:hidden">
+  <div style="background:var(--ink);padding:28px 32px;position:relative;overflow:hidden">
+    <div style="position:absolute;inset:0;opacity:.1;background:radial-gradient(circle at 80% 50%,var(--accent) 0%,transparent 60%)"></div>
+    <div style="position:relative">
+      <div style="font-size:1.15rem;font-weight:700;color:#fff;margin-bottom:4px">Créer un nouveau compte utilisateur</div>
+      <div style="font-size:.82rem;color:rgba(255,255,255,.55)">L'utilisateur recevra ses identifiants pour se connecter</div>
+    </div>
+  </div>
+
+  <form method="post" style="padding:28px 32px" id="create-form">
+    {% csrf_token %}
+
+    <!-- Identité -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">Identité</div>
+      <div class="dg-2" style="gap:16px">
+        <div class="field">
+          <label class="field-label">Prénom</label>
+          <input type="text" name="first_name" class="field-input" value="{{ data.first_name|default:'' }}" placeholder="Ex : Yacouba">
+        </div>
+        <div class="field">
+          <label class="field-label">Nom</label>
+          <input type="text" name="last_name" class="field-input" value="{{ data.last_name|default:'' }}" placeholder="Ex : Traoré">
+        </div>
+        <div class="field">
+          <label class="field-label">Nom d'utilisateur <span style="color:var(--accent)">*</span></label>
+          <input type="text" name="username" required class="field-input" value="{{ data.username|default:'' }}" placeholder="Ex : ytraore" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="field-label">Adresse email</label>
+          <input type="email" name="email" class="field-input" value="{{ data.email|default:'' }}" placeholder="ex@sgds.ml">
+        </div>
+        <div class="field">
+          <label class="field-label">Téléphone</label>
+          <input type="text" name="telephone" class="field-input" value="{{ data.telephone|default:'' }}" placeholder="+223 70 00 00 00">
+        </div>
+        <div class="field">
+          <label class="field-label">Fonction / Poste</label>
+          <input type="text" name="poste" class="field-input" value="{{ data.poste|default:'' }}" placeholder="Ex : Opérateur de saisie">
+        </div>
+      </div>
+    </div>
+
+    <!-- Mot de passe -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">Mot de passe</div>
+      <div class="dg-2" style="gap:16px">
+        <div class="field">
+          <label class="field-label">Mot de passe <span style="color:var(--accent)">*</span></label>
+          <input type="password" name="password" id="pwd" required class="field-input" placeholder="Min. 8 caractères" autocomplete="new-password">
+          <div id="pwd-bar" class="pwd-bar"></div>
+          <div id="pwd-msg" class="pwd-msg"></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Confirmation <span style="color:var(--accent)">*</span></label>
+          <input type="password" name="password_confirm" id="pwd2" required class="field-input" placeholder="Répétez le mot de passe">
+          <div id="pwd2-msg" class="pwd-msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rôle -->
+    <div style="margin-bottom:28px">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        Rôle <span style="color:var(--accent)">*</span>
+      </div>
+      <div class="role-grid" id="role-grid">
+        {% for role in roles %}
+        <label class="role-option" id="role-{{ role.code }}" onclick="selectRole('{{ role.code }}')">
+          <input type="radio" name="role" value="{{ role.code }}" {% if data.role == role.code %}checked{% endif %} required>
+          <div class="role-dot" style="background:
+            {% if role.couleur == 'red' %}#ef4444
+            {% elif role.couleur == 'blue' %}#3b82f6
+            {% elif role.couleur == 'green' %}#22c55e
+            {% elif role.couleur == 'yellow' %}#eab308
+            {% elif role.couleur == 'orange' %}var(--accent)
+            {% elif role.couleur == 'purple' %}#8b5cf6
+            {% elif role.couleur == 'indigo' %}#6366f1
+            {% elif role.couleur == 'pink' %}#ec4899
+            {% else %}#94a3b8{% endif %}"></div>
+          <div class="role-name">{{ role.nom }}</div>
+          <div class="role-desc">{% if role.description %}{{ role.description|truncatewords:10 }}{% else %}Rôle personnalisé{% endif %}</div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Lien Marketeur -->
+    <div style="margin-bottom:28px;display:none" id="section-marketeur">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        Société marketeur à lier <span style="color:var(--accent)">*</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Choisir le marketeur</label>
+        <select name="marketeur_id" id="marketeur-select" class="select" style="width:100%">
+          <option value="">— Sélectionner une société —</option>
+          {% for mkt in marketeurs_disponibles %}
+          <option value="{{ mkt.pk }}" {% if data.marketeur_id == mkt.pk|stringformat:"s" %}selected{% endif %}>
+            {{ mkt.raison_sociale }}{% if mkt.sigle %} ({{ mkt.sigle }}){% endif %} — {{ mkt.ville }}
+          </option>
+          {% endfor %}
+        </select>
+        <span style="font-size:.75rem;color:var(--muted)">
+          Seuls les marketeurs actifs sans compte existant sont listés.
+          {% if not marketeurs_disponibles %}<strong style="color:var(--accent)">Aucun marketeur disponible.</strong>{% endif %}
+        </span>
+      </div>
+    </div>
+
+  </form>
+
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:20px 32px;border-top:1px solid var(--border);background:var(--bg)">
+    <a href="{% url 'users_liste' %}" class="btn btn-ghost">Annuler</a>
+    <button type="submit" form="create-form" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Créer l'utilisateur
+    </button>
+  </div>
+</div>
+
+<script>
+function selectRole(code) {
+  document.querySelectorAll('.role-option').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('role-' + code);
+  if (el) el.classList.add('selected');
+  const radio = document.querySelector('[name="role"][value="' + code + '"]');
+  if (radio) radio.checked = true;
+
+  const sectionMkt = document.getElementById('section-marketeur');
+  const selectMkt  = document.getElementById('marketeur-select');
+  if (code === 'MARKETEUR') {
+    sectionMkt.style.display = 'block';
+    selectMkt.required = true;
+  } else {
+    sectionMkt.style.display = 'none';
+    selectMkt.required = false;
+    selectMkt.value = '';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const checked = document.querySelector('[name="role"]:checked');
+  if (checked) selectRole(checked.value);
+});
+
+const pwd = document.getElementById('pwd');
+const pwd2 = document.getElementById('pwd2');
+const bar = document.getElementById('pwd-bar');
+const msg = document.getElementById('pwd-msg');
+const msg2 = document.getElementById('pwd2-msg');
+
+pwd.addEventListener('input', function() {
+  const v = this.value;
+  let score = 0;
+  if (v.length >= 8) score++;
+  if (/[A-Z]/.test(v)) score++;
+  if (/[0-9]/.test(v)) score++;
+  if (/[^A-Za-z0-9]/.test(v)) score++;
+  const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
+  const labels = ['Trop court','Faible','Moyen','Fort'];
+  if (v.length === 0) { bar.style.background=''; bar.style.width='0'; msg.textContent=''; return; }
+  bar.style.background = colors[score-1] || colors[0];
+  bar.style.width = (score*25)+'%';
+  msg.textContent = labels[score-1] || labels[0];
+  msg.style.color = colors[score-1] || colors[0];
+  checkMatch();
+});
+
+pwd2.addEventListener('input', checkMatch);
+
+function checkMatch() {
+  if (!pwd2.value) { msg2.textContent=''; return; }
+  if (pwd.value === pwd2.value) {
+    msg2.textContent = '✓ Les mots de passe correspondent';
+    msg2.style.color = '#16a34a';
+  } else {
+    msg2.textContent = '✗ Les mots de passe ne correspondent pas';
+    msg2.style.color = '#dc2626';
+  }
+}
+</script>
+{% endblock %}

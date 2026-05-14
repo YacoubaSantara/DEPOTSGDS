@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% load humanize coulage_tags %}
+{% block nav_coulage %}active{% endblock %}
+{% block title %}Suivi évolution — {{ produit.nom }} — {{ periode.libelle }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'coulage_liste' %}">Coulage</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'coulage_detail' periode_id=periode.pk %}">{{ periode.libelle }}</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Suivi évolution</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+tr.row-jaugeage{background:#fefce8}
+[data-theme="dark"] tr.row-jaugeage{background:rgba(202,138,4,.08) !important}
+[data-theme="dark"] .jaugeage-legend-swatch{background:rgba(202,138,4,.15) !important;border-color:rgba(202,138,4,.4) !important}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Suivi journalier — {{ produit.nom }}</h1>
+    <div class="ph-sub">{{ periode.libelle }}</div>
+  </div>
+  <div class="ph-actions">
+    <form method="get" style="display:flex;gap:.4rem;align-items:center">
+      <label style="font-size:.85rem;color:var(--muted);font-weight:500">Produit :</label>
+      <select name="produit" onchange="this.form.submit()" class="select">
+        {% for p in produits %}
+        <option value="{{ p.pk }}" {% if p.pk == produit.pk %}selected{% endif %}>{{ p.nom }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <a href="{% url 'suivi_export' periode_id=periode.pk produit_id=produit.pk %}" class="btn btn-ghost">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Excel
+    </a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+{% with t=rapport.totaux %}
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi" style="border-left:3px solid var(--info)">
+    <div class="kpi-label">Entrées brutes</div>
+    <div class="kpi-val mono">{{ t.entree_brute|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  <div class="kpi" style="border-left:3px solid var(--warn)">
+    <div class="kpi-label">Coulage réception</div>
+    <div class="kpi-val mono">{{ t.coulage_reception|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  <div class="kpi" style="border-left:3px solid var(--err)">
+    <div class="kpi-label">Sorties</div>
+    <div class="kpi-val mono">{{ t.sortie|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+  <div class="kpi" style="border-left:3px solid {% if t.pg_total >= 0 %}var(--ok){% else %}var(--err){% endif %}">
+    <div class="kpi-label">P/G cumulé fin de période</div>
+    <div class="kpi-val mono" style="color:{% if t.pg_total >= 0 %}var(--ok){% else %}var(--err){% endif %}">
+      {% if t.pg_total >= 0 %}+{% endif %}{{ t.pg_total|floatformat:0|intcomma }}
+    </div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+</div>
+{% endwith %}
+
+{% if rapport.cuves %}
+<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+  <span style="font-size:.8rem;color:var(--muted);font-weight:600">Cuves :</span>
+  {% for cuve in rapport.cuves %}
+  <span class="bdg info">{{ cuve.numero }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Tableau journalier -->
+<div class="card" style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:900px">
+    <thead>
+      <tr style="background:var(--ink);color:#fff">
+        <th colspan="2" style="padding:.6rem .75rem;text-align:center;border-right:1px solid rgba(255,255,255,.15)">Date</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">Stock initial</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">Entrée brute</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">Coul. réception</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">Sortie</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">Stock comptable</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">Stock physique</th>
+        <th style="padding:.6rem .75rem;text-align:right;border-right:1px solid rgba(255,255,255,.15)">P/G bac</th>
+        <th style="padding:.6rem .75rem;text-align:right">P/G cumulé</th>
+      </tr>
+      {% if rapport.cuves|length > 1 %}
+      <tr style="background:var(--ink);color:var(--border);font-size:.75rem;opacity:.85">
+        <th colspan="2" style="border-right:1px solid rgba(255,255,255,.1)"></th>
+        <th style="text-align:right;padding:.3rem .75rem;border-right:1px solid rgba(255,255,255,.1)">{% for c in rapport.cuves %}{{ c.numero }}{% if not forloop.last %} / {% endif %}{% endfor %}</th>
+        <th style="text-align:right;padding:.3rem .75rem;border-right:1px solid rgba(255,255,255,.1)">{% for c in rapport.cuves %}{{ c.numero }}{% if not forloop.last %} / {% endif %}{% endfor %}</th>
+        <th style="border-right:1px solid rgba(255,255,255,.1)"></th>
+        <th style="text-align:right;padding:.3rem .75rem;border-right:1px solid rgba(255,255,255,.1)">{% for c in rapport.cuves %}{{ c.numero }}{% if not forloop.last %} / {% endif %}{% endfor %}</th>
+        <th style="text-align:right;padding:.3rem .75rem;border-right:1px solid rgba(255,255,255,.1)">{% for c in rapport.cuves %}{{ c.numero }}{% if not forloop.last %} / {% endif %}{% endfor %}</th>
+        <th style="text-align:right;padding:.3rem .75rem;border-right:1px solid rgba(255,255,255,.1)">{% for c in rapport.cuves %}{{ c.numero }}{% if not forloop.last %} / {% endif %}{% endfor %}</th>
+        <th style="text-align:right;padding:.3rem .75rem;border-right:1px solid rgba(255,255,255,.1)">{% for c in rapport.cuves %}{{ c.numero }}{% if not forloop.last %} / {% endif %}{% endfor %}</th>
+        <th></th>
+      </tr>
+      {% endif %}
+    </thead>
+    <tbody>
+      {% for jour in rapport.jours %}
+      <tr class="{% if jour.a_jaugeage %}row-jaugeage{% endif %}" style="border-bottom:1px solid var(--border);{% if not jour.a_jaugeage and forloop.counter|divisibleby:2 %}background:var(--bg);{% endif %}">
+        <td style="padding:.55rem .75rem;font-weight:600;color:var(--ink);white-space:nowrap">
+          {{ jour.date|date:"d/m" }}
+          {% if jour.a_jaugeage %}<span title="Jaugeage effectué" style="color:var(--warn);margin-left:.2rem">⚖</span>{% endif %}
+        </td>
+        <td style="padding:.55rem .75rem;color:var(--muted);font-size:.75rem">{{ jour.jour_semaine }}</td>
+        <td class="mono tar" style="padding:.55rem .75rem">{{ jour.stock_initial_cumul|floatformat:0|intcomma }}</td>
+        <td class="mono tar" style="padding:.55rem .75rem;color:var(--info)">
+          {% for cuve in rapport.cuves %}
+          {% with v=jour.entree_brute|lookup_id:cuve %}
+          {% if v %}{{ v|floatformat:0|intcomma }}{% else %}—{% endif %}{% if not forloop.last %} / {% endif %}
+          {% endwith %}
+          {% endfor %}
+        </td>
+        <td class="mono tar" style="padding:.55rem .75rem;color:var(--warn)">
+          {% for cuve in rapport.cuves %}
+          {% with v=jour.coulage_reception|lookup_id:cuve %}
+          {% if v %}{{ v|floatformat:0|intcomma }}{% else %}—{% endif %}{% if not forloop.last %} / {% endif %}
+          {% endwith %}
+          {% endfor %}
+        </td>
+        <td class="mono tar" style="padding:.55rem .75rem;color:var(--err)">
+          {% for cuve in rapport.cuves %}
+          {% with v=jour.sortie|lookup_id:cuve %}
+          {% if v %}{{ v|floatformat:0|intcomma }}{% else %}—{% endif %}{% if not forloop.last %} / {% endif %}
+          {% endwith %}
+          {% endfor %}
+        </td>
+        <td class="mono tar" style="padding:.55rem .75rem;font-weight:600">
+          {% for cuve in rapport.cuves %}
+          {% with v=jour.stock_comptable|lookup_id:cuve %}
+          {{ v|floatformat:0|intcomma }}{% if not forloop.last %} / {% endif %}
+          {% endwith %}
+          {% endfor %}
+        </td>
+        <td class="mono tar" style="padding:.55rem .75rem;{% if jour.a_jaugeage %}font-weight:700;color:var(--accent){% else %}color:var(--muted){% endif %}">
+          {% if jour.a_jaugeage %}
+            {% for cuve in rapport.cuves %}
+            {% with v=jour.stock_physique|lookup_id:cuve %}
+            {% if v %}{{ v|floatformat:0|intcomma }}{% else %}—{% endif %}{% if not forloop.last %} / {% endif %}
+            {% endwith %}
+            {% endfor %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="mono tar" style="padding:.55rem .75rem">
+          {% if jour.a_jaugeage %}
+            {% for cuve in rapport.cuves %}
+            {% with v=jour.pg_par_bac|lookup_id:cuve %}
+            {% if v is not None %}
+            <span style="color:{% if v >= 0 %}var(--ok){% else %}var(--err){% endif %}">{% if v >= 0 %}+{% endif %}{{ v|floatformat:0|intcomma }}</span>
+            {% else %}—{% endif %}
+            {% if not forloop.last %} / {% endif %}
+            {% endwith %}
+            {% endfor %}
+          {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+        </td>
+        <td class="mono tar" style="padding:.55rem .75rem;font-weight:700;color:{% if jour.pg_cumul >= 0 %}var(--ok){% else %}var(--err){% endif %}">
+          {% if jour.a_jaugeage %}
+            {% if jour.pg_cumul >= 0 %}+{% endif %}{{ jour.pg_cumul|floatformat:0|intcomma }}
+          {% else %}<span style="color:var(--muted);font-weight:400">—</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty"><td colspan="10">Aucune donnée pour cette période.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background:var(--ink);color:#fff;font-weight:700">
+        <td colspan="2" style="padding:.65rem .75rem">TOTAUX PÉRIODE</td>
+        <td class="mono tar" style="padding:.65rem .75rem">—</td>
+        <td class="mono tar" style="padding:.65rem .75rem;color:#bfdbfe">{{ rapport.totaux.entree_brute|floatformat:0|intcomma }}</td>
+        <td class="mono tar" style="padding:.65rem .75rem;color:#fde68a">{{ rapport.totaux.coulage_reception|floatformat:0|intcomma }}</td>
+        <td class="mono tar" style="padding:.65rem .75rem;color:#fca5a5">{{ rapport.totaux.sortie|floatformat:0|intcomma }}</td>
+        <td colspan="3" style="padding:.65rem .75rem;text-align:center;font-size:.75rem;font-weight:400;color:rgba(255,255,255,.4)"></td>
+        <td class="mono tar" style="padding:.65rem .75rem;color:{% if rapport.totaux.pg_total >= 0 %}#86efac{% else %}#fca5a5{% endif %}">
+          {% if rapport.totaux.pg_total >= 0 %}+{% endif %}{{ rapport.totaux.pg_total|floatformat:0|intcomma }}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Légende -->
+  <div style="display:flex;gap:1.5rem;padding:.75rem 1rem;border-top:1px solid var(--border);flex-wrap:wrap;font-size:.77rem;color:var(--muted)">
+    <span style="display:flex;align-items:center;gap:.3rem">
+      <span class="jaugeage-legend-swatch" style="background:#fefce8;border:1px solid #fde68a;width:1rem;height:1rem;display:inline-block;border-radius:.2rem"></span>
+      Jour avec jaugeage (⚖)
+    </span>
+    <span><span style="color:var(--ok);font-weight:700">+ vert</span> = gain</span>
+    <span><span style="color:var(--err);font-weight:700">— rouge</span> = perte</span>
+  </div>
+</div>
+
+<script>
+document.querySelector('select[name="produit"]').addEventListener('change', function() {
+  const pid = this.value;
+  window.location.href = "{% url 'suivi_evolution' periode_id=periode.pk produit_id=0 %}".replace('/0/', '/' + pid + '/');
+});
+</script>
+{% endblock %}

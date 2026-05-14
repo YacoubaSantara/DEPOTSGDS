@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Mouvements{% endblock %}
+{% block page_title %}Mouvements{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Mouvements pétroliers</h1>
+    <div class="ph-sub">Entrées, sorties, cessions et acquittements</div>
+  </div>
+  {% if not request.user.is_marketeur_role %}
+  <div class="ph-actions">
+    <a href="{% url 'mouvement_creer' %}" class="btn btn-accent">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau mouvement
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <!-- Filtres -->
+  <form method="get" action="{% url 'mouvement_liste' %}">
+  <div class="filter-bar">
+    <select class="select" name="type">
+      <option value="">Tous les types</option>
+      {% for val, lib in type_choices %}
+      <option value="{{ val }}" {% if filtres.type == val %}selected{% endif %}>{{ lib }}</option>
+      {% endfor %}
+    </select>
+    <select class="select" name="regime">
+      <option value="">Tous régimes</option>
+      {% for val, lib in regime_choices %}
+      <option value="{{ val }}" {% if filtres.regime == val %}selected{% endif %}>{{ lib }}</option>
+      {% endfor %}
+    </select>
+    <select class="select" name="marketeur">
+      <option value="">Tous les marketeurs</option>
+      {% for mkt in marketeurs %}
+      <option value="{{ mkt.pk }}" {% if filtres.marketeur == mkt.pk|stringformat:"s" %}selected{% endif %}>{{ mkt.sigle|default:mkt.raison_sociale }}</option>
+      {% endfor %}
+    </select>
+    <select class="select" name="produit">
+      <option value="">Tous les produits</option>
+      {% for p in produits %}
+      <option value="{{ p.pk }}" {% if filtres.produit == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
+      {% endfor %}
+    </select>
+    <input class="input" type="date" name="date_debut" value="{{ filtres.date_debut }}" style="width:130px"/>
+    <input class="input" type="date" name="date_fin" value="{{ filtres.date_fin }}" style="width:130px"/>
+    <input class="input search-input" type="text" name="q" value="{{ filtres.q|default:'' }}" placeholder="N°, BL, camion…" style="min-width:200px"/>
+    <button type="submit" class="btn btn-sm btn-accent">Filtrer</button>
+    <a href="{% url 'mouvement_liste' %}" class="btn btn-sm btn-ghost" style="margin-left:auto">Réinitialiser</a>
+  </div>
+  </form>
+
+  <!-- Tableau -->
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>N° enregistrement</th>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Régime</th>
+        <th>Marketeur</th>
+        <th>Produit</th>
+        <th>Camion</th>
+        <th class="tar">Vol. ambiant (L)</th>
+        <th class="tar">Vol. @15°C (L)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mvt in mouvements %}
+      <tr class="clickable" onclick="window.location='{% url 'mouvement_detail' mvt.pk %}'">
+        <td class="mono" style="font-weight:700">{{ mvt.numero_enregistrement|default:"—" }}</td>
+        <td class="mono" style="font-size:11.5px;font-weight:600">{{ mvt.date_mouvement|date:"d/m/Y" }}</td>
+        <td>
+          {% if mvt.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+          {% elif mvt.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+          {% elif mvt.type_mouvement == 'CESSION' %}<span class="bdg-type cession">Cession</span>
+          {% elif mvt.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg-type acquit">Acquittement</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if mvt.regime_douanier == 'ACQUITTE' %}
+            <span class="bdg ok">Acquitté</span>
+          {% else %}
+            <span class="bdg warn">Sous douane</span>
+            {% if mvt.type_mouvement == 'ENTREE' %}
+            {% with s=mvt.statut_acquittement %}
+              {% if s == 'ACQUITTE' %}
+                <br><span class="bdg-acq-status acq-ok" title="Entièrement acquitté">✓ Acquitté</span>
+              {% elif s == 'PARTIEL' %}
+                <br><span class="bdg-acq-status acq-partial"
+                  title="Acquitté : {{ mvt.volume_acquitte_total|floatformat:0 }} L sur {{ mvt.volume_ambiant_recu|floatformat:0 }} L">⚡ Partiel</span>
+              {% elif s == 'EN_ATTENTE' %}
+                <br><span class="bdg-acq-status acq-wait" title="Aucun acquittement enregistré">⏳ En attente</span>
+              {% endif %}
+            {% endwith %}
+            {% endif %}
+          {% endif %}
+        </td>
+        <td style="font-size:12px">{{ mvt.marketeur.sigle|default:mvt.marketeur.raison_sociale }}</td>
+        <td style="font-weight:600">{{ mvt.produit.nom }}</td>
+        <td class="mono" style="font-size:11.5px;color:var(--muted)">{{ mvt.camion.immatriculation|default:"—" }}</td>
+        <td class="num tar">
+          {% with v=mvt.volume_ambiant_principal %}{% if v %}{{ v|floatformat:0 }}{% else %}—{% endif %}{% endwith %}
+        </td>
+        <td class="num tar">
+          {% with v=mvt.volume_principal %}{% if v %}{{ v|floatformat:0 }}{% else %}—{% endif %}{% endwith %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty">
+        <td colspan="9">Aucun mouvement enregistré{% if filtres.type or filtres.regime or filtres.marketeur or filtres.produit %} pour ces critères{% endif %}.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  {% if mouvements.has_other_pages %}
+  <div class="pagination">
+    <span>{{ mouvements.start_index }}–{{ mouvements.end_index }} sur {{ mouvements.paginator.count }}</span>
+    <span class="step-links">
+      {% if mouvements.has_previous %}
+        <a href="?{% if filtres.type %}type={{ filtres.type }}&{% endif %}{% if filtres.regime %}regime={{ filtres.regime }}&{% endif %}{% if filtres.marketeur %}marketeur={{ filtres.marketeur }}&{% endif %}{% if filtres.produit %}produit={{ filtres.produit }}&{% endif %}{% if filtres.date_debut %}date_debut={{ filtres.date_debut }}&{% endif %}{% if filtres.date_fin %}date_fin={{ filtres.date_fin }}&{% endif %}page={{ mouvements.previous_page_number }}">‹</a>
+      {% endif %}
+      {% for i in mouvements.paginator.page_range %}
+        {% if mouvements.number == i %}
+          <span class="current">{{ i }}</span>
+        {% elif i >= mouvements.number|add:"-2" and i <= mouvements.number|add:"2" %}
+          <a href="?{% if filtres.type %}type={{ filtres.type }}&{% endif %}{% if filtres.regime %}regime={{ filtres.regime }}&{% endif %}{% if filtres.marketeur %}marketeur={{ filtres.marketeur }}&{% endif %}{% if filtres.produit %}produit={{ filtres.produit }}&{% endif %}{% if filtres.date_debut %}date_debut={{ filtres.date_debut }}&{% endif %}{% if filtres.date_fin %}date_fin={{ filtres.date_fin }}&{% endif %}page={{ i }}">{{ i }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if mouvements.has_next %}
+        <a href="?{% if filtres.type %}type={{ filtres.type }}&{% endif %}{% if filtres.regime %}regime={{ filtres.regime }}&{% endif %}{% if filtres.marketeur %}marketeur={{ filtres.marketeur }}&{% endif %}{% if filtres.produit %}produit={{ filtres.produit }}&{% endif %}{% if filtres.date_debut %}date_debut={{ filtres.date_debut }}&{% endif %}{% if filtres.date_fin %}date_fin={{ filtres.date_fin }}&{% endif %}page={{ mouvements.next_page_number }}">›</a>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Totaux -->
+<div class="totaux-bar">
+  <div class="total-card">
+    <span class="tc-label">Total mouvements</span>
+    <span class="tc-value">{{ nb_total }}</span>
+  </div>
+  <div class="total-card">
+    <span class="tc-label">Page</span>
+    <span class="tc-value">{{ mouvements.number }} / {{ mouvements.paginator.num_pages }}</span>
+  </div>
+</div>
+
+{% endblock %}

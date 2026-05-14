@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Supprimer {{ mkt.raison_sociale }}{% endblock %}
+{% block nav_marketeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'marketeur_list' %}">Marketeurs</a><span class="breadcrumb-sep">/</span>
+<a href="{% url 'marketeur_detail' mkt.pk %}">{{ mkt.raison_sociale }}</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:520px">
+  <div class="card-h">
+    <div class="card-h-title" style="color:var(--err)">Confirmer la suppression</div>
+  </div>
+  <div class="card-b">
+    <p>Êtes-vous sûr de vouloir supprimer le marketeur <strong>{{ mkt.raison_sociale }}</strong>{% if mkt.sigle %} ({{ mkt.sigle }}){% endif %} ?</p>
+    <div class="alert alert-error" style="margin-top:12px">
+      Cette action est <strong>irréversible</strong>. Toutes les données associées à ce marketeur seront définitivement supprimées.
+    </div>
+    <form method="post" style="display:flex;gap:8px;margin-top:16px">
+      {% csrf_token %}
+      <a href="{% url 'marketeur_detail' mkt.pk %}" class="btn">Annuler</a>
+      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

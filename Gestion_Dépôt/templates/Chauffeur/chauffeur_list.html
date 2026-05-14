@@ -1,0 +1,118 @@
+﻿{% extends 'base.html' %}
+{% block title %}Chauffeurs{% endblock %}
+{% block nav_chauffeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Chauffeurs</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Chauffeurs</h1>
+    <div class="ph-sub">Gestion des chauffeurs de camions citernes</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'chauffeur_create' %}" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau chauffeur
+    </a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi">
+    <div class="kpi-label">Total chauffeurs</div>
+    <div class="kpi-val mono">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Actifs</div>
+    <div class="kpi-val mono">{{ nb_actif }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Inactifs</div>
+    <div class="kpi-val mono">{{ nb_inactif }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Suspendus</div>
+    <div class="kpi-val mono">{{ nb_suspendu }}</div>
+  </div>
+</div>
+
+<!-- Filtres -->
+<form method="get" class="filter-bar">
+  <div style="position:relative;flex:1;min-width:220px">
+    <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);fill:none;pointer-events:none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input class="search-input" type="text" name="q" value="{{ q }}" placeholder="Nom, téléphone, permis, marketeur…">
+  </div>
+  <select name="statut" class="select">
+    <option value="">Tous les statuts</option>
+    <option value="ACTIF" {% if statut == 'ACTIF' %}selected{% endif %}>Actif</option>
+    <option value="INACTIF" {% if statut == 'INACTIF' %}selected{% endif %}>Inactif</option>
+    <option value="SUSPENDU" {% if statut == 'SUSPENDU' %}selected{% endif %}>Suspendu</option>
+  </select>
+  <button type="submit" class="btn btn-accent btn-sm">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Filtrer
+  </button>
+  {% if q or statut %}
+  <a href="{% url 'chauffeur_list' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
+  {% endif %}
+  <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;margin-left:auto">{{ chauffeurs|length }} résultat{% if chauffeurs|length != 1 %}s{% endif %}</span>
+</form>
+
+<!-- Table -->
+<div class="card">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Chauffeur</th>
+        <th>Permis</th>
+        <th>Téléphone</th>
+        <th>Marketeur</th>
+        <th>Camion</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for chf in chauffeurs %}
+      <tr class="clickable" onclick="window.location='{% url 'chauffeur_detail' chf.pk %}'">
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0">
+              {% if chf.photo %}<img src="{{ chf.photo.url }}" style="width:36px;height:36px;border-radius:50%;object-fit:cover" alt="{{ chf.nom_complet }}">
+              {% else %}{{ chf.prenom|first|upper }}{{ chf.nom|first|upper }}{% endif %}
+            </div>
+            <span style="font-weight:600">{{ chf.nom_complet }}</span>
+          </div>
+        </td>
+        <td><span class="mono" style="font-size:.82rem">{{ chf.categorie_permis }} — {{ chf.numero_permis }}</span></td>
+        <td class="mono">{{ chf.telephone }}</td>
+        <td>{% if chf.marketeur %}<span style="font-size:.82rem">{{ chf.marketeur.raison_sociale }}</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        <td>
+          {% if chf.camion %}
+          <a href="{% url 'camion_detail' chf.camion.pk %}" class="mono" style="font-size:.82rem;color:var(--navy)" onclick="event.stopPropagation()">{{ chf.camion.immatriculation }}</a>
+          {% else %}<span style="color:var(--muted);font-size:.82rem">—</span>{% endif %}
+        </td>
+        <td>
+          {% if chf.statut == 'ACTIF' %}<span class="bdg ok">{{ chf.get_statut_display }}</span>
+          {% elif chf.statut == 'SUSPENDU' %}<span class="bdg warn">{{ chf.get_statut_display }}</span>
+          {% else %}<span class="bdg">{{ chf.get_statut_display }}</span>{% endif %}
+        </td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px">
+            <a href="{% url 'chauffeur_detail' chf.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'chauffeur_update' chf.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'chauffeur_delete' chf.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty"><td colspan="7">Aucun chauffeur trouvé{% if q or statut %} pour ces critères{% endif %}.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

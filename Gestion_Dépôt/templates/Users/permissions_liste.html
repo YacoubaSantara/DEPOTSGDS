@@ -1,0 +1,152 @@
+﻿{% extends "base.html" %}
+{% load user_tags %}
+
+{% block title %}Référentiel des permissions{% endblock %}
+{% block nav_roles %}active{% endblock %}
+
+{% block content %}
+<style>
+.pl-hero{background:linear-gradient(135deg,var(--navy) 0%,#1f4070 60%,var(--ink) 100%);padding:40px 40px 36px;position:relative;overflow:hidden}
+.pl-hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(255,255,255,.015) 0px,rgba(255,255,255,.015) 1px,transparent 1px,transparent 20px);pointer-events:none}
+.pl-hero-title{font-family:inherit;font-size:1.75rem;font-weight:700;color:#fff;margin-bottom:6px}
+.pl-hero-sub{font-size:.875rem;color:rgba(255,255,255,.55);margin-bottom:24px}
+.pl-breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:20px}
+.pl-breadcrumb a{color:rgba(255,255,255,.45);text-decoration:none;transition:color .2s}
+.pl-breadcrumb a:hover{color:rgba(255,255,255,.8)}
+.pl-breadcrumb span{color:rgba(255,255,255,.7)}
+.pl-kpi-strip{display:flex;gap:12px;flex-wrap:wrap}
+.pl-kpi-chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:6px 16px;display:flex;align-items:center;gap:8px;backdrop-filter:blur(4px)}
+.pl-kpi-num{font-family:inherit;font-size:1rem;font-weight:700;color:#fff}
+.pl-kpi-lbl{font-size:.75rem;color:rgba(255,255,255,.6)}
+
+.pl-body{padding:32px 40px}
+.pl-notice{background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:24px;display:flex;align-items:flex-start;gap:12px}
+.pl-notice-icon{font-size:1.2rem;flex-shrink:0;margin-top:1px}
+.pl-notice-text{font-size:.82rem;color:#92400e;line-height:1.6}
+.pl-notice-text code{background:#fef3c7;padding:1px 6px;border-radius:4px;font-size:.78rem;font-family:'Courier New',monospace;color:#78350f}
+
+.pl-section{margin-bottom:24px}
+.pl-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.pl-section-title{display:flex;align-items:center;gap:10px;font-family:inherit;font-size:1rem;font-weight:700;color:var(--text)}
+.pl-section-count{font-size:.75rem;color:var(--muted);background:#f1f5f9;border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-weight:600}
+
+.pl-table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.pl-table{width:100%;border-collapse:collapse}
+.pl-table thead tr{background:linear-gradient(90deg,#f8fafc 0%,#f1f5f9 100%);border-bottom:1.5px solid var(--border)}
+.pl-table thead th{padding:10px 16px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pl-table tbody tr{border-bottom:1px solid #f1f5f9;transition:background .1s}
+.pl-table tbody tr:last-child{border-bottom:none}
+.pl-table tbody tr:hover{background:#fafbfc}
+.pl-table td{padding:11px 16px;font-size:.82rem;color:var(--text);vertical-align:middle}
+
+.perm-libelle{font-weight:500;color:var(--text)}
+.perm-code-mono{font-family:'Courier New',monospace;font-size:.75rem;background:#f1f5f9;color:#334155;padding:3px 8px;border-radius:5px;letter-spacing:.03em;display:inline-block;white-space:nowrap}
+.role-usage-0{font-size:.78rem;color:var(--muted);font-style:italic}
+.role-usage-count{font-size:.78rem;color:var(--muted)}
+
+.perm-search-bar{position:relative;margin-bottom:20px}
+.perm-search-bar input{width:100%;padding:10px 14px 10px 40px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;color:var(--text);background:#fff;font-family:inherit;transition:border-color .2s}
+.perm-search-bar input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(30,58,95,.07);outline:none}
+.perm-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+
+@media(max-width:768px){.pl-hero{padding:24px 20px}.pl-body{padding:20px}.pl-table{display:block;overflow-x:auto}}
+</style>
+
+<div class="pl-hero">
+  <div class="pl-breadcrumb">
+    <a href="{% url 'roles_liste' %}">Rôles</a>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    <span>Référentiel des permissions</span>
+  </div>
+  <div class="pl-hero-title">🔑 Référentiel des Permissions</div>
+  <div class="pl-hero-sub">Liste exhaustive de toutes les permissions métier de l'application SGDS SANKE</div>
+  <div class="pl-kpi-strip">
+    <div class="pl-kpi-chip">
+      <span class="pl-kpi-num">{{ groupes|length }}</span>
+      <span class="pl-kpi-lbl">Catégories</span>
+    </div>
+    <div class="pl-kpi-chip">
+      <span class="pl-kpi-lbl">🔒 Lecture seule — sync via manage.py</span>
+    </div>
+  </div>
+</div>
+
+<div class="pl-body">
+  <!-- Bandeau info -->
+  <div class="pl-notice">
+    <div class="pl-notice-icon">ℹ️</div>
+    <div class="pl-notice-text">
+      Ce référentiel est <strong>en lecture seule</strong>. Pour ajouter une nouvelle permission,
+      modifiez le fichier <code>SGDS/users/permissions_registry.py</code>, puis exécutez
+      <code>python manage.py sync_permissions</code>. Les nouvelles permissions seront disponibles
+      dans l'éditeur de rôles immédiatement. Le SUPERADMIN les obtient automatiquement.
+    </div>
+  </div>
+
+  <!-- Recherche -->
+  <div class="perm-search-bar">
+    <span class="perm-search-icon">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </span>
+    <input type="text" id="permSearch" placeholder="Rechercher une permission par libellé ou code..." oninput="filterPerms(this.value)">
+  </div>
+
+  <!-- Groupes de permissions -->
+  {% for groupe in groupes %}
+  <div class="pl-section" id="section-{{ groupe.code }}">
+    <div class="pl-section-header">
+      <div class="pl-section-title">
+        <span>{{ groupe.icone }}</span>
+        {{ groupe.libelle }}
+      </div>
+      <span class="pl-section-count">{{ groupe.permissions|length }} permission{{ groupe.permissions|length|pluralize }}</span>
+    </div>
+
+    <div class="pl-table-wrap">
+      <table class="pl-table">
+        <thead>
+          <tr>
+            <th>Libellé</th>
+            <th>Code technique</th>
+            <th>Utilisée par</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for perm in groupe.permissions %}
+          <tr class="perm-row" data-search="{{ perm.libelle|lower }} {{ perm.codename }}">
+            <td><span class="perm-libelle">{{ perm.libelle }}</span></td>
+            <td><span class="perm-code-mono">{{ perm.codename }}</span></td>
+            <td>
+              {% if perm.nb_roles == 0 %}
+              <span class="role-usage-0">Non attribuée</span>
+              {% else %}
+              <span class="role-usage-count">{{ perm.nb_roles }} rôle{{ perm.nb_roles|pluralize }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+function filterPerms(query) {
+  var q = query.toLowerCase().trim();
+  var sections = document.querySelectorAll('.pl-section');
+  sections.forEach(function(section) {
+    var rows = section.querySelectorAll('.perm-row');
+    var sectionVisible = false;
+    rows.forEach(function(row) {
+      var text = row.dataset.search || '';
+      var visible = !q || text.indexOf(q) !== -1;
+      row.style.display = visible ? '' : 'none';
+      if (visible) sectionVisible = true;
+    });
+    section.style.display = sectionVisible ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

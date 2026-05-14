@@ -1,0 +1,153 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+{% block title %}RJJ Mensuel{% endblock %}
+{% block nav_etat_mensuel_rjj %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="#">États</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Relevé Journalier de Jaugeage</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:160px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none}
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.78rem;min-width:1400px}
+th{padding:8px 10px;text-align:center;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+th.left{text-align:left}
+td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:center;color:var(--text)}
+td.left{text-align:left}
+tr.clickable-row{cursor:pointer;transition:background .15s}
+tr.clickable-row:hover td{background:rgba(219,234,254,.5)}
+tr:last-child td{border-bottom:none}
+.num{font-family:'JetBrains Mono',monospace;font-size:.78rem}
+.badge-valide{display:inline-flex;padding:2px 7px;border-radius:10px;font-size:.65rem;font-weight:700;background:#dcfce7;color:#166534}
+.badge-non-valide{display:inline-flex;padding:2px 7px;border-radius:10px;font-size:.65rem;font-weight:700;background:#fef3c7;color:#92400e}
+.lien-rapport{color:var(--navy);font-weight:600;text-decoration:none;font-size:.72rem}
+.lien-rapport:hover{text-decoration:underline}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr.clickable-row:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] .badge-valide{background:var(--ok-soft);color:var(--ok)}
+[data-theme="dark"] .badge-non-valide{background:var(--warn-soft);color:var(--warn)}
+
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="RELEVÉ JOURNALIER DE JAUGEAGE (RJJ)" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Relevé Journalier de Jaugeage (RJJ)</h1>
+    <p class="page-subtitle">{% if periode %}{{ periode }} — {{ rapport.lignes|length }} mesure(s){% endif %}</p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and rapport.lignes %}
+    <a href="{% url 'etat_mensuel_rjj_export' %}?periode_id={{ periode.pk }}{% if cuve_sel %}&cuve={{ cuve_sel }}{% endif %}"
+       class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Cuve (optionnel)</label>
+        <select name="cuve">
+          <option value="">— Toutes les cuves —</option>
+          {% for c in cuves %}<option value="{{ c.pk }}" {% if cuve_sel and cuve_sel|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.numero }}{% if c.produit %} — {{ c.produit.nom }}{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+        <a href="{% url 'etat_mensuel_rjj' %}" class="btn-reset">Réinitialiser</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if not periode %}
+<div class="empty-state"><p>Aucune période disponible.</p></div>
+{% elif not rapport.lignes %}
+<div class="empty-state"><p>Aucun jaugeage pour cette période{% if cuve_sel %} et cette cuve{% endif %}.</p></div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="left">Date</th>
+        <th>Type</th>
+        <th>Cuve</th>
+        <th>Produit</th>
+        <th>Creux (mm)</th>
+        <th>Creux corr.</th>
+        <th>H.Produit</th>
+        <th>T1 (°C)</th>
+        <th>T2 (°C)</th>
+        <th>T3 (°C)</th>
+        <th>T° Moy</th>
+        <th>T° Obs</th>
+        <th>D.Moy</th>
+        <th>D 15°C</th>
+        <th>VCF</th>
+        <th>V Amb Bac (L)</th>
+        <th>V Amb Dépôt (L)</th>
+        <th>V @15°C (L)</th>
+        <th>V Dispo (L)</th>
+        <th>Val.</th>
+        <th>Rapport</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for l in rapport.lignes %}
+    <tr class="clickable-row" onclick="window.location='{% url 'jaugeage_detail' l.jaugeage_pk %}'">
+      <td class="left">{{ l.date }}</td>
+      <td style="font-size:.72rem">{{ l.type_jaugeage }}</td>
+      <td><strong>{{ l.cuve_numero }}</strong></td>
+      <td style="font-size:.75rem">{{ l.produit_nom }}</td>
+      <td class="num">{{ l.creux|default:"—" }}</td>
+      <td class="num">{{ l.creux_corrige|default:"—" }}</td>
+      <td class="num">{{ l.hauteur_produit|default:"—" }}</td>
+      <td class="num">{{ l.t1|default:"—" }}</td>
+      <td class="num">{{ l.t2|default:"—" }}</td>
+      <td class="num">{{ l.t3|default:"—" }}</td>
+      <td class="num">{% if l.temp_moy %}{{ l.temp_moy|floatformat:2 }}{% else %}—{% endif %}</td>
+      <td class="num">{{ l.temp_obs|default:"—" }}</td>
+      <td class="num">{{ l.densite_moy|default:"—" }}</td>
+      <td class="num">{{ l.densite_15c|default:"—" }}</td>
+      <td class="num">{% if l.facteur_vcf %}{{ l.facteur_vcf|floatformat:4 }}{% else %}—{% endif %}</td>
+      <td class="num">{% if l.v_amb_bac %}{{ l.v_amb_bac|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+      <td class="num">{% if l.v_amb_depot %}{{ l.v_amb_depot|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+      <td class="num">{% if l.v_15c %}{{ l.v_15c|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+      <td class="num">{% if l.v_disponible %}{{ l.v_disponible|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+      <td><span class="{% if l.est_valide %}badge-valide{% else %}badge-non-valide{% endif %}">{% if l.est_valide %}Validé{% else %}En attente{% endif %}</span></td>
+      <td onclick="event.stopPropagation()">
+        <a href="{% url 'jaugeage_detail' l.jaugeage_pk %}" class="lien-rapport" title="Voir le détail du jaugeage">Voir</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p style="margin-top:10px;font-size:.75rem;color:var(--muted)" class="no-print">Cliquez sur une ligne pour ouvrir le rapport de jaugeage.</p>
+{% endif %}
+{% endblock %}

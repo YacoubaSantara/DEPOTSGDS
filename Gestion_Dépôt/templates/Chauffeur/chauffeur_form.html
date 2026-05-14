@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% block title %}{% if action == 'Nouveau' %}Nouveau chauffeur{% else %}Modifier {{ chauffeur.nom_complet }}{% endif %}{% endblock %}
+{% block nav_chauffeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'chauffeur_list' %}">Chauffeurs</a>
+<span class="breadcrumb-sep">/</span>
+{% if action == 'Nouveau' %}
+<span class="breadcrumb-current">Nouveau chauffeur</span>
+{% else %}
+<a href="{% url 'chauffeur_detail' chauffeur.pk %}">{{ chauffeur.nom_complet }}</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Modifier</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">{% if action == 'Nouveau' %}Enregistrer un chauffeur{% else %}Modifier le chauffeur{% endif %}</h1>
+    <div class="ph-sub">{% if action == 'Nouveau' %}Ajouter un nouveau chauffeur au registre{% else %}Modifier le profil de {{ chauffeur.nom_complet }}{% endif %}</div>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+
+  <!-- Identité -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Identité</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.nom.id_for_label }}">Nom<span class="req">*</span></label>
+          {{ form.nom }}{{ form.nom.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.prenom.id_for_label }}">Prénom(s)<span class="req">*</span></label>
+          {{ form.prenom }}{{ form.prenom.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.nationalite.id_for_label }}">Nationalité</label>
+          {{ form.nationalite }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_naissance.id_for_label }}">Date de naissance</label>
+          {{ form.date_naissance }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.lieu_naissance.id_for_label }}">Lieu de naissance</label>
+          {{ form.lieu_naissance }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.photo.id_for_label }}">Photo</label>
+          {{ form.photo }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Contact</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.telephone.id_for_label }}">Téléphone<span class="req">*</span></label>
+          {{ form.telephone }}{{ form.telephone.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.telephone2.id_for_label }}">Téléphone 2</label>
+          {{ form.telephone2 }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.email.id_for_label }}">Email</label>
+          {{ form.email }}
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label class="field-label" for="{{ form.adresse.id_for_label }}">Adresse</label>
+        {{ form.adresse }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Permis -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Permis de conduire</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.numero_permis.id_for_label }}">N° Permis<span class="req">*</span></label>
+          {{ form.numero_permis }}{{ form.numero_permis.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.categorie_permis.id_for_label }}">Catégorie<span class="req">*</span></label>
+          {{ form.categorie_permis }}{{ form.categorie_permis.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_obtention_permis.id_for_label }}">Date d'obtention</label>
+          {{ form.date_obtention_permis }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_expiration_permis.id_for_label }}">Date d'expiration</label>
+          {{ form.date_expiration_permis }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Professionnel -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Informations professionnelles</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.numero_employe.id_for_label }}">N° Employé</label>
+          {{ form.numero_employe }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_embauche.id_for_label }}">Date d'embauche</label>
+          {{ form.date_embauche }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Affectation & Statut -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Affectation & Statut</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.statut.id_for_label }}">Statut</label>
+          {{ form.statut }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.marketeur.id_for_label }}">Marketeur associé</label>
+          {{ form.marketeur }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.camion.id_for_label }}">Camion assigné</label>
+          {{ form.camion }}
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label class="field-label" for="{{ form.notes.id_for_label }}">Notes / Observations</label>
+        {{ form.notes }}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;justify-content:flex-end;padding:18px 0">
+    <a href="{% if action == 'Modifier' %}{% url 'chauffeur_detail' chauffeur.pk %}{% else %}{% url 'chauffeur_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+    <button type="submit" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      {% if action == 'Nouveau' %}Enregistrer le chauffeur{% else %}Sauvegarder les modifications{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

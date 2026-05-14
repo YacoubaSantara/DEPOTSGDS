@@ -1,0 +1,606 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RJJ — {{ jaugeage.date_jaugeage|date:"d/m/Y" }} — SGDS SANKÉ</title>
+{% load jaugeage_extras %}
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ══════════════════════════════════════════════════════════
+   VARIABLES & RESET
+══════════════════════════════════════════════════════════ */
+:root{
+  --navy:var(--ink);--navy-d:#0f2240;--orange:var(--accent);
+  --green:#059669;--red:#dc2626;--amber:#d97706;
+  --border:#d1d5db;--muted:#6b7280;--text:#111827;
+  --bg-calc:#f0fdf4;--bg-param:#f8fafc;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:10pt}
+body{
+  font-family:inherit;color:var(--text);
+  background:#e5e7eb;padding:20px;
+}
+a{text-decoration:none;color:inherit}
+
+/* ══════════════════════════════════════════════════════════
+   PAGE A4
+══════════════════════════════════════════════════════════ */
+.page{
+  background:#fff;
+  width:297mm;
+  min-height:210mm;
+  margin:0 auto 20px;
+  padding:10mm 12mm 10mm;
+  box-shadow:0 4px 24px rgba(0,0,0,.15);
+  display:flex;flex-direction:column;gap:6mm;
+  page-break-after:always;
+}
+
+/* ══════════════════════════════════════════════════════════
+   EN-TÊTE RAPPORT
+══════════════════════════════════════════════════════════ */
+.rjj-header{
+  display:flex;align-items:stretch;justify-content:space-between;
+  border:1.5px solid var(--navy);border-radius:4px;overflow:hidden;
+}
+.rjj-header-brand{
+  background:var(--navy);color:#fff;
+  padding:6px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px;
+  min-width:160px;
+}
+.brand-title{font-family:inherit;font-size:14pt;font-weight:800;letter-spacing:.02em}
+.brand-sub{font-size:7pt;color:rgba(255,255,255,.6);font-weight:400}
+.brand-depot{font-size:8pt;color:rgba(255,255,255,.85);margin-top:3px;font-weight:500}
+
+.rjj-header-info{flex:1;padding:6px 14px;display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;align-content:center}
+.info-item{display:flex;gap:6px;font-size:7.5pt}
+.info-label{color:var(--muted);font-weight:500;white-space:nowrap}
+.info-value{font-weight:700;color:var(--navy)}
+
+.rjj-header-type{
+  background:{% if jaugeage.type_jaugeage == 'AVR' %}#dbeafe{% elif jaugeage.type_jaugeage == 'APR' %}#ede9fe{% else %}#d1fae5{% endif %};
+  color:{% if jaugeage.type_jaugeage == 'AVR' %}#1d4ed8{% elif jaugeage.type_jaugeage == 'APR' %}#7c3aed{% else %}#065f46{% endif %};
+  padding:6px 14px;display:flex;flex-direction:column;justify-content:center;align-items:center;
+  min-width:90px;border-left:2px solid var(--border);
+}
+.type-label{font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.type-val{font-family:inherit;font-size:10pt;font-weight:800;margin-top:2px}
+
+/* ══════════════════════════════════════════════════════════
+   TOTAUX PAR PRODUIT
+══════════════════════════════════════════════════════════ */
+.totaux-grid{
+  display:flex;gap:8px;align-items:stretch;
+}
+.total-box{
+  flex:1;border:1.5px solid var(--border);border-radius:4px;
+  padding:5px 10px;display:flex;flex-direction:column;gap:2px;
+}
+.total-box.depot{background:var(--navy);border-color:var(--navy);flex:0 0 auto;min-width:130px}
+.tbox-label{font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.tbox-val{font-family:inherit;font-size:11pt;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
+.total-box.depot .tbox-label,.total-box.depot .tbox-val{color:#fff}
+.total-box.depot .tbox-label{color:rgba(255,255,255,.55)}
+
+/* ══════════════════════════════════════════════════════════
+   TABLEAU PRINCIPAL
+══════════════════════════════════════════════════════════ */
+.rjj-table-wrap{flex:1;overflow:hidden}
+.rjj-table{
+  width:100%;border-collapse:collapse;
+  font-size:7pt;
+  table-layout:fixed;
+}
+
+/* Colonne labels */
+.rjj-table .col-label{width:38mm}
+.rjj-table .col-cuve{width:auto}
+
+/* En-tête groupe produit */
+.th-prod{
+  text-align:center;padding:4px 4px;
+  font-family:inherit;font-size:7.5pt;font-weight:700;
+  border:1px solid var(--border);
+}
+
+/* Numéro de cuve */
+.th-cuve{
+  text-align:center;padding:4px 4px;
+  font-family:inherit;font-size:8.5pt;font-weight:700;color:var(--navy);
+  border:1px solid var(--border);background:#fff;
+}
+.th-cuve-des{font-size:5.5pt;font-weight:400;color:var(--muted);margin-top:1px}
+
+/* Cellules label (1ère colonne) */
+.td-label{
+  padding:3px 5px;font-size:6.5pt;font-weight:600;color:var(--muted);
+  border:1px solid var(--border);background:var(--bg-param);
+  text-align:left;white-space:nowrap;
+}
+.td-label.section{
+  font-weight:800;font-size:6pt;text-transform:uppercase;letter-spacing:.1em;
+  background:var(--navy);color:#fff;
+  padding:3px 5px;
+}
+.td-label.section.calc{background:#064e3b}
+
+/* Cellules données */
+.td-data{
+  padding:3px 4px;text-align:center;border:1px solid var(--border);
+  font-family:'Courier New',monospace;font-size:7pt;font-weight:600;color:var(--text);
+  white-space:nowrap;
+}
+.td-data.param{background:var(--bg-param);font-weight:500;color:var(--muted);font-family:inherit;font-size:6.5pt}
+.td-data.empty{color:#d1d5db;font-weight:400}
+.td-data.calc{background:var(--bg-calc);color:var(--green)}
+.td-data.v15c{background:#065f46;color:#6ee7b7;font-weight:800;font-size:8pt}
+.td-data.neg{background:#fee2e2;color:var(--red)}
+.td-data.blank{background:#f9fafb}
+
+/* ══════════════════════════════════════════════════════════
+   SIGNATURES
+══════════════════════════════════════════════════════════ */
+.signatures{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;
+  margin-top:4mm;
+  border-top:1px solid var(--border);padding-top:4mm;
+}
+.sig-box{display:flex;flex-direction:column;gap:4px}
+.sig-title{font-size:7pt;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.sig-line{height:32px;border-bottom:1.5px solid var(--text);margin-top:4px}
+.sig-name{font-size:6.5pt;color:var(--muted);margin-top:2px}
+
+/* ══════════════════════════════════════════════════════════
+   FILIGRANE BROUILLON
+══════════════════════════════════════════════════════════ */
+.brouillon-watermark{
+  pointer-events:none;
+  position:fixed;top:50%;left:50%;
+  transform:translate(-50%,-50%) rotate(-35deg);
+  font-size:72pt;font-weight:900;letter-spacing:.12em;
+  color:rgba(220,38,38,.08);white-space:nowrap;user-select:none;z-index:999
+}
+@media print {
+  .brouillon-watermark{
+    position:fixed;top:50%;left:50%;
+    color:rgba(220,38,38,.12) !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BOUTONS ÉCRAN (masqués à l'impression)
+══════════════════════════════════════════════════════════ */
+.screen-actions{
+  display:flex;gap:10px;justify-content:center;align-items:center;
+  margin-bottom:16px;
+}
+.btn-print{
+  background:var(--navy);color:#fff;border:none;padding:10px 24px;
+  border-radius:8px;font-family:inherit;font-size:.875rem;font-weight:600;
+  cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .2s;
+}
+.btn-print:hover{background:var(--orange)}
+.btn-back{
+  background:#fff;color:var(--text);border:1.5px solid #d1d5db;padding:10px 20px;
+  border-radius:8px;font-family:inherit;font-size:.875rem;font-weight:500;
+  cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;
+  text-decoration:none;
+}
+.btn-back:hover{border-color:var(--navy);color:var(--navy)}
+.btn-print svg,.btn-back svg{width:16px;height:16px;stroke:currentColor;fill:none}
+
+/* ══════════════════════════════════════════════════════════
+   IMPRESSION @media print
+══════════════════════════════════════════════════════════ */
+@media print {
+  body{background:#fff;padding:0}
+  .screen-actions{display:none !important}
+  .page{
+    margin:0;box-shadow:none;
+    padding:8mm 10mm;
+    width:100%;
+    min-height:0;
+  }
+  @page{
+    size:A4 landscape;
+    margin:8mm 10mm;
+  }
+}
+</style>
+</head>
+<body>
+
+{% if not jaugeage.est_valide %}
+<div class="brouillon-watermark">BROUILLON</div>
+{% endif %}
+
+<!-- ── Boutons d'action (écran uniquement) ─────────────────── -->
+<div class="screen-actions">
+  <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn-back">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Retour à la fiche
+  </a>
+  <button class="btn-print" onclick="window.print()">
+    <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    Imprimer maintenant
+  </button>
+  <a href="{% url 'jaugeage_saisie' jaugeage.pk %}" class="btn-back">
+    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    Saisie
+  </a>
+</div>
+
+<!-- ── Page A4 ──────────────────────────────────────────────── -->
+<div class="page">
+
+  <!-- En-tête -->
+  <div class="rjj-header">
+    <div class="rjj-header-brand">
+      <div class="brand-title">SGDS SANKÉ</div>
+      <div class="brand-sub">Système de Gestion de Dépôt</div>
+      <div class="brand-depot">{{ jaugeage.depot }} — {{ jaugeage.type_depot }}</div>
+    </div>
+    <div class="rjj-header-info">
+      <div class="info-item">
+        <span class="info-label">Rapport :</span>
+        <span class="info-value">Jaugeage Journalier</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Date :</span>
+        <span class="info-value">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Heure :</span>
+        <span class="info-value">{{ jaugeage.heure_jaugeage|time:"H:i"|default:"—" }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Opérateur :</span>
+        <span class="info-value">{{ jaugeage.operateur|default:"—" }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">T°réf. :</span>
+        <span class="info-value">{{ jaugeage.temperature_reference }}°C</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">N° jaugeage :</span>
+        <span class="info-value">#{{ jaugeage.pk }}</span>
+      </div>
+    </div>
+    <div class="rjj-header-type">
+      <div class="type-label">Type</div>
+      <div class="type-val">{{ jaugeage.get_type_jaugeage_display }}</div>
+    </div>
+  </div>
+
+  <!-- Totaux -->
+  <div class="totaux-grid">
+    {% for tg in totaux_groupes %}
+    <div class="total-box">
+      <div class="tbox-label">{{ tg.produit.nom|default:"Sans produit" }}</div>
+      <div class="tbox-val" style="color:#9a3412">{{ tg.total_vad|fmt_vol|default:"—" }} L</div>
+      {% if tg.total_v15c %}
+      <div style="font-size:6pt;color:#059669;margin-top:3px;font-family:inherit;font-weight:600">
+        @15°C : {{ tg.total_v15c|fmt_vol }} L
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if total_depot %}
+    <div class="total-box" style="background:linear-gradient(135deg,#7c2d12,#9a3412);border-color:#ea580c;flex:0 0 auto;min-width:140px">
+      <div class="tbox-label" style="color:rgba(255,220,180,.75)">Vol. ambiant total dépôt</div>
+      <div class="tbox-val" style="color:#fed7aa">{{ total_depot|fmt_vol }} L</div>
+      {% if total_v15c %}
+      <div style="font-size:6pt;color:#6ee7b7;margin-top:3px;font-family:inherit;font-weight:600">
+        @15°C : {{ total_v15c|fmt_vol }} L
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Tableau principal -->
+  <div class="rjj-table-wrap">
+  <table class="rjj-table">
+    <thead>
+
+      <!-- Ligne 1 : groupes produit -->
+      <tr>
+        <td class="td-label" style="background:var(--navy);color:#fff;font-size:6.5pt;font-weight:700;border:1px solid var(--navy)" rowspan="2">Cuve</td>
+        {% for pg in product_groups %}
+        <th class="th-prod" colspan="{{ pg.mesures|length }}"
+            style="background:{% if pg.produit %}{{ pg.produit.famille.couleur|default:'var(--ink)' }}22{% else %}#f1f5f9{% endif %};
+                   color:{% if pg.produit %}{{ pg.produit.famille.couleur|default:'var(--navy)' }}{% else %}var(--muted){% endif %}">
+          {{ pg.produit.nom|default:"Sans produit" }}
+        </th>
+        {% endfor %}
+      </tr>
+
+      <!-- Ligne 2 : numéros de cuves -->
+      <tr>
+        {% for m in all_mesures %}
+        <th class="th-cuve">
+          {{ m.cuve.numero }}
+          <div class="th-cuve-des">{{ m.cuve.designation|truncatechars:12 }}</div>
+        </th>
+        {% endfor %}
+      </tr>
+
+      <!-- Paramètres de la cuve (ligne info) -->
+      <tr>
+        <td class="td-label section">Paramètres</td>
+        {% for m in all_mesures %}
+        <td class="td-data param">
+          {% if m.cuve.parametre_jaugeage %}
+          HTT={{ m.cuve.parametre_jaugeage.hauteur_totale_temoin }} mm
+          {% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <td class="td-label">Capacité. max (L)</td>
+        {% for m in all_mesures %}
+        <td class="td-data param">{{ m.cuve.parametre_jaugeage.remplissage_maxi|fmt_vol|default:"—" }}</td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <td class="td-label">V(A) (L) / V/mn (L/mm)</td>
+        {% for m in all_mesures %}
+        <td class="td-data param">
+          {% if m.cuve.parametre_jaugeage %}
+          {{ m.cuve.parametre_jaugeage.v_a|fmt_vol }} / {{ m.cuve.parametre_jaugeage.v_mn }}
+          {% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      <!-- ── Saisies opérateur ── -->
+      <tr><td class="td-label section">Saisie opérateur</td>{% for m in all_mesures %}<td class="td-data blank"></td>{% endfor %}</tr>
+
+      <tr>
+        <td class="td-label">Creux mesuré (mm)</td>
+        {% for m in all_mesures %}
+        <td class="td-data {% if m.creux_mesure is None %}empty{% endif %}">
+          {{ m.creux_mesure|fmt_mm|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">T1 / T2 / T3 (°C)</td>
+        {% for m in all_mesures %}
+        <td class="td-data {% if m.t1 is None %}empty{% endif %}" style="font-size:6.5pt">
+          {% if m.t1 is not None %}{{ m.t1|fmt_temp }} / {{ m.t2|fmt_temp }} / {{ m.t3|fmt_temp }}{% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">T° obs. densité (°C)</td>
+        {% for m in all_mesures %}
+        <td class="td-data {% if m.temperature_obs is None %}empty{% endif %}">
+          {{ m.temperature_obs|fmt_temp|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Densité observée (kg/m³)</td>
+        {% for m in all_mesures %}
+        <td class="td-data {% if m.densite_moyenne is None %}empty{% endif %}">
+          {{ m.densite_moyenne|fmt_density|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <!-- ── Calculs automatiques ── -->
+      <tr><td class="td-label section calc">Calculs</td>{% for m in all_mesures %}<td class="td-data blank" style="background:#f0fdf4"></td>{% endfor %}</tr>
+
+      <tr>
+        <td class="td-label">Creux corrigé (mm)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.creux_corrige is None %}empty{% endif %}">
+          {{ m.creux_corrige|fmt_mm|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Hauteur produit (mm)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.hauteur_produit is None %}empty{% endif %}">
+          {{ m.hauteur_produit|fmt_mm|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">H. décimal / surplus</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.hauteur_decimal is None %}empty{% endif %}">
+          {% if m.hauteur_decimal is not None %}{{ m.hauteur_decimal }} / {{ m.surplus }}{% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label" style="color:#92400e;">V(A) certificat (L)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.v_a_saisi is None %}empty{% endif %}"
+            style="{% if m.v_a_saisi is not None %}background:#fef3c7;color:#92400e;font-weight:600;{% endif %}">
+          {{ m.v_a_saisi|fmt_vol|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Vol. ambiant bac (L)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.volume_ambiant_bac is None %}empty{% endif %}">
+          {{ m.volume_ambiant_bac|fmt_vol|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Vol. physique (L)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.volume_physique is None %}empty{% endif %}">
+          {{ m.volume_physique|fmt_vol|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label" style="background:#7c2d12;color:#fed7aa;font-weight:800;border-color:#9a3412">Vol. ambiant dépôt (L)</td>
+        {% for m in all_mesures %}
+        <td class="td-data {% if m.volume_ambiant_depot is None %}empty{% else %}{% endif %}"
+            style="{% if m.volume_ambiant_depot is not None %}background:#9a3412;color:#fed7aa;font-weight:800;font-size:7.5pt;border-bottom:2px solid #ea580c{% endif %}">
+          {{ m.volume_ambiant_depot|fmt_vol|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Température moy. (°C)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.temperature_moyenne is None %}empty{% endif %}">
+          {{ m.temperature_moyenne|fmt_temp|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Densité @15°C (kg/m³)</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.densite_15c is None %}empty{% endif %}">
+          {{ m.densite_15c|fmt_density|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Facteur Vcf</td>
+        {% for m in all_mesures %}
+        <td class="td-data calc {% if m.facteur_vcf is None %}empty{% endif %}">
+          {{ m.facteur_vcf|fmt_vcf|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <!-- Vol. standard @15°C — ligne principale -->
+      <tr>
+        <td class="td-label" style="background:#064e3b;color:#6ee7b7;font-weight:800;font-size:7pt;border-color:#065f46">
+          Vol. standard @15°C (L)
+        </td>
+        {% for m in all_mesures %}
+        <td class="td-data v15c {% if m.volume_standard_15c_calcule is None %}empty{% endif %}">
+          {% if m.volume_standard_15c_calcule is not None %}
+          {{ m.volume_standard_15c_calcule|fmt_vol }}
+          {% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <tr>
+        <td class="td-label">Vol. disponible (L)</td>
+        {% for m in all_mesures %}
+        <td class="td-data
+          {% if m.volume_disponible is None %}empty
+          {% elif m.volume_disponible < 0 %}neg
+          {% else %}calc{% endif %}">
+          {{ m.volume_disponible|fmt_vol|default:"—" }}
+        </td>
+        {% endfor %}
+      </tr>
+
+    </tbody>
+
+    <!-- Pied de tableau : totaux Vol. ambiant dépôt par groupe (identique saisie) -->
+    <tfoot>
+      <tr>
+        <td class="td-label" style="background:#7c2d12;color:#fed7aa;font-weight:800;font-size:6.5pt;white-space:nowrap;border:1px solid #9a3412">
+          Σ&nbsp;Vol.&nbsp;ambiant
+        </td>
+        {% for pg in product_groups %}
+        <td colspan="{{ pg.mesures|length }}"
+            style="text-align:center;padding:4px 6px;
+                   background:{% if pg.total_vad %}#9a3412{% else %}#fff7ed{% endif %};
+                   color:{% if pg.total_vad %}#fed7aa{% else %}#fdba74{% endif %};
+                   font-family:'Courier New',monospace;font-size:7.5pt;font-weight:800;
+                   border:1px solid #ea580c;white-space:nowrap;border-top:3px solid #ea580c">
+          {% if pg.total_vad %}{{ pg.total_vad|fmt_vol }}&nbsp;L{% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      <tr>
+        <td class="td-label" style="background:#065f46;color:#6ee7b7;font-weight:800;font-size:6.5pt;white-space:nowrap;border:1px solid #064e3b">
+          Σ&nbsp;Vol.&nbsp;@15°C
+        </td>
+        {% for pg in product_groups %}
+        <td colspan="{{ pg.mesures|length }}"
+            style="text-align:center;padding:4px 6px;
+                   background:{% if pg.total_v15c %}#065f46{% else %}#f0fdf4{% endif %};
+                   color:{% if pg.total_v15c %}#6ee7b7{% else %}#86efac{% endif %};
+                   font-family:'Courier New',monospace;font-size:7.5pt;font-weight:800;
+                   border:1px solid #059669;white-space:nowrap;border-top:2px solid #059669">
+          {% if pg.total_v15c %}{{ pg.total_v15c|fmt_vol }}&nbsp;L{% else %}—{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+    </tfoot>
+
+  </table>
+  </div>
+
+  <!-- Notes -->
+  {% if jaugeage.notes %}
+  <div style="font-size:7.5pt;color:var(--muted);border-top:1px solid var(--border);padding-top:4px">
+    <strong>Notes :</strong> {{ jaugeage.notes }}
+  </div>
+  {% endif %}
+
+  <!-- Statut validation -->
+  {% if jaugeage.est_valide %}
+  <div style="margin-bottom:6mm;padding:4px 10px;background:#dcfce7;border:1px solid #86efac;border-radius:5px;font-size:7.5pt;color:#14532d;display:flex;align-items:center;gap:8px">
+    <strong>✓ Validé</strong> —
+    le {{ jaugeage.date_validation|date:"d/m/Y à H:i" }}
+    {% if jaugeage.valide_par %}par {{ jaugeage.valide_par.get_full_name|default:jaugeage.valide_par.username }}{% endif %}
+  </div>
+  {% else %}
+  <div style="margin-bottom:6mm;padding:4px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:5px;font-size:7.5pt;color:#991b1b">
+    <strong>BROUILLON</strong> — Ce document n'a pas encore été validé officiellement.
+  </div>
+  {% endif %}
+
+  <!-- Signatures -->
+  <div class="signatures">
+    <div class="sig-box">
+      <div class="sig-title">Opérateur de jaugeage</div>
+      <div style="font-size:7.5pt;color:var(--muted);margin-top:2px">{{ jaugeage.operateur|default:"" }}</div>
+      <div class="sig-line"></div>
+      <div class="sig-name">Nom et signature</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-title">Responsable dépôt</div>
+      <div style="font-size:7.5pt;color:var(--muted);margin-top:2px">&nbsp;</div>
+      <div class="sig-line"></div>
+      <div class="sig-name">Nom et signature</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-title">Représentant marketeur</div>
+      <div style="font-size:7.5pt;color:var(--muted);margin-top:2px">&nbsp;</div>
+      <div class="sig-line"></div>
+      <div class="sig-name">Nom et signature</div>
+    </div>
+  </div>
+
+</div>{# fin .page #}
+
+</body>
+</html>

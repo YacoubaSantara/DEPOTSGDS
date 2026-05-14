@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Produits{% endblock %}
+{% block nav_produit %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Produits</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Produits</h1>
+    <div class="ph-sub">{{ total }} produit{{ total|pluralize }} enregistré{{ total|pluralize }}</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'famille_list' %}" class="btn btn-ghost">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+      Familles
+    </a>
+    <a href="{% url 'produit_create' %}" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau produit
+    </a>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  <div class="kpi">
+    <div class="kpi-label">Total produits</div>
+    <div class="kpi-val mono">{{ total }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Actifs</div>
+    <div class="kpi-val mono">{{ nb_actif }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Inactifs</div>
+    <div class="kpi-val mono">{{ nb_inactif }}</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Discontinués</div>
+    <div class="kpi-val mono">{{ nb_discontinue }}</div>
+  </div>
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get">
+  <div class="filter-bar">
+    <input class="search-input" style="flex:1;min-width:180px" type="text" name="q" value="{{ q }}" placeholder="Rechercher un produit, code, famille…">
+    <select name="famille" class="select">
+      <option value="">Toutes les familles</option>
+      {% for fam in familles %}
+      <option value="{{ fam.pk }}" {% if famille_id == fam.pk|stringformat:"s" %}selected{% endif %}>{{ fam.nom }}</option>
+      {% endfor %}
+    </select>
+    <select name="statut" class="select">
+      <option value="">Tous statuts</option>
+      <option value="ACTIF" {% if statut == 'ACTIF' %}selected{% endif %}>Actif</option>
+      <option value="INACTIF" {% if statut == 'INACTIF' %}selected{% endif %}>Inactif</option>
+      <option value="DISCONTINUE" {% if statut == 'DISCONTINUE' %}selected{% endif %}>Discontinué</option>
+    </select>
+    <button type="submit" class="btn btn-accent btn-sm">Filtrer</button>
+    {% if q or statut or famille_id %}
+    <a href="{% url 'produit_list' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
+    {% endif %}
+  </div>
+  </form>
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Produit</th>
+        <th>Code</th>
+        <th>Famille</th>
+        <th>Unité</th>
+        <th>Prix unitaire</th>
+        <th>Cuves</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for prod in produits %}
+      <tr class="clickable" onclick="window.location='{% url 'produit_detail' prod.pk %}'">
+        <td>
+          <div style="font-weight:600">{{ prod.nom }}</div>
+          {% if prod.description %}<div style="font-size:.73rem;color:var(--muted);margin-top:2px">{{ prod.description|truncatechars:50 }}</div>{% endif %}
+        </td>
+        <td><code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:.78rem;color:var(--navy);font-weight:700">{{ prod.code }}</code></td>
+        <td>
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:{{ prod.famille.couleur }}15;color:{{ prod.famille.couleur }};border:1px solid {{ prod.famille.couleur }}40">
+            <span style="width:6px;height:6px;border-radius:50%;background:{{ prod.famille.couleur }};display:inline-block"></span>
+            {{ prod.famille.nom }}
+          </span>
+        </td>
+        <td style="color:var(--muted);font-size:.82rem">{{ prod.get_unite_mesure_display }}</td>
+        <td>
+          {% if prod.prix_unitaire %}
+          <span class="mono" style="font-weight:600;color:var(--navy)">{{ prod.prix_unitaire|floatformat:0 }}</span>
+          <span style="font-size:.72rem;color:var(--muted)"> FCFA</span>
+          {% else %}<span style="color:var(--muted);font-size:.8rem">—</span>{% endif %}
+        </td>
+        <td>
+          <span class="mono" style="font-weight:700;color:var(--navy)">{{ prod.nb_cuves }}</span>
+          <span style="font-size:.73rem;color:var(--muted);margin-left:2px">cuve{{ prod.nb_cuves|pluralize }}</span>
+        </td>
+        <td>
+          {% if prod.statut == 'ACTIF' %}<span class="bdg ok">Actif</span>
+          {% elif prod.statut == 'INACTIF' %}<span class="bdg">Inactif</span>
+          {% else %}<span class="bdg warn">Discontinué</span>{% endif %}
+        </td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px">
+            <a href="{% url 'produit_detail' prod.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'produit_update' prod.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'produit_delete' prod.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty"><td colspan="8">Aucun produit trouvé. Créez le premier produit ou modifiez vos filtres.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

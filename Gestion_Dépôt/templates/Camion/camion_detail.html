@@ -1,0 +1,126 @@
+﻿{% extends 'base.html' %}
+{% block title %}{{ camion.immatriculation }}{% endblock %}
+{% block nav_camion %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'camion_list' %}">Camions</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ camion.immatriculation }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="hero" style="margin-bottom:20px">
+  <div class="hero-row">
+    <div>
+      <div class="hero-eyebrow">{{ camion.get_type_produit_display }}</div>
+      <div class="hero-title">{{ camion.immatriculation }}</div>
+      <div class="hero-meta">
+        {{ camion.marque }}{% if camion.modele %} {{ camion.modele }}{% endif %}{% if camion.annee_fabrication %} · {{ camion.annee_fabrication }}{% endif %}
+        &nbsp;·&nbsp; {{ camion.capacite_totale|floatformat:0 }} L · {{ camion.nombre_compartiments }} compartiment{% if camion.nombre_compartiments > 1 %}s{% endif %}
+        {% if camion.marketeur %} &nbsp;·&nbsp; <a href="{% url 'marketeur_detail' camion.marketeur.pk %}" style="color:inherit;text-decoration:underline">{{ camion.marketeur.raison_sociale }}</a>{% endif %}
+      </div>
+    </div>
+    <div class="hero-actions">
+      <a href="{% url 'camion_list' %}" class="hero-btn">← Retour</a>
+      <a href="{% url 'camion_update' camion.pk %}" class="hero-btn primary">Modifier</a>
+    </div>
+  </div>
+</div>
+
+<!-- Detail grid -->
+<div class="grid-2">
+
+  <!-- Identification -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Identification</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Immatriculation</span><span style="font-size:.85rem;font-weight:500;font-family:inherit;letter-spacing:.04em">{{ camion.immatriculation }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Marque</span><span style="font-size:.85rem;font-weight:500">{{ camion.marque }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Modèle</span><span style="font-size:.85rem;font-weight:500">{{ camion.modele|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Année</span><span style="font-size:.85rem;font-weight:500">{{ camion.annee_fabrication|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Couleur</span><span style="font-size:.85rem;font-weight:500">{{ camion.couleur|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">N° Châssis</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ camion.numero_serie_chassis|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">N° Moteur</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ camion.numero_serie_moteur|default:"—" }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Citerne -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Citerne</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Type de produit</span><span style="font-size:.85rem;font-weight:500">{{ camion.get_type_produit_display }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Capacité totale</span><span style="font-size:.85rem;font-weight:500">{{ camion.capacite_totale|floatformat:0 }} litres</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Compartiments</span><span style="font-size:.85rem;font-weight:500">{{ camion.nombre_compartiments }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Mise en circulation</span><span style="font-size:.85rem;font-weight:500">{{ camion.date_mise_en_circulation|date:"d/m/Y"|default:"—" }}</span></div>
+        {% if camion.carte_grise %}
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Carte grise</span><a href="{{ camion.carte_grise.url }}" target="_blank" style="font-size:.85rem;color:var(--navy)">Télécharger</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Assurance -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Assurance</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Compagnie</span><span style="font-size:.85rem;font-weight:500">{{ camion.compagnie_assurance|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">N° Police</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ camion.numero_police_assurance|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Expiration</span><span style="font-size:.85rem;font-weight:500">{% if camion.date_expiration_assurance %}{{ camion.date_expiration_assurance|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technique -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Technique & Entretien</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Kilométrage</span><span style="font-size:.85rem;font-weight:500">{% if camion.kilometrage %}{{ camion.kilometrage|floatformat:0 }} km{% else %}—{% endif %}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Dernière révision</span><span style="font-size:.85rem;font-weight:500">{{ camion.date_derniere_revision|date:"d/m/Y"|default:"—" }}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Prochaine révision</span><span style="font-size:.85rem;font-weight:500">{{ camion.date_prochaine_revision|date:"d/m/Y"|default:"—" }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chauffeurs liés -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Chauffeurs assignés</div></div>
+    <div class="card-b">
+      {% for chf in camion.chauffeurs.all %}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        <a href="{% url 'chauffeur_detail' chf.pk %}" style="font-size:.85rem;font-weight:600;color:var(--navy)">{{ chf.nom_complet }}</a>
+        {% if chf.statut == 'ACTIF' %}<span class="bdg ok">{{ chf.get_statut_display }}</span>
+        {% elif chf.statut == 'SUSPENDU' %}<span class="bdg warn">{{ chf.get_statut_display }}</span>
+        {% else %}<span class="bdg">{{ chf.get_statut_display }}</span>{% endif %}
+      </div>
+      {% empty %}
+      <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:12px 0">Aucun chauffeur assigné</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if camion.notes %}
+  <!-- Notes -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Notes</div></div>
+    <div class="card-b">
+      <p style="font-size:.85rem;color:var(--text);line-height:1.6;white-space:pre-line">{{ camion.notes }}</p>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:24px;flex-wrap:wrap;gap:12px">
+  <a href="{% url 'camion_delete' camion.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce camion</a>
+  <span style="font-size:.75rem;color:var(--muted)">
+    Enregistré le {{ camion.date_enregistrement|date:"d/m/Y à H:i" }} &nbsp;·&nbsp;
+    Modifié le {{ camion.date_modification|date:"d/m/Y à H:i" }}
+  </span>
+</div>
+{% endblock %}

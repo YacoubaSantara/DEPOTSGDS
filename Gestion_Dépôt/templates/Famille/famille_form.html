@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}{% if famille %}Modifier {{ famille.nom }}{% else %}Nouvelle famille{% endif %}{% endblock %}
+{% block nav_famille %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'famille_list' %}">Familles</a>
+<span class="breadcrumb-sep">/</span>
+{% if famille %}<a href="{% url 'famille_detail' famille.pk %}">{{ famille.nom }}</a><span class="breadcrumb-sep">/</span>{% endif %}
+<span class="breadcrumb-current">{% if famille %}Modifier{% else %}Nouvelle famille{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">{% if famille %}Modifier la famille{% else %}Nouvelle famille{% endif %}</h1>
+    <div class="ph-sub">{% if famille %}Mise à jour de « {{ famille.nom }} »{% else %}Créer une nouvelle famille de produits{% endif %}</div>
+  </div>
+</div>
+
+<form method="post" id="familleForm">
+  {% csrf_token %}
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start">
+
+    <!-- Formulaire -->
+    <div class="card">
+      <div class="card-h"><div class="card-h-title">Identification</div></div>
+      <div class="card-b">
+        <div class="field">
+          <label class="field-label" for="{{ form.nom.id_for_label }}">Nom de la famille<span class="req">*</span></label>
+          {{ form.nom }}{{ form.nom.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.code.id_for_label }}">Code<span class="req">*</span></label>
+          {{ form.code }}
+          <div style="font-size:.73rem;color:var(--muted);margin-top:4px">Code court unique pour identifier la famille (ex: HYD, LUB, SOL)</div>
+          {{ form.code.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.couleur.id_for_label }}">Couleur d'identification<span class="req">*</span></label>
+          {{ form.couleur }}
+          <div class="color-preview" id="colorPreview" style="width:100%;height:40px;border-radius:8px;margin-top:8px;transition:background .3s;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:600;color:#fff">Aperçu couleur</div>
+          {{ form.couleur.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.description.id_for_label }}">Description</label>
+          {{ form.description }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.statut.id_for_label }}">Statut</label>
+          {{ form.statut }}
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px">
+          <button type="submit" class="btn btn-accent" style="flex:1;justify-content:center">
+            <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            {% if famille %}Enregistrer les modifications{% else %}Créer la famille{% endif %}
+          </button>
+          <a href="{% if famille %}{% url 'famille_detail' famille.pk %}{% else %}{% url 'famille_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prévisualisation -->
+    <div class="card">
+      <div class="card-h"><div class="card-h-title">Prévisualisation</div></div>
+      <div class="card-b">
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Rendu dans la liste :</p>
+        <div id="previewFamille" style="border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;border:1.5px solid var(--border);margin-top:8px">
+          <div id="previewDot" style="width:14px;height:14px;border-radius:50%;flex-shrink:0;background:#3B82F6"></div>
+          <div>
+            <div id="previewNom" style="font-weight:700;font-size:.9rem;color:var(--text)">Nom de la famille</div>
+            <div id="previewCode" style="font-size:.75rem;color:var(--muted);margin-top:2px">CODE</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px">
+          <div style="font-size:.73rem;color:var(--muted);margin-bottom:4px">Badge couleur :</div>
+          <span id="colorBadge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:.75rem;font-weight:700;background:#3B82F620;color:#3B82F6;border:1.5px solid #3B82F650">
+            <span id="badgeDot" style="width:8px;height:8px;border-radius:50%;background:#3B82F6;display:inline-block"></span>
+            <span id="badgeText">Nom</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+
+<script>
+const nomInput = document.querySelector('[name="nom"]');
+const codeInput = document.querySelector('[name="code"]');
+const couleurSelect = document.querySelector('[name="couleur"]');
+function updatePreview() {
+  const nom = nomInput.value || 'Nom de la famille';
+  const code = codeInput.value || 'CODE';
+  const color = couleurSelect.value || '#3B82F6';
+  document.getElementById('previewNom').textContent = nom;
+  document.getElementById('previewCode').textContent = code;
+  document.getElementById('previewDot').style.background = color;
+  document.getElementById('colorPreview').style.background = color;
+  document.getElementById('colorBadge').style.background = color + '20';
+  document.getElementById('colorBadge').style.color = color;
+  document.getElementById('colorBadge').style.borderColor = color + '50';
+  document.getElementById('badgeDot').style.background = color;
+  document.getElementById('badgeText').textContent = nom;
+}
+nomInput && nomInput.addEventListener('input', updatePreview);
+codeInput && codeInput.addEventListener('input', updatePreview);
+couleurSelect && couleurSelect.addEventListener('change', updatePreview);
+updatePreview();
+</script>
+{% endblock %}

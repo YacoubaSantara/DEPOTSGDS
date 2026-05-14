@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ mkt.raison_sociale }}{% endblock %}
+{% block nav_marketeur %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'marketeur_list' %}">Marketeurs</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ mkt.raison_sociale }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="hero" style="margin-bottom:20px">
+  <div class="hero-row">
+    <div>
+      <div class="hero-eyebrow">{{ mkt.get_forme_juridique_display }}</div>
+      <div class="hero-title">{{ mkt.raison_sociale }}{% if mkt.sigle %} <span style="font-weight:400;font-size:1.1rem">({{ mkt.sigle }})</span>{% endif %}</div>
+      <div class="hero-meta">
+        {{ mkt.ville }}, {{ mkt.pays }}
+        {% if mkt.domaine_activite %} &nbsp;·&nbsp; {{ mkt.domaine_activite }}{% endif %}
+        &nbsp;·&nbsp;
+        {% if mkt.statut == 'ACTIF' %}<span class="bdg ok">{{ mkt.get_statut_display }}</span>
+        {% elif mkt.statut == 'SUSPENDU' %}<span class="bdg warn">{{ mkt.get_statut_display }}</span>
+        {% elif mkt.statut == 'BLACKLIST' %}<span class="bdg err">{{ mkt.get_statut_display }}</span>
+        {% else %}<span class="bdg">{{ mkt.get_statut_display }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="hero-actions">
+      <a href="{% url 'marketeur_list' %}" class="hero-btn">← Retour</a>
+      <button onclick="window.print()" class="hero-btn">Imprimer</button>
+      <a href="{% url 'marketeur_update' mkt.pk %}" class="hero-btn primary">Modifier</a>
+    </div>
+  </div>
+</div>
+
+<!-- Cartes détail -->
+<div class="grid-2">
+
+  <!-- Identification -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Identification</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Raison sociale</div><span style="font-size:.875rem;font-weight:500">{{ mkt.raison_sociale }}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Forme juridique</div><span style="font-size:.875rem;font-weight:500">{{ mkt.get_forme_juridique_display }}</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Capital social</div><span style="font-size:.875rem;font-weight:500">{% if mkt.capital_social %}{{ mkt.capital_social|floatformat:0 }} FCFA{% else %}—{% endif %}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">RCCM</div><span style="font-size:.875rem;font-weight:500">{{ mkt.numero_registre_commerce|default:"—" }}</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">NIF / Contribuable</div><span style="font-size:.875rem;font-weight:500">{{ mkt.numero_contribuable|default:"—" }}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">N° IFU</div><span style="font-size:.875rem;font-weight:500">{{ mkt.numero_ifu|default:"—" }}</span></div>
+        </div>
+        <div style="padding:8px 0">
+          <div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Date de création</div>
+          <span style="font-size:.875rem;font-weight:500">{{ mkt.date_creation_societe|date:"d/m/Y"|default:"—" }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Coordonnées -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Coordonnées</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Adresse</div><span style="font-size:.875rem;font-weight:500">{{ mkt.adresse }}{% if mkt.quartier %}, {{ mkt.quartier }}{% endif %}</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Ville / Pays</div><span style="font-size:.875rem;font-weight:500">{{ mkt.ville }}, {{ mkt.pays }}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Boîte postale</div><span style="font-size:.875rem;font-weight:500">{{ mkt.boite_postale|default:"—" }}</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Téléphone</div><span style="font-size:.875rem;font-weight:500">{{ mkt.telephone }}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Tél. secondaire</div><span style="font-size:.875rem;font-weight:500">{{ mkt.telephone2|default:"—" }}</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Email</div><span style="font-size:.875rem;font-weight:500">{% if mkt.email %}<a href="mailto:{{ mkt.email }}" style="color:var(--navy)">{{ mkt.email }}</a>{% else %}—{% endif %}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Site web</div><span style="font-size:.875rem;font-weight:500">{% if mkt.site_web %}<a href="{{ mkt.site_web }}" target="_blank" style="color:var(--navy)">{{ mkt.site_web }}</a>{% else %}—{% endif %}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Représentant -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Représentant légal</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Nom complet</div><span style="font-size:.875rem;font-weight:500">{{ mkt.prenom_representant }} {{ mkt.nom_representant }}</span></div>
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Fonction</div><span style="font-size:.875rem;font-weight:500">{{ mkt.fonction_representant|default:"—" }}</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Téléphone</div><span style="font-size:.875rem;font-weight:500">{{ mkt.telephone_representant|default:"—" }}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Email</div><span style="font-size:.875rem;font-weight:500">{% if mkt.email_representant %}<a href="mailto:{{ mkt.email_representant }}" style="color:var(--navy)">{{ mkt.email_representant }}</a>{% else %}—{% endif %}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banque -->
+  <div class="card">
+    <div class="card-h"><div class="card-h-title">Informations bancaires</div></div>
+    <div class="card-b">
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">Banque</div><span style="font-size:.875rem;font-weight:500">{{ mkt.banque|default:"—" }}</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:8px 0">
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">N° Compte</div><span style="font-size:.875rem;font-weight:500">{{ mkt.numero_compte|default:"—" }}</span></div>
+          <div><div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px">SWIFT / BIC</div><span style="font-size:.875rem;font-weight:500">{{ mkt.code_swift|default:"—" }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if mkt.notes %}
+  <!-- Notes -->
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-h"><div class="card-h-title">Notes / Observations</div></div>
+    <div class="card-b">
+      <p style="font-size:.875rem;color:var(--text);line-height:1.6">{{ mkt.notes|linebreaksbr }}</p>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;flex-wrap:wrap;gap:12px">
+  <a href="{% url 'marketeur_delete' mkt.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce marketeur</a>
+  <span style="font-size:.75rem;color:var(--muted)">Enregistré le {{ mkt.date_enregistrement|date:"d/m/Y" }}{% if mkt.date_modification %} &nbsp;·&nbsp; Modifié le {{ mkt.date_modification|date:"d/m/Y" }}{% endif %}</span>
+</div>
+{% endblock %}

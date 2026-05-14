@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Ouvrir la période {{ mois_propose }}/{{ annee_propose }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'periode_liste' %}">Périodes</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Ouvrir une période</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:560px;margin:0 auto">
+  <div class="card" style="overflow:hidden">
+    <!-- Header accent -->
+    <div style="background:var(--ink);padding:1.5rem 2rem;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;opacity:.1;background:radial-gradient(circle at 80% 50%,var(--accent) 0%,transparent 60%)"></div>
+      <div style="position:relative">
+        <div style="font-size:.72rem;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem">Gestion des périodes</div>
+        <h1 style="font-size:1.4rem;font-weight:700;color:#fff;margin:0">
+          Ouvrir la période
+          {% if mois_propose == 1 %}Janvier{% elif mois_propose == 2 %}Février{% elif mois_propose == 3 %}Mars{% elif mois_propose == 4 %}Avril{% elif mois_propose == 5 %}Mai{% elif mois_propose == 6 %}Juin{% elif mois_propose == 7 %}Juillet{% elif mois_propose == 8 %}Août{% elif mois_propose == 9 %}Septembre{% elif mois_propose == 10 %}Octobre{% elif mois_propose == 11 %}Novembre{% elif mois_propose == 12 %}Décembre{% endif %}
+          {{ annee_propose }}
+        </h1>
+      </div>
+    </div>
+
+    <div style="padding:1.5rem 2rem">
+      <!-- Résumé des effets -->
+      <div style="background:var(--info-soft,#eff6ff);border:1px solid #bfdbfe;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem">
+        <p style="font-weight:700;color:var(--info);margin:0 0 .6rem;font-size:.875rem">Ce qui va se passer :</p>
+        <ul style="color:var(--info);font-size:.85rem;margin:0;padding-left:1.5rem;line-height:2">
+          <li>Création de la période en statut <strong>OUVERTE</strong></li>
+          {% if not premiere %}
+          <li>Calcul automatique des stocks d'ouverture depuis le dernier jaugeage de la période précédente</li>
+          {% endif %}
+          <li>Activation des saisies (mouvements et jaugeages) pour ce mois</li>
+        </ul>
+      </div>
+
+      {% if premiere %}
+      <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:1rem 1.1rem;margin-bottom:1.5rem">
+        <p style="font-size:.8rem;font-weight:600;color:var(--warn);margin:0 0 .75rem">
+          Aucune période n'existe encore — choisissez le mois de départ :
+        </p>
+        <form method="get" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+          <select name="mois" class="select">
+            <option value="1"  {% if mois_propose == 1  %}selected{% endif %}>Janvier</option>
+            <option value="2"  {% if mois_propose == 2  %}selected{% endif %}>Février</option>
+            <option value="3"  {% if mois_propose == 3  %}selected{% endif %}>Mars</option>
+            <option value="4"  {% if mois_propose == 4  %}selected{% endif %}>Avril</option>
+            <option value="5"  {% if mois_propose == 5  %}selected{% endif %}>Mai</option>
+            <option value="6"  {% if mois_propose == 6  %}selected{% endif %}>Juin</option>
+            <option value="7"  {% if mois_propose == 7  %}selected{% endif %}>Juillet</option>
+            <option value="8"  {% if mois_propose == 8  %}selected{% endif %}>Août</option>
+            <option value="9"  {% if mois_propose == 9  %}selected{% endif %}>Septembre</option>
+            <option value="10" {% if mois_propose == 10 %}selected{% endif %}>Octobre</option>
+            <option value="11" {% if mois_propose == 11 %}selected{% endif %}>Novembre</option>
+            <option value="12" {% if mois_propose == 12 %}selected{% endif %}>Décembre</option>
+          </select>
+          <input type="number" name="annee" value="{{ annee_propose }}" min="2020" max="2100" class="input" style="width:88px">
+          <button type="submit" class="btn btn-ghost btn-sm">Changer</button>
+        </form>
+      </div>
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="mois"  value="{{ mois_propose }}">
+        <input type="hidden" name="annee" value="{{ annee_propose }}">
+        <div style="display:flex;gap:.75rem;justify-content:flex-end;padding-top:.5rem">
+          <a href="{% url 'periode_liste' %}" class="btn btn-ghost">Annuler</a>
+          <button type="submit" class="btn btn-accent">
+            <svg viewBox="0 0 24 24" stroke-width="2.5" fill="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Ouvrir la période
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

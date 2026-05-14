@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}{% if produit %}Modifier {{ produit.nom }}{% else %}Nouveau produit{% endif %}{% endblock %}
+{% block nav_produit %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'produit_list' %}">Produits</a>
+<span class="breadcrumb-sep">/</span>
+{% if produit %}<a href="{% url 'produit_detail' produit.pk %}">{{ produit.nom }}</a><span class="breadcrumb-sep">/</span>{% endif %}
+<span class="breadcrumb-current">{% if produit %}Modifier{% else %}Nouveau produit{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">{% if produit %}Modifier le produit{% else %}Nouveau produit{% endif %}</h1>
+    <div class="ph-sub">{% if produit %}Mise à jour de « {{ produit.nom }} »{% else %}Enregistrer un nouveau produit{% endif %}</div>
+  </div>
+</div>
+
+<form method="post" id="produitForm">
+  {% csrf_token %}
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
+    <div>
+      <!-- Identification -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><div class="card-h-title">Identification</div></div>
+        <div class="card-b">
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label" for="{{ form.nom.id_for_label }}">Nom du produit<span class="req">*</span></label>
+              {{ form.nom }}{{ form.nom.errors }}
+            </div>
+            <div class="field">
+              <label class="field-label" for="{{ form.code.id_for_label }}">Code produit<span class="req">*</span></label>
+              {{ form.code }}
+              <div style="font-size:.73rem;color:var(--muted);margin-top:4px">Ex: GSL-50, ESS-SP98</div>
+              {{ form.code.errors }}
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="{{ form.famille.id_for_label }}">Famille<span class="req">*</span></label>
+            {{ form.famille }}{{ form.famille.errors }}
+          </div>
+          <div class="field">
+            <label class="field-label" for="{{ form.description.id_for_label }}">Description</label>
+            {{ form.description }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Caractéristiques commerciales -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><div class="card-h-title">Caractéristiques commerciales</div></div>
+        <div class="card-b">
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label" for="{{ form.unite_mesure.id_for_label }}">Unité de mesure<span class="req">*</span></label>
+              {{ form.unite_mesure }}
+            </div>
+            <div class="field">
+              <label class="field-label" for="{{ form.prix_unitaire.id_for_label }}">Prix unitaire (FCFA)</label>
+              {{ form.prix_unitaire }}
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="{{ form.prix_passage.id_for_label }}">Frais de passage (FCFA/L) <span style="font-size:.7rem;font-weight:400;color:var(--muted)">— optionnel</span></label>
+            {{ form.prix_passage }}
+            <div style="font-size:.73rem;color:var(--muted);margin-top:4px">Laissez vide pour appliquer le tarif global configuré dans les Paramètres de coulage.</div>
+            {{ form.prix_passage.errors }}
+          </div>
+          <div class="field">
+            <label class="field-label" for="{{ form.seuil_alerte.id_for_label }}">Seuil d'alerte stock</label>
+            {{ form.seuil_alerte }}
+            <div style="font-size:.73rem;color:var(--muted);margin-top:4px">Niveau minimum en dessous duquel une alerte est déclenchée</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statut -->
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h"><div class="card-h-title">Statut</div></div>
+        <div class="card-b">
+          <div class="field">
+            <label class="field-label" for="{{ form.statut.id_for_label }}">Statut du produit</label>
+            {{ form.statut }}
+          </div>
+          <div class="field">
+            <label class="field-label" for="{{ form.notes.id_for_label }}">Notes</label>
+            {{ form.notes }}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px">
+        <button type="submit" class="btn btn-accent" style="flex:1;justify-content:center">
+          <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          {% if produit %}Enregistrer les modifications{% else %}Créer le produit{% endif %}
+        </button>
+        <a href="{% if produit %}{% url 'produit_detail' produit.pk %}{% else %}{% url 'produit_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+      </div>
+    </div>
+
+    <!-- Aide -->
+    <div class="card">
+      <div class="card-h"><div class="card-h-title">Aide & Conseils</div></div>
+      <div class="card-b">
+        <div style="font-size:.8rem;color:var(--muted);line-height:1.7">
+          <p style="margin-bottom:10px"><strong style="color:var(--text)">Code produit</strong> — Utilisez un code court et mémorable lié au nom du produit et à sa famille.</p>
+          <p style="margin-bottom:10px"><strong style="color:var(--text)">Famille</strong> — Regroupez les produits par nature (hydrocarbures, lubrifiants…) pour une meilleure organisation.</p>
+          <p style="margin-bottom:10px"><strong style="color:var(--text)">Seuil d'alerte</strong> — Définissez le niveau en dessous duquel il faut réapprovisionner.</p>
+          <p><strong style="color:var(--text)">Statut Discontinué</strong> — Utilisez ce statut pour les produits qui ne sont plus commercialisés mais restent en stock.</p>
+        </div>
+        {% if produit %}
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:4px">Créé le</div>
+          <div style="font-size:.82rem;color:var(--muted)">{{ produit.date_creation|date:"d/m/Y à H:i" }}</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:8px;margin-bottom:4px">Dernière modification</div>
+          <div style="font-size:.82rem;color:var(--muted)">{{ produit.date_modification|date:"d/m/Y à H:i" }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

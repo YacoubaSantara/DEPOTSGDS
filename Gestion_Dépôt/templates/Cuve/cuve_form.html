@@ -1,0 +1,214 @@
+﻿{% extends 'base.html' %}
+{% block title %}{% if cuve %}Modifier {{ cuve.numero }}{% else %}Nouvelle cuve{% endif %}{% endblock %}
+{% block nav_cuve %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-layout{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
+.form-card{background:#fff;border-radius:16px;padding:28px;border:1px solid #dde3ec;box-shadow:0 2px 12px rgba(30,58,95,.08);margin-bottom:16px}
+.form-card-title{font-family:inherit;font-size:.85rem;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.07em;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #f0f4f8;display:flex;align-items:center;gap:8px}
+.form-card-title svg{width:15px;height:15px;stroke:var(--ink);fill:none;stroke-width:2}
+.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:6px}
+.required-star{color:#dc2626;margin-left:2px}
+.form-control{width:100%;border:1.5px solid #dde3ec;border-radius:8px;padding:10px 13px;font-size:.875rem;color:var(--ink);background:#fff;transition:border-color .2s;font-family:inherit}
+.form-control:focus{border-color:var(--ink);box-shadow:0 0 0 3px rgba(30,58,95,.08);outline:none}
+.form-hint{font-size:.73rem;color:#94a3b8;margin-top:4px}
+/* Prévisualisation fill -->
+.side-card{background:#fff;border-radius:16px;padding:24px;border:1px solid #dde3ec;box-shadow:0 2px 12px rgba(30,58,95,.08);margin-bottom:16px}
+.side-card-title{font-family:inherit;font-size:.82rem;font-weight:700;color:var(--ink);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em}
+.preview-gauge{display:flex;flex-direction:column;align-items:center;padding:20px 0}
+.preview-bar-wrap{width:100%;height:16px;background:#f0f4f8;border-radius:8px;overflow:hidden;margin:10px 0}
+.preview-bar{height:100%;border-radius:8px;transition:width .4s}
+.preview-pct{font-family:inherit;font-size:1.6rem;font-weight:700;color:var(--ink)}
+.preview-labels{display:flex;justify-content:space-between;font-size:.72rem;color:#94a3b8;width:100%}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'cuve_list' %}">Cuves</a>
+<span class="breadcrumb-sep">/</span>
+{% if cuve %}<a href="{% url 'cuve_detail' cuve.pk %}">{{ cuve.numero }}</a><span class="breadcrumb-sep">/</span>{% endif %}
+<span class="breadcrumb-current">{% if cuve %}Modifier{% else %}Nouvelle cuve{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">{% if cuve %}Modifier la cuve{% else %}Nouvelle cuve{% endif %}</div>
+    <div class="page-subtitle">{% if cuve %}{{ cuve.numero }} — {{ cuve.designation }}{% else %}Enregistrer une nouvelle cuve de stockage{% endif %}</div>
+  </div>
+</div>
+
+<form method="post" id="cuveForm">
+  {% csrf_token %}
+  <div class="form-layout">
+    <div>
+      <!-- Identification -->
+      <div class="form-card">
+        <div class="form-card-title">
+          <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
+          Identification
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Numéro <span class="required-star">*</span></label>
+            {{ form.numero }}
+            <div class="form-hint">Ex: CUV-001</div>
+            {% if form.numero.errors %}<div class="form-field-error">{{ form.numero.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Désignation <span class="required-star">*</span></label>
+            {{ form.designation }}
+            {% if form.designation.errors %}<div class="form-field-error">{{ form.designation.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Produit stocké</label>
+          {{ form.produit }}
+          <div class="form-hint">Laisser vide si la cuve n'est pas encore affectée à un produit</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Localisation / Emplacement</label>
+          {{ form.localisation }}
+        </div>
+      </div>
+
+      <!-- Capacité -->
+      <div class="form-card">
+        <div class="form-card-title">
+          <svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/></svg>
+          Capacité & Niveau
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Capacité totale (litres) <span class="required-star">*</span></label>
+            {{ form.capacite_totale }}
+            {% if form.capacite_totale.errors %}<div class="form-field-error">{{ form.capacite_totale.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Niveau actuel (litres)</label>
+            {{ form.niveau_actuel }}
+          </div>
+        </div>
+        <!-- Prévisualisation mini -->
+        <div style="background:#f8fafc;border-radius:10px;padding:14px">
+          <div style="display:flex;justify-content:space-between;font-size:.78rem;color:#64748b;margin-bottom:6px">
+            <span>Taux de remplissage estimé</span>
+            <strong id="previewPct" style="color:var(--ink)">—</strong>
+          </div>
+          <div style="height:10px;background:#e8edf5;border-radius:5px;overflow:hidden">
+            <div id="previewBarMini" style="height:100%;width:0%;border-radius:5px;background:var(--accent);transition:width .4s"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Caractéristiques -->
+      <div class="form-card">
+        <div class="form-card-title">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Caractéristiques physiques
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Type de cuve <span class="required-star">*</span></label>
+            {{ form.type_cuve }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Matériau <span class="required-star">*</span></label>
+            {{ form.materiau }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Dates -->
+      <div class="form-card">
+        <div class="form-card-title">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Dates & Inspections
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Date d'installation</label>
+            {{ form.date_installation }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dernière inspection</label>
+            {{ form.date_derniere_inspection }}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Prochaine inspection</label>
+          {{ form.date_prochaine_inspection }}
+        </div>
+      </div>
+
+      <!-- Statut -->
+      <div class="form-card">
+        <div class="form-card-title">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+          Statut & Notes
+        </div>
+        <div class="form-group">
+          <label class="form-label">Statut</label>
+          {{ form.statut }}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes / Observations</label>
+          {{ form.notes }}
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px">
+        <button type="submit" class="btn btn-primary" style="flex:1;justify-content:center">
+          <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          {% if cuve %}Enregistrer les modifications{% else %}Créer la cuve{% endif %}
+        </button>
+        <a href="{% if cuve %}{% url 'cuve_detail' cuve.pk %}{% else %}{% url 'cuve_list' %}{% endif %}" class="btn btn-secondary">Annuler</a>
+      </div>
+    </div>
+
+    <!-- Panneau latéral -->
+    <div>
+      <div class="side-card">
+        <div class="side-card-title">Aide</div>
+        <div style="font-size:.8rem;color:#64748b;line-height:1.7">
+          <p style="margin-bottom:10px"><strong style="color:var(--ink)">Numéro</strong> — Code unique d'identification de la cuve dans votre dépôt.</p>
+          <p style="margin-bottom:10px"><strong style="color:var(--ink)">Produit stocké</strong> — Associez la cuve au produit qu'elle contient pour un suivi précis des stocks.</p>
+          <p style="margin-bottom:10px"><strong style="color:var(--ink)">Niveau actuel</strong> — Indiquez la quantité actellement stockée en litres.</p>
+          <p><strong style="color:var(--ink)">Inspections</strong> — Renseignez les dates pour activer les alertes de maintenance.</p>
+        </div>
+      </div>
+      {% if cuve %}
+      <div class="side-card">
+        <div class="side-card-title">Métadonnées</div>
+        <div style="font-size:.78rem;color:#64748b">
+          <div style="margin-bottom:8px"><span style="color:#94a3b8">Enregistré le :</span><br><strong style="color:var(--ink)">{{ cuve.date_enregistrement|date:"d/m/Y à H:i" }}</strong></div>
+          <div><span style="color:#94a3b8">Dernière modification :</span><br><strong style="color:var(--ink)">{{ cuve.date_modification|date:"d/m/Y à H:i" }}</strong></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<script>
+function updatePreview() {
+  const cap = parseFloat(document.querySelector('[name="capacite_totale"]').value) || 0;
+  const niv = parseFloat(document.querySelector('[name="niveau_actuel"]').value) || 0;
+  const pct = cap > 0 ? Math.min(Math.round((niv / cap) * 100), 100) : 0;
+  const bar = document.getElementById('previewBarMini');
+  const pctLabel = document.getElementById('previewPct');
+  if (bar && pctLabel) {
+    bar.style.width = pct + '%';
+    bar.style.background = pct > 70 ? '#16a34a' : pct > 30 ? 'var(--accent)' : '#dc2626';
+    pctLabel.textContent = cap > 0 ? pct + '%' : '—';
+    pctLabel.style.color = pct > 70 ? '#16a34a' : pct > 30 ? '#d97706' : '#dc2626';
+  }
+}
+document.querySelector('[name="capacite_totale"]').addEventListener('input', updatePreview);
+document.querySelector('[name="niveau_actuel"]').addEventListener('input', updatePreview);
+updatePreview();
+</script>
+{% endblock %}

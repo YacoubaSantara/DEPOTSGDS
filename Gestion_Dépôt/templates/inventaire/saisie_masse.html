@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Saisie en masse — Inventaire Initial{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Saisie en masse — thème CSS variables ──────────────────── */
+
+/* Bandeau date */
+.sm-date-band {
+  background: var(--sm-date-bg, #fffbeb);
+  border: 1px solid var(--sm-date-border, #fcd34d);
+  border-radius: .75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+[data-theme="dark"] .sm-date-band {
+  --sm-date-bg: #2a1f00;
+  --sm-date-border: #78500a;
+}
+.sm-date-title {
+  font-weight: 700;
+  color: var(--sm-date-title-color, #92400e);
+  font-size: .875rem;
+  margin-bottom: .25rem;
+}
+[data-theme="dark"] .sm-date-title { --sm-date-title-color: #fbbf24; }
+
+.sm-date-sub {
+  font-size: .78rem;
+  color: var(--sm-date-sub-color, #a16207);
+}
+[data-theme="dark"] .sm-date-sub { --sm-date-sub-color: #d97706; }
+
+.sm-date-input {
+  padding: .55rem .85rem;
+  border: 1px solid var(--sm-date-border, #fcd34d);
+  border-radius: .5rem;
+  font-size: .875rem;
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 180px;
+}
+
+/* Légende */
+.sm-legend {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  font-size: .78rem;
+  color: var(--muted);
+  align-items: center;
+}
+.sm-legend-dot {
+  width: .7rem;
+  height: .7rem;
+  border-radius: 2px;
+  display: inline-block;
+}
+.sm-legend-sd   { background: var(--sm-sd-bg, #dbeafe); border: 1px solid var(--sm-sd-bdr, #93c5fd); }
+.sm-legend-ac   { background: var(--sm-ac-bg, #dcfce7); border: 1px solid var(--sm-ac-bdr, #86efac); }
+.sm-legend-saisi{ background: var(--sm-saisi-bg, #f0fdf4); border: 2px solid #16a34a; }
+[data-theme="dark"] .sm-legend-sd    { --sm-sd-bg:#1e3a5f; --sm-sd-bdr:#3b82f6; }
+[data-theme="dark"] .sm-legend-ac    { --sm-ac-bg:#14532d; --sm-ac-bdr:#22c55e; }
+[data-theme="dark"] .sm-legend-saisi { --sm-saisi-bg:#052e16; }
+
+/* Carte marketeur */
+.sm-card {
+  margin-bottom: 2rem;
+  border: 1px solid var(--border);
+  border-radius: .75rem;
+  overflow: hidden;
+}
+.sm-card-header {
+  background: var(--sm-header-bg, #1e3a5f);
+  color: #fff;
+  padding: .75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+[data-theme="dark"] .sm-card-header { --sm-header-bg: #0f2440; }
+
+.sm-card-avatar {
+  width: 2rem;
+  height: 2rem;
+  background: rgba(255,255,255,.15);
+  border-radius: .375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: .8rem;
+  flex-shrink: 0;
+}
+.sm-card-name  { font-weight: 700; font-size: .95rem; }
+.sm-card-sigle { font-size: .75rem; opacity: .7; }
+
+/* Tableau */
+.sm-wrap { overflow-x: auto; }
+.sm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+.sm-table thead tr {
+  background: var(--surface-2);
+  border-bottom: 2px solid var(--border);
+}
+.sm-table thead th {
+  padding: .6rem .75rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.sm-table thead th:first-child { text-align: left; min-width: 140px; padding-left: 1rem; }
+.sm-table thead th.th-regime    { text-align: center; width: 70px; }
+.sm-table thead th.th-vol       { text-align: right; min-width: 150px; }
+
+/* Lignes */
+.sm-table tbody tr { border-bottom: 1px solid var(--border); }
+
+.sm-row-sd        { background: var(--sm-row-sd-bg,   #f8fbff); }
+.sm-row-sd-saisi  { background: var(--sm-row-sd2-bg,  #eff6ff); }
+.sm-row-ac        { background: var(--sm-row-ac-bg,   #f7fdf9); }
+.sm-row-ac-saisi  { background: var(--sm-row-ac2-bg,  #f0fdf4); }
+
+[data-theme="dark"] .sm-row-sd       { --sm-row-sd-bg:  #0d1f38; }
+[data-theme="dark"] .sm-row-sd-saisi { --sm-row-sd2-bg: #0f2848; }
+[data-theme="dark"] .sm-row-ac       { --sm-row-ac-bg:  #081c12; }
+[data-theme="dark"] .sm-row-ac-saisi { --sm-row-ac2-bg: #0a2318; }
+
+.sm-table td { padding: .4rem .75rem; }
+.sm-td-produit {
+  padding: .5rem 1rem !important;
+  font-weight: 600;
+  color: var(--ink);
+  border-right: 1px solid var(--border);
+}
+.sm-td-produit span { font-weight: 400; color: var(--muted); }
+.sm-td-regime { text-align: center; }
+.sm-td-vol    { text-align: right; }
+
+/* Badges régime */
+.bdg-sd {
+  background: var(--bdg-sd-bg, #dbeafe);
+  color: var(--bdg-sd-txt, #1e40af);
+  padding: .15rem .5rem;
+  border-radius: 9999px;
+  font-size: .72rem;
+  font-weight: 700;
+}
+.bdg-ac {
+  background: var(--bdg-ac-bg, #dcfce7);
+  color: var(--bdg-ac-txt, #166534);
+  padding: .15rem .5rem;
+  border-radius: 9999px;
+  font-size: .72rem;
+  font-weight: 700;
+}
+[data-theme="dark"] .bdg-sd { --bdg-sd-bg:#1e3a5f; --bdg-sd-txt:#93c5fd; }
+[data-theme="dark"] .bdg-ac { --bdg-ac-bg:#14532d; --bdg-ac-txt:#86efac; }
+
+/* Inputs numériques */
+.sm-input {
+  width: 100%;
+  max-width: 140px;
+  padding: .4rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: .375rem;
+  font-size: .82rem;
+  text-align: right;
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color .15s;
+}
+.sm-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.25); }
+.sm-input.saisi { border-color: var(--sm-saisi-bdr, #93c5fd); font-weight: 600; }
+[data-theme="dark"] .sm-input.saisi { --sm-saisi-bdr: #3b82f6; }
+
+/* Barre sticky bas de page */
+.sm-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--sm-footer-bg, rgba(255,255,255,.95));
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+  padding: 1rem 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+  z-index: 50;
+}
+[data-theme="dark"] .sm-footer { --sm-footer-bg: rgba(15,23,42,.95); }
+
+.sm-btn-cancel {
+  padding: .65rem 1.4rem;
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: .875rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.sm-btn-cancel:hover { background: var(--surface-2); }
+
+.sm-btn-save {
+  padding: .65rem 1.8rem;
+  background: var(--sm-save-bg, #1e3a5f);
+  color: #fff;
+  border: none;
+  border-radius: .5rem;
+  font-weight: 700;
+  font-size: .875rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  transition: background .15s;
+}
+.sm-btn-save:hover { background: var(--sm-save-hover, #16304f); }
+[data-theme="dark"] .sm-btn-save       { --sm-save-bg: #2563eb; }
+[data-theme="dark"] .sm-btn-save:hover { --sm-save-hover: #1d4ed8; }
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'inventaire_initial_liste' %}">Inventaire Initial</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Saisie en masse</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Saisie en masse — Inventaire Initial</h1>
+    <div class="ph-sub">Remplissez les stocks de départ pour tous les marketeurs en une seule opération. Laissez vide pour ignorer une ligne.</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'inventaire_initial_liste' %}" class="btn btn-ghost">← Retour</a>
+  </div>
+</div>
+
+<form method="post" action="{% url 'inventaire_initial_masse' %}" style="padding:0 1.5rem 3rem;">
+  {% csrf_token %}
+
+  <!-- Date globale d'inventaire -->
+  <div class="sm-date-band">
+    <div>
+      <div class="sm-date-title">📅 Date d'inventaire (appliquée à toutes les lignes)</div>
+      <div class="sm-date-sub">Tous les stocks saisis sur cette page auront cette date comme référence.</div>
+    </div>
+    <input type="date" name="date_inventaire_global" required value="{{ today|date:'Y-m-d' }}" class="sm-date-input">
+  </div>
+
+  <!-- Légende -->
+  <div class="sm-legend">
+    <span style="display:flex;align-items:center;gap:.4rem;">
+      <span class="sm-legend-dot sm-legend-sd"></span> Sous douane (SD)
+    </span>
+    <span style="display:flex;align-items:center;gap:.4rem;">
+      <span class="sm-legend-dot sm-legend-ac"></span> Acquitté (AC)
+    </span>
+    <span style="display:flex;align-items:center;gap:.4rem;">
+      <span class="sm-legend-dot sm-legend-saisi"></span> Déjà saisi (pré-rempli)
+    </span>
+    <span style="margin-left:auto;font-style:italic;">Saisissez volume ambiant et volume @15°C — laissez vide pour ignorer</span>
+  </div>
+
+  {% for groupe in grille %}
+  <div class="sm-card">
+
+    <!-- En-tête marketeur -->
+    <div class="sm-card-header">
+      <div class="sm-card-avatar">
+        {{ groupe.marketeur.sigle|default:groupe.marketeur.raison_sociale|slice:":2"|upper }}
+      </div>
+      <div>
+        <div class="sm-card-name">{{ groupe.marketeur.raison_sociale }}</div>
+        {% if groupe.marketeur.sigle %}<div class="sm-card-sigle">{{ groupe.marketeur.sigle }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Tableau des lignes -->
+    <div class="sm-wrap">
+      <table class="sm-table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th class="th-regime">Régime</th>
+            <th class="th-vol">Volume ambiant (L)</th>
+            <th class="th-vol">Volume @15°C (L)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ligne in groupe.lignes %}
+          <tr class="{% if ligne.regime_code == 'SOUS_DOUANE' %}{% if ligne.existe %}sm-row-sd-saisi{% else %}sm-row-sd{% endif %}{% else %}{% if ligne.existe %}sm-row-ac-saisi{% else %}sm-row-ac{% endif %}{% endif %}">
+
+            {% if ligne.regime_code == 'SOUS_DOUANE' %}
+            <td class="sm-td-produit">
+              {{ ligne.produit.code }}<span> — {{ ligne.produit.nom }}</span>
+            </td>
+            {% else %}
+            <td class="sm-td-produit"></td>
+            {% endif %}
+
+            <td class="sm-td-regime">
+              {% if ligne.regime_code == 'SOUS_DOUANE' %}
+              <span class="bdg-sd">SD</span>
+              {% else %}
+              <span class="bdg-ac">AC</span>
+              {% endif %}
+            </td>
+
+            <td class="sm-td-vol">
+              <input type="number"
+                     name="{{ ligne.key_vamb }}"
+                     value="{% if ligne.vamb %}{{ ligne.vamb|floatformat:2 }}{% endif %}"
+                     step="0.01" min="0" placeholder="0.00"
+                     class="sm-input{% if ligne.existe %} saisi{% endif %}">
+            </td>
+            <td class="sm-td-vol">
+              <input type="number"
+                     name="{{ ligne.key_v15c }}"
+                     value="{% if ligne.v15c %}{{ ligne.v15c|floatformat:2 }}{% endif %}"
+                     step="0.01" min="0" placeholder="0.00"
+                     class="sm-input{% if ligne.existe %} saisi{% endif %}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Boutons de soumission -->
+  <div class="sm-footer">
+    <a href="{% url 'inventaire_initial_liste' %}" class="sm-btn-cancel">Annuler</a>
+    <button type="submit" class="sm-btn-save">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/>
+        <polyline points="7 3 7 8 15 8"/>
+      </svg>
+      Enregistrer tout
+    </button>
+  </div>
+</form>
+{% endblock %}

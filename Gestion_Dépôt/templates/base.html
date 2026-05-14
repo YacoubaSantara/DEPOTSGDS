@@ -1,0 +1,490 @@
+{% load static %}{% load periode_tags %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="csrf-token" content="{{ csrf_token }}"/>
+<title>{% block title %}SGDS{% endblock %} — Gestion de Dépôt</title>
+<link rel="stylesheet" href="{% static 'css/sgds.css' %}"/>
+{% block extra_head %}{% endblock %}
+
+{# ── Anti-flash : applique le thème AVANT le premier rendu ── #}
+<script>
+(function(){
+  var saved = localStorage.getItem('sgds-theme');
+  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var theme = saved || (prefersDark ? 'dark' : 'light');
+  if(theme === 'dark') document.documentElement.setAttribute('data-theme','dark');
+})();
+</script>
+</head>
+<body data-density="normal">
+
+{% with url_name=request.resolver_match.url_name|default:"" %}
+
+<div class="app">
+
+{% if user.is_authenticated and user.is_marketeur_role %}
+{# ============================================================ MARKETEUR LAYOUT #}
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo"></div>
+      <div class="sb-brand-text">
+        <span class="sb-brand-name">SGDS</span>
+        <span class="sb-brand-sub">Espace Marketeur</span>
+      </div>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="sb-section">
+        <div class="sb-section-title">Mon espace</div>
+        <a href="{% url 'client_dashboard' %}" class="sb-item {% if url_name == 'client_dashboard' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Tableau de bord</span>
+        </a>
+        <a href="{% url 'client_mouvements' %}" class="sb-item {% if 'client_mouvement' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+          <span>Mes mouvements</span>
+        </a>
+      </div>
+      <div class="sb-section">
+        <div class="sb-section-title">Stocks & États</div>
+        <a href="{% url 'client_carte_stock' %}" class="sb-item {% if url_name == 'client_carte_stock' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/></svg>
+          <span>Carte de stock</span>
+        </a>
+        <a href="{% url 'client_stock_global' %}" class="sb-item {% if url_name == 'client_stock_global' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 21h18"/></svg>
+          <span>Stock global</span>
+        </a>
+        <details class="sb-group" {% if 'client_mensuel' in url_name %}open{% endif %}>
+          <summary class="sb-item sb-group-summary {% if 'client_mensuel' in url_name %}active{% endif %}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>États mensuels</span>
+          </summary>
+          <div class="sb-submenu">
+            <a href="{% url 'client_mensuel_coulage_repartition' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_coulage_repartition' %}active{% endif %}">
+              <span>Coulage répartition</span>
+            </a>
+            <a href="{% url 'client_mensuel_stock_a' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_stock_a' %}active{% endif %}">
+              <span>Stock A</span>
+            </a>
+            <a href="{% url 'client_mensuel_stock_b' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_stock_b' %}active{% endif %}">
+              <span>Stock B</span>
+            </a>
+            <a href="{% url 'client_mensuel_frais_passage' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_frais_passage' %}active{% endif %}">
+              <span>Frais de passage</span>
+            </a>
+          </div>
+        </details>
+      </div>
+    </nav>
+
+    <div class="sb-footer">
+      <div class="sb-avatar">{{ user.initiales|default:user.first_name|first|default:"M" }}</div>
+      <div class="sb-user">
+        <div class="sb-user-name">{{ user.get_full_name|default:user.username }}</div>
+        <div class="sb-user-role">Marketeur</div>
+      </div>
+      <a href="{% url 'deconnexion' %}" class="sb-user-menu" title="Déconnexion">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+      </a>
+    </div>
+  </aside>
+
+{% else %}
+{# ============================================================ ADMIN / OPÉRATEUR LAYOUT #}
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo"></div>
+      <div class="sb-brand-text">
+        <span class="sb-brand-name">SGDS</span>
+        <span class="sb-brand-sub">Gestion de dépôt</span>
+      </div>
+    </div>
+
+    <div class="sb-search">
+      <div class="sb-search-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="sb-search-input" placeholder="Rechercher…"/>
+        <span class="sb-search-kbd">⌘K</span>
+      </div>
+    </div>
+
+    <nav class="sb-nav">
+
+      {# Pilotage #}
+      <div class="sb-section">
+        <div class="sb-section-title">Pilotage</div>
+        <a href="{% url 'admin_dashboard' %}" class="sb-item {% if url_name == 'admin_dashboard' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Tableau de bord</span>
+        </a>
+      </div>
+
+      {# Opérations #}
+      <div class="sb-section">
+        <div class="sb-section-title">Opérations</div>
+        <a href="{% url 'mouvement_liste' %}" class="sb-item {% if 'mouvement' in url_name %}active{% endif %}{% if not current_periode %} sb-disabled{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+          <span>Mouvements</span>
+          {% if not current_periode %}<span class="sb-lock-icon" title="Aucune période ouverte">🔒</span>{% endif %}
+        </a>
+        <a href="{% url 'jaugeage_list' %}" class="sb-item {% if 'jaugeage' in url_name %}active{% endif %}{% if not current_periode %} sb-disabled{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4M12 18v4M5 5l3 3M16 16l3 3M2 12h4M18 12h4M5 19l3-3M16 8l3-3"/></svg>
+          <span>Jaugeage RJJ</span>
+          {% if not current_periode %}<span class="sb-lock-icon" title="Aucune période ouverte">🔒</span>{% endif %}
+        </a>
+        <a href="{% url 'coulage_liste' %}" class="sb-item {% if 'coulage' in url_name or 'suivi_evolution' in url_name %}active{% endif %}{% if not current_periode %} sb-disabled{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5C12 2.5 6 9 6 14a6 6 0 0012 0c0-5-6-11.5-6-11.5z"/></svg>
+          <span>Coulage mensuel</span>
+          {% if not current_periode %}<span class="sb-lock-icon" title="Aucune période ouverte">🔒</span>{% endif %}
+        </a>
+        <a href="{% url 'periode_liste' %}" class="sb-item {% if 'periode' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span>Périodes</span>
+        </a>
+      </div>
+
+      {# Dépôt #}
+      <div class="sb-section">
+        <div class="sb-section-title">Dépôt</div>
+        <a href="{% url 'cuve_list' %}" class="sb-item {% if 'cuve' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+          <span>Cuves</span>
+        </a>
+        <a href="{% url 'parametre_list' %}" class="sb-item {% if 'parametre' in url_name and 'metrol' not in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          <span>Paramètres jaugeage</span>
+        </a>
+        <a href="{% url 'parametres_metrologiques' %}" class="sb-item {% if url_name == 'parametres_metrologiques' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 116.93 19.07"/><path d="M12 8v4l3 3"/></svg>
+          <span>Paramètres métrologiques</span>
+        </a>
+        <a href="{% url 'produit_list' %}" class="sb-item {% if 'produit' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg>
+          <span>Produits</span>
+        </a>
+        <a href="{% url 'famille_list' %}" class="sb-item {% if 'famille' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+          <span>Familles</span>
+        </a>
+      </div>
+
+      {# Tiers & flotte #}
+      <div class="sb-section">
+        <div class="sb-section-title">Tiers & flotte</div>
+        <a href="{% url 'marketeur_list' %}" class="sb-item {% if 'marketeur' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 20h20M3 20V8l5 3V8l5 3V4l8 5v11"/></svg>
+          <span>Marketeurs</span>
+        </a>
+        <a href="{% url 'inventaire_initial_liste' %}" class="sb-item {% if 'inventaire' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          <span>Inventaire initial</span>
+        </a>
+        <a href="{% url 'camion_list' %}" class="sb-item {% if 'camion' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          <span>Camions</span>
+        </a>
+        <a href="{% url 'chauffeur_list' %}" class="sb-item {% if 'chauffeur' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span>Chauffeurs</span>
+        </a>
+      </div>
+
+      {# États & rapports #}
+      <div class="sb-section">
+        <div class="sb-section-title">États & rapports</div>
+        <a href="{% url 'etat_carte_stock_list' %}" class="sb-item {% if url_name == 'etat_carte_stock_list' or url_name == 'etat_carte_stock' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/></svg>
+          <span>Carte de stock</span>
+        </a>
+        <a href="{% url 'etat_stock_global' %}" class="sb-item {% if url_name == 'etat_stock_global' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 21h18"/></svg>
+          <span>Stock global</span>
+        </a>
+        <details class="sb-group" {% if 'etat_mensuel_' in url_name or 'frais_passage' in url_name %}open{% endif %}>
+          <summary class="sb-item sb-group-summary {% if 'etat_mensuel_' in url_name or 'frais_passage' in url_name %}active{% endif %}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            <span>États mensuels</span>
+          </summary>
+          <div class="sb-submenu">
+            <a href="{% url 'etat_mensuel_stock_ouverture' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_ouverture' %}active{% endif %}">
+              <span>Stock ouverture</span>
+            </a>
+            <a href="{% url 'etat_mensuel_stock_fermeture' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_fermeture' %}active{% endif %}">
+              <span>Stock fermeture</span>
+            </a>
+            <a href="{% url 'etat_mensuel_global_depot' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_global_depot' %}active{% endif %}">
+              <span>Global dépôt</span>
+            </a>
+            <a href="{% url 'etat_mensuel_rjj' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_rjj' %}active{% endif %}">
+              <span>RJJ</span>
+            </a>
+            <a href="{% url 'etat_mensuel_coulage_repartition' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_coulage_repartition' %}active{% endif %}">
+              <span>Coulage répartition</span>
+            </a>
+            <a href="{% url 'etat_mensuel_stock_a' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_a' %}active{% endif %}">
+              <span>Stock A</span>
+            </a>
+            <a href="{% url 'etat_mensuel_stock_b' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_b' %}active{% endif %}">
+              <span>Stock B</span>
+            </a>
+            <a href="{% url 'etat_mensuel_frais_passage' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_frais_passage' or 'frais_passage' in url_name %}active{% endif %}">
+              <span>Frais de passage</span>
+            </a>
+          </div>
+        </details>
+        <a href="{% url 'users_audit' %}" class="sb-item {% if 'audit' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Journal d'audit</span>
+        </a>
+      </div>
+
+      {# Administration (staff only) #}
+      {% if user.is_staff %}
+      <div class="sb-section">
+        <div class="sb-section-title">Administration</div>
+        <a href="{% url 'users_liste' %}" class="sb-item {% if 'users' in url_name and 'audit' not in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+          <span>Utilisateurs</span>
+        </a>
+        <a href="{% url 'roles_liste' %}" class="sb-item {% if 'role' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 116.93 19.07"/></svg>
+          <span>Rôles</span>
+        </a>
+        <a href="{% url 'societe_detail' %}" class="sb-item {% if 'societe' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Société</span>
+        </a>
+      </div>
+      {% endif %}
+
+    </nav>
+
+    <div class="sb-footer">
+      <div class="sb-avatar">{{ user.initiales|default:user.first_name|first|default:"U" }}</div>
+      <div class="sb-user">
+        <div class="sb-user-name">{{ user.get_full_name|default:user.username }}</div>
+        <div class="sb-user-role">{{ user.nom_role_display|default:"Utilisateur" }}</div>
+      </div>
+      <a href="{% url 'deconnexion' %}" class="sb-user-menu" title="Déconnexion">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
+      </a>
+    </div>
+  </aside>
+
+{% endif %}
+
+  <div class="main">
+    <header class="topbar">
+      {# Zone gauche : home + breadcrumb #}
+      <div class="tb-left">
+        {% if user.is_marketeur_role %}
+        <a href="{% url 'client_dashboard' %}" class="tb-home" title="Mon espace">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </a>
+        {% else %}
+        <a href="{% url 'admin_dashboard' %}" class="tb-home" title="Tableau de bord">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </a>
+        {% endif %}
+        <svg class="tb-sep-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="tb-crumb">
+          {% block breadcrumb %}
+            <span class="tb-crumb-current">{% block page_title %}{% endblock %}</span>
+          {% endblock %}
+        </div>
+      </div>
+
+      {# Zone centrale : barre de recherche rapide (admin uniquement) #}
+      {% if not user.is_marketeur_role %}
+      <form action="{% url 'mouvement_liste' %}" method="get" class="tb-search-form" role="search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" name="q" placeholder="Rechercher…" class="tb-search-input" autocomplete="off">
+        <span class="tb-search-kbd">Entrée</span>
+      </form>
+      {% else %}
+      <div></div>
+      {% endif %}
+
+      {# Zone droite : datetime + période dropdown + toggle thème + profil (tous les rôles) #}
+      <div class="tb-right">
+        <div class="tb-datetime">
+          <div class="tb-date-line">{% now "j N Y" %}</div>
+          <div class="tb-time-line" id="tb-clock">--:--:--</div>
+        </div>
+        <div class="tb-divider"></div>
+        {% periode_indicateur %}
+        <div class="tb-divider"></div>
+
+        {# ── Bouton Dark / Light Mode ── #}
+        <button type="button" class="theme-toggle" id="themeToggle" title="Changer le thème" aria-label="Basculer le thème sombre/clair">
+          {# Soleil — visible en dark mode #}
+          <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1"  x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22"  x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1"  y1="12" x2="3"  y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+          </svg>
+          {# Lune — visible en light mode #}
+          <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+
+        <div class="tb-divider"></div>
+        <a href="{% url 'users_mon_profil' %}" class="tb-profile">
+          <div class="tb-profile-avatar">{{ user.initiales|default:user.first_name|first|upper|default:"U" }}</div>
+          <div class="tb-profile-info">
+            <div class="tb-profile-name">{{ user.get_short_name|default:user.username }}</div>
+            <div class="tb-profile-role">{{ user.nom_role_display|default:"Utilisateur" }}</div>
+          </div>
+        </a>
+      </div>
+    </header>
+    <script>
+    (function(){
+      function updateClock(){
+        var d = new Date();
+        var h = String(d.getHours()).padStart(2,'0');
+        var m = String(d.getMinutes()).padStart(2,'0');
+        var s = String(d.getSeconds()).padStart(2,'0');
+        var el = document.getElementById('tb-clock');
+        if(el) el.textContent = h+':'+m+':'+s;
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+    })();
+    </script>
+
+    {% if messages %}
+    <ul class="messages" id="django-messages">
+      {% for message in messages %}
+        <li class="{{ message.tags }}" data-tags="{{ message.tags }}">
+          {{ message }}
+          <button class="msg-close" onclick="dismissMsg(this.parentElement)" title="Fermer">✕</button>
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <script>
+    (function(){
+      /* Délai selon le type :
+         success  → 4 s
+         info     → 5 s
+         warning  → 7 s
+         error    → 0 (reste jusqu'à fermeture manuelle)
+      */
+      var DELAYS = { success: 4000, info: 5000, warning: 7000, error: 0 };
+
+      function dismissMsg(li) {
+        if (!li || li.classList.contains('msg-hiding')) return;
+        li.classList.add('msg-hiding');
+        setTimeout(function(){ if (li.parentNode) li.parentNode.removeChild(li); }, 380);
+      }
+
+      window.dismissMsg = dismissMsg;
+
+      document.addEventListener('DOMContentLoaded', function(){
+        var items = document.querySelectorAll('#django-messages li');
+        items.forEach(function(li){
+          var tags  = (li.dataset.tags || '').toLowerCase();
+          var delay = 0;
+          if      (tags.indexOf('error')   >= 0) delay = DELAYS.error;
+          else if (tags.indexOf('warning') >= 0) delay = DELAYS.warning;
+          else if (tags.indexOf('info')    >= 0) delay = DELAYS.info;
+          else                                   delay = DELAYS.success;
+
+          /* Barre de progression : injecte --msg-duration sur l'élément
+             pour que ::after hérite la durée d'animation */
+          if (delay > 0) {
+            li.style.setProperty('--msg-duration', delay + 'ms');
+            /* Timer auto-dismiss */
+            var startTime = Date.now();
+            var timer = setTimeout(function(){ dismissMsg(li); }, delay);
+            /* Pause au survol, reprend avec le temps restant */
+            li.addEventListener('mouseenter', function(){
+              clearTimeout(timer);
+              li.style.setProperty('animation-play-state', 'paused');
+            });
+            li.addEventListener('mouseleave', function(){
+              var elapsed  = Date.now() - startTime;
+              var remaining = Math.max(delay - elapsed, 800);
+              li.style.setProperty('animation-play-state', 'running');
+              timer = setTimeout(function(){ dismissMsg(li); }, remaining);
+            });
+          }
+        });
+      });
+    })();
+    </script>
+
+    <main class="content">
+      <div class="page">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+</div>
+{% endwith %}
+
+{% block extra_js %}{% endblock %}
+
+<script>
+/* ══════════════════════════════════════════
+   SGDS — Dark / Light Mode Toggle
+══════════════════════════════════════════ */
+(function(){
+  'use strict';
+  var html = document.documentElement;
+  var KEY  = 'sgds-theme';
+
+  function setTheme(theme) {
+    if (theme === 'dark') {
+      html.setAttribute('data-theme', 'dark');
+    } else {
+      html.removeAttribute('data-theme');
+    }
+    localStorage.setItem(KEY, theme);
+  }
+
+  function getTheme() {
+    return html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  /* Clic sur le bouton — script en bas de page, DOM déjà disponible */
+  var btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.addEventListener('click', function() {
+      setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  /* Synchro entre onglets */
+  window.addEventListener('storage', function(e) {
+    if (e.key === KEY && e.newValue) {
+      setTheme(e.newValue);
+    }
+  });
+
+  /* Suivi de la préférence système (si pas de choix manuel) */
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+      if (!localStorage.getItem(KEY)) {
+        setTheme(e.matches ? 'dark' : 'light');
+      }
+    });
+  }
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load user_tags %}
+{% block title %}Utilisateurs{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Administration</a><span class="breadcrumb-sep">›</span>
+<span class="breadcrumb-current">Utilisateurs</span>
+{% endblock %}
+
+{% block content %}
+{% load user_tags %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Gestion des utilisateurs</h1>
+    <div class="ph-sub">{{ page_obj.paginator.count }} compte{{ page_obj.paginator.count|pluralize }} enregistré{{ page_obj.paginator.count|pluralize }}</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'users_creer' %}" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouvel utilisateur
+    </a>
+  </div>
+</div>
+
+<!-- Stats par rôle -->
+<div class="kpi-strip" style="margin-bottom:20px">
+  {% for code, libelle in roles %}
+  <div class="kpi">
+    <div class="kpi-label">{{ libelle }}</div>
+    <div class="kpi-val mono">{{ stats_roles|default:"—" }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get">
+  <div class="filter-bar">
+    <div style="position:relative;flex:1;min-width:200px">
+      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);fill:none;pointer-events:none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" name="q" value="{{ q }}" placeholder="Nom, email, username…" class="search-input" autocomplete="off"/>
+    </div>
+    <select name="role" class="select" style="min-width:160px">
+      <option value="">Tous les rôles</option>
+      {% for code, libelle in roles %}
+        <option value="{{ code }}" {% if role_filtre == code %}selected{% endif %}>{{ libelle }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-accent btn-sm">Filtrer</button>
+    {% if q or role_filtre %}
+      <a href="{% url 'users_liste' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
+    {% endif %}
+  </div>
+  </form>
+
+  {% if utilisateurs %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Utilisateur</th>
+        <th>Email</th>
+        <th>Rôle</th>
+        <th>Statut</th>
+        <th>Dernière IP</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in utilisateurs %}
+      <tr class="clickable" onclick="location.href='{% url 'users_detail' u.pk %}'">
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden">
+              {% if u.profile.photo %}
+                <img src="{{ u.profile.photo.url }}" alt="" style="width:100%;height:100%;object-fit:cover">
+              {% else %}
+                {{ u.username|slice:":2"|upper }}
+              {% endif %}
+            </div>
+            <div>
+              <div style="font-weight:600">{{ u.get_full_name|default:u.username }}</div>
+              <div style="font-size:.75rem;color:var(--muted)">@{{ u.username }}</div>
+            </div>
+          </div>
+        </td>
+        <td style="color:var(--muted);font-size:.83rem">{{ u.email|default:"—" }}</td>
+        <td>
+          {% if u.profile %}{% role_badge u %}{% else %}<span style="color:var(--muted);font-size:.8rem">—</span>{% endif %}
+        </td>
+        <td>
+          {% if u.is_active and u.profile.actif %}
+            <span class="bdg ok">Actif</span>
+          {% else %}
+            <span class="bdg muted">Inactif</span>
+          {% endif %}
+        </td>
+        <td class="mono" style="font-size:.78rem;color:var(--muted)">{{ u.profile.derniere_ip|default:"—" }}</td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px">
+            <a href="{% url 'users_detail' u.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'users_modifier' u.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination">
+    <span>Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    <span class="step-links">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if role_filtre %}&role={{ role_filtre }}{% endif %}">‹</a>
+      {% endif %}
+      {% for i in page_obj.paginator.page_range %}
+        {% if page_obj.number == i %}
+          <span class="current">{{ i }}</span>
+        {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
+          <a href="?page={{ i }}{% if q %}&q={{ q }}{% endif %}{% if role_filtre %}&role={{ role_filtre }}{% endif %}">{{ i }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if role_filtre %}&role={{ role_filtre }}{% endif %}">›</a>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="tbl-empty" style="padding:56px 24px;text-align:center">
+    <p style="font-weight:600;margin-bottom:6px">Aucun utilisateur trouvé</p>
+    <p style="font-size:.82rem;color:var(--muted)">Modifiez vos critères ou <a href="{% url 'users_creer' %}">créez un utilisateur</a>.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

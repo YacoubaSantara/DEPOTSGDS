@@ -1,0 +1,178 @@
+﻿{% extends "base.html" %}
+{% load user_tags %}
+
+{% block title %}{{ role.nom }}{% endblock %}
+{% block nav_roles %}active{% endblock %}
+
+{% block content %}
+<style>
+.rd-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--ink) 100%);padding:40px 40px 36px;position:relative;overflow:hidden}
+.rd-hero::after{content:'';position:absolute;bottom:-30px;right:-30px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
+.rd-hero::before{content:'';position:absolute;top:-40px;right:60px;width:120px;height:120px;border-radius:50%;background:rgba(232,118,10,.12);pointer-events:none}
+.rd-back{display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,.55);font-size:.8rem;margin-bottom:20px;text-decoration:none;transition:color .2s}
+.rd-back:hover{color:#fff}
+.rd-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.rd-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:24px;font-family:inherit;font-size:1.1rem;font-weight:700;margin-bottom:10px}
+.rd-code{font-family:'Courier New',monospace;font-size:.82rem;color:rgba(255,255,255,.5);background:rgba(255,255,255,.08);padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:8px}
+.rd-desc{font-size:.875rem;color:rgba(255,255,255,.6);max-width:500px;line-height:1.6}
+.rd-system-tag{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:4px 12px;font-size:.75rem;color:rgba(255,255,255,.7);margin-left:8px}
+.rd-actions{display:flex;gap:10px;flex-shrink:0;align-items:flex-start}
+.btn-hero-orange{background:var(--orange);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:.875rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:all .2s;font-family:inherit}
+.btn-hero-orange:hover{background:#d4690a;box-shadow:0 4px 16px rgba(232,118,10,.4)}
+
+.rd-body{padding:32px 40px}
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow)}
+.kpi-label{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.kpi-value{font-family:inherit;font-size:2rem;font-weight:700;color:var(--text)}
+.kpi-sub{font-size:.75rem;color:var(--muted);margin-top:4px}
+
+.section-title{font-family:inherit;font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.perm-groups{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:28px}
+.perm-group-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.perm-group-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.perm-group-title{display:flex;align-items:center;gap:8px;font-size:.875rem;font-weight:700;color:var(--text);font-family:inherit}
+.perm-counter{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:10px;font-family:inherit}
+.perm-counter-full{background:#f0fdf4;color:#15803d}
+.perm-counter-partial{background:#eff6ff;color:#1d4ed8}
+.perm-counter-empty{background:#f8fafc;color:var(--muted)}
+
+.perm-list{list-style:none;display:flex;flex-direction:column;gap:4px}
+.perm-item{display:flex;align-items:center;gap:8px;font-size:.8rem;padding:4px 0}
+.perm-check{font-size:.85rem;font-weight:700;width:18px;text-align:center;flex-shrink:0}
+.perm-check-on{color:#16a34a}
+.perm-check-off{color:#cbd5e1}
+.perm-name-on{color:var(--text)}
+.perm-name-off{color:var(--muted)}
+
+.users-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.user-mini-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;text-decoration:none;transition:all .2s;box-shadow:var(--shadow)}
+.user-mini-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(30,58,95,.12);border-color:rgba(30,58,95,.2)}
+.user-mini-avatar{width:36px;height:36px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0}
+.user-mini-name{font-size:.82rem;font-weight:600;color:var(--text)}
+.user-mini-email{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+
+.badge-red   {background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+.badge-orange{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.badge-yellow{background:#fefce8;color:#a16207;border:1px solid #fde68a}
+.badge-green {background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.badge-blue  {background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.badge-indigo{background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe}
+.badge-purple{background:#faf5ff;color:#7e22ce;border:1px solid #e9d5ff}
+.badge-pink  {background:#fdf2f8;color:#be185d;border:1px solid #fbcfe8}
+.badge-gray  {background:#f8fafc;color:#475569;border:1px solid #e2e8f0}
+
+@media(max-width:900px){.perm-groups{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.rd-hero{padding:24px 20px}.rd-body{padding:20px}.kpi-row{grid-template-columns:1fr}}
+</style>
+
+<div class="rd-hero">
+  <a href="{% url 'roles_liste' %}" class="rd-back">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    Retour aux rôles
+  </a>
+
+  <div class="rd-title-row">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <span class="rd-badge badge-{{ role.couleur }}">{{ role.nom }}</span>
+        {% if role.systeme %}
+        <span class="rd-system-tag">🔒 Rôle système</span>
+        {% endif %}
+      </div>
+      <div class="rd-code">{{ role.code }}</div>
+      {% if role.description %}
+      <div class="rd-desc" style="margin-top:8px">{{ role.description }}</div>
+      {% endif %}
+    </div>
+    <div class="rd-actions">
+      {% has_role request.user 'SUPERADMIN' as is_sa %}
+      {% if is_sa %}
+      <a href="{% url 'roles_modifier' role.pk %}" class="btn-hero-orange">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Modifier
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="rd-body">
+  
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">👤 Utilisateurs</div>
+      <div class="kpi-value">{{ role.nb_utilisateurs }}</div>
+      <div class="kpi-sub">avec ce rôle</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">🔑 Permissions actives</div>
+      <div class="kpi-value">{{ role.nb_permissions }}</div>
+      <div class="kpi-sub">actions autorisées</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">📅 Créé le</div>
+      <div style="font-family:inherit;font-size:1.2rem;font-weight:700;color:var(--text);margin:6px 0 4px">
+        {{ role.date_creation|date:"d/m/Y" }}
+      </div>
+      <div class="kpi-sub">{{ role.date_creation|date:"H:i" }}</div>
+    </div>
+  </div>
+
+  <!-- Permissions par groupe -->
+  <div class="section-title">🔑 Permissions accordées</div>
+  <div class="perm-groups">
+    {% for groupe in groupes %}
+    <div class="perm-group-card">
+      <div class="perm-group-header">
+        <div class="perm-group-title">
+          <span>{{ groupe.icone }}</span>
+          {{ groupe.libelle }}
+        </div>
+        <span class="perm-counter
+          {% if groupe.nb_cochees == groupe.nb_total %}perm-counter-full
+          {% elif groupe.nb_cochees > 0 %}perm-counter-partial
+          {% else %}perm-counter-empty{% endif %}">
+          {{ groupe.nb_cochees }}/{{ groupe.nb_total }}
+        </span>
+      </div>
+      <ul class="perm-list">
+        {% for perm in groupe.permissions %}
+        <li class="perm-item">
+          {% if perm.cochee %}
+          <span class="perm-check perm-check-on">✓</span>
+          <span class="perm-name-on">{{ perm.libelle }}</span>
+          {% else %}
+          <span class="perm-check perm-check-off">○</span>
+          <span class="perm-name-off">{{ perm.libelle }}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Utilisateurs du rôle -->
+  {% if utilisateurs %}
+  <div class="section-title">👥 Utilisateurs ({{ role.nb_utilisateurs }})</div>
+  <div class="users-grid">
+    {% for profil in utilisateurs %}
+    <a href="{% url 'users_detail' profil.user.pk %}" class="user-mini-card">
+      <div class="user-mini-avatar">
+        {{ profil.user.first_name|slice:":1"|upper }}{{ profil.user.last_name|slice:":1"|upper }}
+      </div>
+      <div style="min-width:0">
+        <div class="user-mini-name">{{ profil.user.get_full_name|default:profil.user.username }}</div>
+        <div class="user-mini-email">{{ profil.user.email|default:profil.user.username }}</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

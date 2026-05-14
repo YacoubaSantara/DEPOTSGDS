@@ -1,0 +1,696 @@
+﻿{% extends "base.html" %}
+{% block title %}{{ mouvement.numero_enregistrement }}{% endblock %}
+{% block page_title %}{{ mouvement.numero_enregistrement }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.dcheader-camion{background:var(--ink)}
+.dcheader-entree{background:#166534}
+.dcheader-sortie{background:#9a3412}
+.dcheader-cession{background:#283593}
+.dcheader-acquittement{background:#6a1b9a}
+.dcheader-notes{background:var(--ink-2)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] .dcheader-entree{background:rgba(34,197,94,.12)}
+[data-theme="dark"] .dcheader-sortie{background:rgba(239,68,68,.12)}
+[data-theme="dark"] .dcheader-cession{background:rgba(59,130,246,.12)}
+[data-theme="dark"] .dcheader-acquittement{background:rgba(168,85,247,.12)}
+[data-theme="dark"] .modal-warn-box{background:var(--warn-soft) !important;border-color:rgba(245,158,11,.3) !important;border-left-color:var(--warn) !important;color:var(--warn) !important}
+.modal-type-badge{background:#fee2e2;color:#b91c1c;padding:2px 10px;border-radius:20px;font-size:11.5px;font-weight:700}
+[data-theme="dark"] .modal-type-badge{background:var(--err-soft);color:var(--err)}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'mouvement_liste' %}">Mouvements</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ mouvement.numero_enregistrement }}</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════ HERO ═══════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-top">
+    <!-- Icône selon le type -->
+    <div class="hero-icon" style="background:
+      {% if mouvement.type_mouvement == 'ENTREE' %}#166534
+      {% elif mouvement.type_mouvement == 'SORTIE' %}#9a3412
+      {% elif mouvement.type_mouvement == 'CESSION' %}#283593
+      {% else %}#6a1b9a{% endif %}">
+      {% if mouvement.type_mouvement == 'ENTREE' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 12h18M15 5l7 7-7 7"/></svg>
+      {% elif mouvement.type_mouvement == 'SORTIE' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 12H3M9 19l-7-7 7-7"/></svg>
+      {% elif mouvement.type_mouvement == 'CESSION' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+      {% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      {% endif %}
+    </div>
+
+    <div class="hero-body">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+        <span class="hero-numero">{{ mouvement.numero_enregistrement }}</span>
+        {% if mouvement.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+        {% elif mouvement.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+        {% elif mouvement.type_mouvement == 'CESSION' %}<span class="bdg-type cession">Cession</span>
+        {% elif mouvement.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg-type acquit">Acquittement</span>
+        {% endif %}
+        {% if mouvement.regime_douanier == 'ACQUITTE' %}<span class="bdg ok">Acquitté</span>
+        {% else %}<span class="bdg warn">Sous douane</span>{% endif %}
+      </div>
+      <div class="hero-sub">
+        Saisi le {{ mouvement.date_saisie|date:"d/m/Y à H:i" }}
+        &nbsp;·&nbsp; Modifié le {{ mouvement.date_modification|date:"d/m/Y à H:i" }}
+      </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="hero-actions">
+      <a href="{% url 'mouvement_liste' %}" class="btn-hero btn-hero-retour">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Retour
+      </a>
+      {% if not request.user.is_marketeur_role %}
+      <a href="{% url 'mouvement_modifier' mouvement.pk %}" class="btn-hero btn-hero-modifier">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Modifier
+      </a>
+      {% endif %}
+      {% if request.user.is_staff %}
+      <button type="button" class="btn-hero btn-hero-supprimer" onclick="confirmerSuppression()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        Supprimer
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <hr class="hero-divider">
+
+  <!-- Méta-données clés -->
+  <div class="hero-meta">
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Date du mouvement</span>
+      <span class="hero-meta-value">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Marketeur</span>
+      <span class="hero-meta-value">{{ mouvement.marketeur.sigle|default:mouvement.marketeur.raison_sociale }}</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Produit</span>
+      <span class="hero-meta-value">{{ mouvement.produit.nom }}</span>
+    </div>
+    {% with v=mouvement.volume_ambiant_principal %}{% if v %}
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Vol. ambiant</span>
+      <span class="hero-meta-value">{{ v|floatformat:0 }} L</span>
+    </div>
+    {% endif %}{% endwith %}
+    {% with v=mouvement.volume_principal %}{% if v %}
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Vol. @15°C</span>
+      <span class="hero-meta-value">{{ v|floatformat:0 }} L</span>
+    </div>
+    {% endif %}{% endwith %}
+    {% if mouvement.camion %}
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Camion</span>
+      <span class="hero-meta-value">{{ mouvement.camion.immatriculation }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══════════ SECTION COMMUNE ═══════════════════════════════ -->
+<div class="detail-card">
+  <div class="detail-card-header">
+    <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+    <h3>Informations générales</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">N° d'enregistrement</span>
+        <span class="detail-value num">{{ mouvement.numero_enregistrement }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Type de mouvement</span>
+        <span class="detail-value">{{ mouvement.get_type_mouvement_display }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Régime douanier</span>
+        <span class="detail-value">{{ mouvement.get_regime_douanier_display }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date du mouvement</span>
+        <span class="detail-value">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Marketeur propriétaire</span>
+        <span class="detail-value">{{ mouvement.marketeur.raison_sociale }}{% if mouvement.marketeur.sigle %} ({{ mouvement.marketeur.sigle }}){% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Produit</span>
+        <span class="detail-value">{{ mouvement.produit.nom }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ CAMION & CHAUFFEUR (hors ACQUITTEMENT) ════════ -->
+{% if mouvement.type_mouvement != 'ACQUITTEMENT' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-camion">
+    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <h3>Camion & Chauffeur</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Camion citerne</span>
+        {% if mouvement.camion %}
+          <span class="detail-value">{{ mouvement.camion.immatriculation }}{% if mouvement.camion.marque %} — {{ mouvement.camion.marque }}{% endif %}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Transporteur (marketeur camion)</span>
+        {% if mouvement.camion.marketeur %}
+          <span class="detail-value">{{ mouvement.camion.marketeur.sigle|default:mouvement.camion.marketeur.raison_sociale }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Chauffeur</span>
+        {% if mouvement.chauffeur %}
+          <span class="detail-value">{{ mouvement.chauffeur.nom }} {{ mouvement.chauffeur.prenom }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Cuves affectées</span>
+        {% with lignes=mouvement.lignes.all %}
+        {% if lignes %}
+          <span class="detail-value" style="flex-wrap:wrap">
+            {% for ligne in lignes %}
+              <span style="display:inline-flex;align-items:center;gap:4px;background:var(--info-soft);border:1px solid rgba(42,91,138,.3);border-radius:5px;padding:2px 8px;font-size:11.5px;margin:2px">
+                {% if ligne.cuve %}{{ ligne.cuve.numero }} — {{ ligne.cuve.designation }}{% else %}Sans cuve{% endif %}
+                {% if ligne.volume_ambiant %}&nbsp;<span class="mono" style="color:var(--info)">{{ ligne.volume_ambiant|floatformat:0 }} L</span>{% endif %}
+              </span>
+            {% endfor %}
+          </span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION ENTREE ════════════════════════════════ -->
+{% if mouvement.type_mouvement == 'ENTREE' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-entree">
+    <svg viewBox="0 0 24 24"><path d="M3 12h18M15 5l7 7-7 7"/></svg>
+    <h3>Données d'entrée</h3>
+  </div>
+  <div class="detail-card-body">
+
+    <!-- SS1 : Provenance -->
+    <p class="ss-title">Provenance</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Dépôt expéditeur</span>
+        <span class="detail-value {% if not mouvement.provenance %}tiret{% endif %}">{{ mouvement.provenance|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° BL Dépôt Chargeur</span>
+        <span class="detail-value {% if not mouvement.bl_expediteur %}tiret{% endif %}">{{ mouvement.bl_expediteur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° BL Client</span>
+        <span class="detail-value {% if not mouvement.bl_client %}tiret{% endif %}">{{ mouvement.bl_client|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de chargement</span>
+        <span class="detail-value {% if not mouvement.date_chargement %}tiret{% endif %}">{{ mouvement.date_chargement|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de déchargement</span>
+        <span class="detail-value {% if not mouvement.date_dechargement %}tiret{% endif %}">{{ mouvement.date_dechargement|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date du permis</span>
+        <span class="detail-value {% if not mouvement.date_permis %}tiret{% endif %}">{{ mouvement.date_permis|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° Permis</span>
+        <span class="detail-value {% if not mouvement.numero_permis_sortie %}tiret{% endif %}">{{ mouvement.numero_permis_sortie|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° S</span>
+        <span class="detail-value {% if not mouvement.numero_s %}tiret{% endif %}">{{ mouvement.numero_s|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° C</span>
+        <span class="detail-value {% if not mouvement.numero_c %}tiret{% endif %}">{{ mouvement.numero_c|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- SS2 : Données BL Expéditeur -->
+    <p class="ss-title">Données BL Expéditeur (col. W–AA)</p>
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant expéditeur (L)</span>
+        <span class="detail-value {% if mouvement.volume_ambiant_expediteur %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_expediteur %}{{ mouvement.volume_ambiant_expediteur|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. @15°C expéditeur (L)</span>
+        <span class="detail-value {% if mouvement.volume_15c_expediteur %}num{% else %}tiret{% endif %}">{% if mouvement.volume_15c_expediteur %}{{ mouvement.volume_15c_expediteur|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Densité @15°C expéditeur (kg/m³)</span>
+        <span class="detail-value {% if mouvement.densite_15c_expediteur %}num{% else %}tiret{% endif %}">{% if mouvement.densite_15c_expediteur %}{{ mouvement.densite_15c_expediteur|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Temp. chargement (°C)</span>
+        <span class="detail-value {% if mouvement.temperature_chargement %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_chargement %}{{ mouvement.temperature_chargement|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+    </div>
+
+    <!-- SS3 : Réception -->
+    <p class="ss-title">Données obtenues à la réception (col. AB–AG)</p>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="padding:14px 18px">
+        <div class="dg-4">
+          <div class="detail-field">
+            <span class="detail-label">Vol. ambiant reçu (L)</span>
+            <span class="detail-value {% if mouvement.volume_ambiant_recu %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_recu %}{{ mouvement.volume_ambiant_recu|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">Temp. réception (°C)</span>
+            <span class="detail-value {% if mouvement.temperature_reception %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_reception %}{{ mouvement.temperature_reception|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">Temp. labo T<sub>L</sub> (°C)</span>
+            <span class="detail-value {% if mouvement.temperature_labo %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_labo %}{{ mouvement.temperature_labo|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">D<sub>OBS</sub> labo (kg/m³)</span>
+            <span class="detail-value {% if mouvement.densite_observee_labo %}num{% else %}tiret{% endif %}">{% if mouvement.densite_observee_labo %}{{ mouvement.densite_observee_labo|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+        </div>
+      </div>
+      <div style="border-top:2px dashed var(--border);background:var(--surface-2);padding:14px 18px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Calculés — col. AC, AG</div>
+        <div class="dg-2">
+          <div class="detail-field">
+            <span class="detail-label">P/G réception — V<sub>amb</sub> reçu − V<sub>amb</sub> expé (L)</span>
+            {% if mouvement.perte_gain_reception is not None %}
+              <span class="detail-value {% if mouvement.perte_gain_reception >= 0 %}positive{% else %}negative{% endif %}">
+                {% if mouvement.perte_gain_reception > 0 %}+{% endif %}{{ mouvement.perte_gain_reception|floatformat:2 }} L
+              </span>
+            {% else %}
+              <span class="detail-value tiret">—</span>
+            {% endif %}
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">D 15°C calculée labo (kg/m³)</span>
+            <span class="detail-value {% if mouvement.densite_15c_calculee %}num{% else %}tiret{% endif %}">{% if mouvement.densite_15c_calculee %}{{ mouvement.densite_15c_calculee|floatformat:2 }} kg/m³{% else %}—{% endif %}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SS4 : Contrôle final -->
+    <p class="ss-title">Contrôle final avant déchargement (col. AH–AL)</p>
+    <div class="calc-band">
+      <div class="calc-band-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Calculés automatiquement via API MPMS (TRH_15 / TVCF_15)
+      </div>
+
+      <div class="calc-row">
+        <span class="calc-key">Écart densité 15°C — (D<sub>cal</sub> − D<sub>expé</sub>) ÷ 1000 &nbsp; col. AH</span>
+        {% if mouvement.ecart_densite_15c is not None %}
+          {% with e=mouvement.ecart_densite_15c %}
+            {% if e >= -0.001 and e <= 0.001 %}
+              <span class="calc-val pos">{{ e|floatformat:4 }}</span>
+            {% else %}
+              <span class="calc-val alerte" title="Ecart superieur a 0.001 — verifiez la densite expediteur">
+                {{ e|floatformat:4 }}
+                <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:var(--warn);fill:none;vertical-align:middle;margin-left:3px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </span>
+            {% endif %}
+          {% endwith %}
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+
+      <div class="calc-row">
+        <span class="calc-key">K<sub>conv</sub> @15°C &nbsp; col. AI</span>
+        {% if mouvement.coefficient_conversion_15c %}
+          <span class="calc-val">{{ mouvement.coefficient_conversion_15c }}</span>
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+
+      <div class="calc-row">
+        <span class="calc-key">Vol. @15°C reçu &nbsp; col. AJ</span>
+        {% if mouvement.volume_15c_recu %}
+          <span class="calc-val">{{ mouvement.volume_15c_recu|floatformat:0 }} L</span>
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+
+      <div class="calc-row">
+        <span class="calc-key">P/G @15°C — P/G<sub>réception</sub> × K<sub>conv</sub> &nbsp; col. AK</span>
+        {% if mouvement.perte_gain_15c is not None %}
+          <span class="calc-val {% if mouvement.perte_gain_15c >= 0 %}pos{% else %}neg{% endif %}">
+            {% if mouvement.perte_gain_15c > 0 %}+{% endif %}{{ mouvement.perte_gain_15c|floatformat:2 }} L
+          </span>
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+
+      <div class="calc-row">
+        <span class="calc-key">Poids — V<sub>15°C</sub> × D<sub>cal</sub> ÷ 1000 &nbsp; col. AL</span>
+        {% if mouvement.poids_kg %}
+          <span class="calc-val">{{ mouvement.poids_kg|floatformat:0 }} kg</span>
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION SORTIE ════════════════════════════════ -->
+{% if mouvement.type_mouvement == 'SORTIE' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-sortie">
+    <svg viewBox="0 0 24 24"><path d="M21 12H3M9 19l-7-7 7-7"/></svg>
+    <h3>Données de sortie</h3>
+  </div>
+  <div class="detail-card-body">
+
+    <p class="ss-title">Client & Destination</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Référence client externe</span>
+        <span class="detail-value {% if not mouvement.reference_client_externe %}tiret{% endif %}">{{ mouvement.reference_client_externe|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Destination</span>
+        <span class="detail-value {% if not mouvement.destination %}tiret{% endif %}">{{ mouvement.destination|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Code destination</span>
+        <span class="detail-value {% if not mouvement.code_destination %}tiret{% endif %}">{{ mouvement.code_destination|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Permis douanier</p>
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Date du permis</span>
+        <span class="detail-value {% if not mouvement.date_permis %}tiret{% endif %}">{{ mouvement.date_permis|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° Permis</span>
+        <span class="detail-value {% if not mouvement.numero_permis_sortie %}tiret{% endif %}">{{ mouvement.numero_permis_sortie|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° S</span>
+        <span class="detail-value {% if not mouvement.numero_s %}tiret{% endif %}">{{ mouvement.numero_s|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° C</span>
+        <span class="detail-value {% if not mouvement.numero_c %}tiret{% endif %}">{{ mouvement.numero_c|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Volumes & Densité</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant sortie (L)</span>
+        <span class="detail-value {% if mouvement.volume_ambiant_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_sortie %}{{ mouvement.volume_ambiant_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Densité @15°C sortie (kg/m³)</span>
+        <span class="detail-value {% if mouvement.densite_15c_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.densite_15c_sortie %}{{ mouvement.densite_15c_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Température sortie (°C)</span>
+        <span class="detail-value {% if mouvement.temperature_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_sortie %}{{ mouvement.temperature_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+    </div>
+    {% if mouvement.mode_reglement %}
+    <div class="dg-2" style="margin-top:12px">
+      <div class="detail-field">
+        <span class="detail-label">Mode de règlement</span>
+        <span class="detail-value">{{ mouvement.get_mode_reglement_display }}</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <p class="ss-title">Contrôle automatique (API MPMS)</p>
+    <div class="calc-band">
+      <div class="calc-band-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Calculés via API MPMS (TVCF_15)
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">K<sub>conv</sub> @15°C sortie</span>
+        {% if mouvement.coefficient_conversion_sortie %}<span class="calc-val">{{ mouvement.coefficient_conversion_sortie }}</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Vol. @15°C sortie (L)</span>
+        {% if mouvement.volume_15c_sortie %}<span class="calc-val">{{ mouvement.volume_15c_sortie|floatformat:0 }} L</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Poids sortie (kg)</span>
+        {% if mouvement.poids_sortie_kg %}<span class="calc-val">{{ mouvement.poids_sortie_kg|floatformat:0 }} kg</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION CESSION ═══════════════════════════════ -->
+{% if mouvement.type_mouvement == 'CESSION' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-cession">
+    <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+    <h3>Données de cession</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-2">
+      <div class="detail-field">
+        <span class="detail-label">Marketeur source (cédant)</span>
+        <span class="detail-value">{{ mouvement.marketeur.raison_sociale }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Marketeur destinataire</span>
+        {% if mouvement.cession_marketeur_destinataire %}
+          <span class="detail-value">{{ mouvement.cession_marketeur_destinataire.raison_sociale }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant cédé (L)</span>
+        <span class="detail-value {% if mouvement.cession_volume_ambiant %}num{% else %}tiret{% endif %}">{% if mouvement.cession_volume_ambiant %}{{ mouvement.cession_volume_ambiant|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. @15°C cédé (L)</span>
+        <span class="detail-value {% if mouvement.cession_volume_15c %}num{% else %}tiret{% endif %}">{% if mouvement.cession_volume_15c %}{{ mouvement.cession_volume_15c|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field dg-full">
+        <span class="detail-label">Motif de la cession</span>
+        <span class="detail-value {% if not mouvement.cession_motif %}tiret{% endif %}">{{ mouvement.cession_motif|default:"—" }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION ACQUITTEMENT ══════════════════════════ -->
+{% if mouvement.type_mouvement == 'ACQUITTEMENT' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-acquittement">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    <h3>Données d'acquittement</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-2">
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant acquitté (L)</span>
+        <span class="detail-value {% if mouvement.acquittement_volume_ambiant %}num{% else %}tiret{% endif %}">{% if mouvement.acquittement_volume_ambiant %}{{ mouvement.acquittement_volume_ambiant|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. @15°C acquitté (L)</span>
+        <span class="detail-value {% if mouvement.acquittement_volume_15c %}num{% else %}tiret{% endif %}">{% if mouvement.acquittement_volume_15c %}{{ mouvement.acquittement_volume_15c|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Référence déclaration douanière</span>
+        <span class="detail-value {% if not mouvement.acquittement_reference_declaration %}tiret{% endif %}">{{ mouvement.acquittement_reference_declaration|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de la déclaration</span>
+        <span class="detail-value {% if not mouvement.acquittement_date_declaration %}tiret{% endif %}">{{ mouvement.acquittement_date_declaration|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ NOTES & SUIVI ══════════════════════════════════ -->
+<div class="detail-card">
+  <div class="detail-card-header dcheader-notes">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <h3>Notes & Suivi</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Collaborateur (saisie)</span>
+        <span class="detail-value {% if not mouvement.collaborateur %}tiret{% endif %}">{{ mouvement.collaborateur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de saisie</span>
+        <span class="detail-value">{{ mouvement.date_saisie|date:"d/m/Y à H:i" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Dernière modification</span>
+        <span class="detail-value">{{ mouvement.date_modification|date:"d/m/Y à H:i" }}</span>
+      </div>
+      {% if mouvement.notes %}
+      <div class="detail-field dg-full">
+        <span class="detail-label">Notes / Observations</span>
+        <span class="detail-value" style="align-items:flex-start;min-height:60px;white-space:pre-wrap">{{ mouvement.notes }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if request.user.is_staff %}
+<form id="form-supprimer" method="post" action="{% url 'mouvement_supprimer' mouvement.pk %}" style="display:none">
+  {% csrf_token %}
+</form>
+
+<!-- ═══ MODALE DE CONFIRMATION SUPPRESSION ═══ -->
+<div id="modal-supprimer" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center">
+  <!-- Fond sombre -->
+  <div onclick="fermerModaleSuppression()" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px)"></div>
+
+  <!-- Carte -->
+  <div style="position:relative;width:100%;max-width:500px;margin:16px;border-radius:14px;overflow:hidden;
+              box-shadow:0 20px 60px rgba(0,0,0,.35);animation:delFadeIn .25s ease both">
+
+    <!-- En-tête rouge -->
+    <div style="background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);padding:24px 24px 18px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+      <div style="width:56px;height:56px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 24 24" stroke-width="2.2" style="width:26px;height:26px;stroke:#fff;fill:none">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+        </svg>
+      </div>
+      <h3 style="font-size:16px;font-weight:700;color:#fff;margin:0">Confirmer la suppression</h3>
+      <p style="font-size:12px;color:rgba(255,255,255,.8);margin:0">{{ mouvement.numero_enregistrement }}</p>
+    </div>
+
+    <!-- Corps -->
+    <div style="background:var(--surface,#fff);padding:20px 24px 24px">
+
+      <!-- Avertissement -->
+      <div class="modal-warn-box" style="display:flex;align-items:flex-start;gap:9px;background:#fff7ed;border:1px solid #fed7aa;border-left:4px solid #f97316;border-radius:8px;padding:11px 13px;margin-bottom:18px;font-size:12.5px;color:#9a3412">
+        <svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:#f97316;fill:none;flex-shrink:0;margin-top:1px">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>Cette action est <strong>irréversible</strong>. Le mouvement et toutes ses données seront supprimés.</span>
+      </div>
+
+      <!-- Récap -->
+      <div style="background:var(--surface-2,#f8fafc);border:1px solid var(--border,#e5e7eb);border-radius:9px;overflow:hidden;margin-bottom:22px">
+        <div style="padding:8px 14px;background:var(--surface-3,#f1f5f9);border-bottom:1px solid var(--border,#e5e7eb);font-size:10.5px;font-weight:700;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.06em">Détails</div>
+        <div style="padding:4px 0">
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Type</span>
+            <span class="modal-type-badge">{{ mouvement.get_type_mouvement_display }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Date</span>
+            <span style="font-weight:600">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;border-bottom:1px solid var(--border,#f0f0f0)">
+            <span style="color:var(--muted,#6b7280)">Marketeur</span>
+            <span style="font-weight:600">{{ mouvement.marketeur.sigle|default:mouvement.marketeur.raison_sociale }}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px">
+            <span style="color:var(--muted,#6b7280)">Produit</span>
+            <span style="font-weight:600">{{ mouvement.produit.nom }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boutons -->
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" onclick="fermerModaleSuppression()" style="display:inline-flex;align-items:center;gap:7px;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1.5px solid var(--border,#d1d5db);background:transparent;color:var(--ink,#374151);cursor:pointer">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Annuler
+        </button>
+        <button type="button" onclick="document.getElementById('form-supprimer').submit()" style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;border-radius:8px;font-size:13px;font-weight:700;background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(220,38,38,.35)">
+          <svg viewBox="0 0 24 24" stroke-width="2.2" style="width:14px;height:14px;stroke:currentColor;fill:none">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+          Supprimer définitivement
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes delFadeIn{from{opacity:0;transform:scale(.94) translateY(12px)}to{opacity:1;transform:scale(1) translateY(0)}}
+</style>
+{% endif %}
+
+<script>
+window.confirmerSuppression = function() {
+  var m = document.getElementById('modal-supprimer');
+  m.style.display = 'flex';
+};
+window.fermerModaleSuppression = function() {
+  document.getElementById('modal-supprimer').style.display = 'none';
+};
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') fermerModaleSuppression();
+});
+</script>
+
+{% endblock %}

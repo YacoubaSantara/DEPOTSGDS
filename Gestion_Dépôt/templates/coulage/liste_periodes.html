@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block nav_coulage %}active{% endblock %}
+{% block title %}Coulage — Périodes comptables{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Coulage</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Répartition du coulage</h1>
+    <div class="ph-sub">Gestion mensuelle des pertes/gains et frais de passage</div>
+  </div>
+</div>
+
+<div class="card">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Période</th>
+        <th>Statut</th>
+        <th class="tar">Montant coulage (FCFA)</th>
+        <th>Date clôture</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for periode in object_list %}
+      <tr>
+        <td style="font-weight:600">{{ periode.libelle }}</td>
+        <td>
+          {% if periode.statut == 'OUVERTE' %}
+            <span class="bdg ok">Ouverte</span>
+          {% else %}
+            <span class="bdg muted">Clôturée</span>
+          {% endif %}
+        </td>
+        <td class="tar mono">
+          {% if periode.statut == 'CLOTUREE' and periode.cloture_coulage %}
+            {{ periode.cloture_coulage.total_montant|floatformat:0|intcomma }}
+          {% else %}
+            <span style="color:var(--muted)">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if periode.date_cloture %}
+            <span class="mono" style="font-size:.82rem">{{ periode.date_cloture|date:"d/m/Y H:i" }}</span>
+          {% else %}
+            <span style="color:var(--muted)">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <a href="{% url 'coulage_detail' periode_id=periode.pk %}" class="btn btn-sm btn-accent">Coulage</a>
+            <a href="{% url 'frais_passage' periode_id=periode.pk %}" class="btn btn-sm btn-ghost">Frais passage</a>
+            <div style="position:relative;display:inline-block" class="suivi-dropdown-wrap">
+              <button onclick="toggleSuivi({{ periode.pk }})" class="btn btn-sm btn-ghost">
+                Suivi ▾
+              </button>
+              <div id="suivi-{{ periode.pk }}"
+                   style="display:none;position:absolute;right:0;top:110%;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:50;min-width:150px;">
+                {% for p in produits_actifs_list %}
+                <a href="{% url 'suivi_evolution' periode_id=periode.pk produit_id=p.pk %}"
+                   style="display:block;padding:.45rem .9rem;color:var(--ink);text-decoration:none;font-size:.82rem;border-bottom:1px solid var(--border);">
+                  {{ p.nom }}
+                </a>
+                {% empty %}
+                <span style="display:block;padding:.45rem .9rem;color:var(--muted);font-size:.82rem">Aucun produit actif</span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty">
+        <td colspan="5">
+          Aucune période comptable créée.<br>
+          <small>La première période est créée automatiquement lors de la première clôture.</small>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div class="pagination">
+    <span>Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    <span class="step-links">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">‹</a>
+      {% endif %}
+      {% for i in page_obj.paginator.page_range %}
+        {% if page_obj.number == i %}
+          <span class="current">{{ i }}</span>
+        {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
+          <a href="?page={{ i }}">{{ i }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">›</a>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function toggleSuivi(id) {
+  const el = document.getElementById('suivi-' + id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.suivi-dropdown-wrap')) {
+    document.querySelectorAll('[id^="suivi-"]').forEach(function(d) {
+      d.style.display = 'none';
+    });
+  }
+});
+</script>
+{% endblock %}

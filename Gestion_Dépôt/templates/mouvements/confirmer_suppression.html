@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Supprimer mouvement{% endblock %}
+{% block page_title %}Supprimer un mouvement{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'mouvement_liste' %}">Mouvements</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Supprimer</span>
+{% endblock %}
+
+{% block content %}
+<style>
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-4px)}
+    40%{transform:translateX(4px)}
+    60%{transform:translateX(-3px)}
+    80%{transform:translateX(3px)}
+  }
+  @keyframes fadeInUp {
+    from{opacity:0;transform:translateY(18px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .del-card {
+    max-width: 560px;
+    margin: 40px auto;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,.13);
+    animation: fadeInUp .35s ease both;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e5e7eb);
+  }
+  .del-header {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    padding: 28px 28px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .del-icon-wrap {
+    width: 60px; height: 60px;
+    background: rgba(255,255,255,.15);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    animation: shake 1s ease 0.4s;
+  }
+  .del-header h2 {
+    font-size: 17px; font-weight: 700; color: #fff; margin: 0;
+    letter-spacing: .01em;
+  }
+  .del-header p {
+    font-size: 12.5px; color: rgba(255,255,255,.82); margin: 0;
+  }
+  .del-body { padding: 24px 28px 28px; }
+
+  .del-warning {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #f97316;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 22px;
+    font-size: 12.5px; color: #9a3412;
+  }
+  .del-warning svg { flex-shrink: 0; margin-top: 1px; }
+
+  .del-details {
+    background: var(--surface-2, #f8fafc);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .del-details-header {
+    padding: 10px 16px;
+    background: var(--surface-3, #f1f5f9);
+    border-bottom: 1px solid var(--border, #e5e7eb);
+    font-size: 11px; font-weight: 700; color: var(--muted, #6b7280);
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .del-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px; font-size: 13px;
+    border-bottom: 1px solid var(--border, #f0f0f0);
+  }
+  .del-row:last-child { border-bottom: none; }
+  .del-row-label { color: var(--muted, #6b7280); display: flex; align-items: center; gap: 7px; }
+  .del-row-label svg { opacity: .6; }
+  .del-row-value { font-weight: 600; color: var(--ink, #111); text-align: right; }
+
+  .del-type-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    background: #fee2e2; color: #b91c1c;
+  }
+
+  .del-actions {
+    display: flex; gap: 10px; justify-content: flex-end;
+  }
+  .del-btn-cancel {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: 1.5px solid var(--border, #d1d5db);
+    background: transparent; color: var(--ink, #374151);
+    text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s;
+  }
+  .del-btn-cancel:hover { background: var(--surface-2, #f3f4f6); border-color: #9ca3af; }
+  .del-btn-submit {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 22px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: #fff; border: none; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(220,38,38,.35);
+    transition: opacity .15s, box-shadow .15s;
+  }
+  .del-btn-submit:hover { opacity: .9; box-shadow: 0 4px 14px rgba(220,38,38,.45); }
+  .del-btn-submit:active { opacity: .95; box-shadow: none; }
+</style>
+
+<div class="del-card">
+  <!-- En-tête -->
+  <div class="del-header">
+    <div class="del-icon-wrap">
+      <svg viewBox="0 0 24 24" stroke-width="2.2" style="width:28px;height:28px;stroke:#fff;fill:none">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+        <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+      </svg>
+    </div>
+    <h2>Confirmer la suppression</h2>
+    <p>Mouvement du {{ mouvement.date_mouvement|date:"d/m/Y" }}</p>
+  </div>
+
+  <!-- Corps -->
+  <div class="del-body">
+
+    <!-- Avertissement -->
+    <div class="del-warning">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:16px;height:16px;stroke:#f97316;fill:none">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span>Cette action est <strong>irréversible</strong>. Le mouvement et toutes ses données associées seront définitivement supprimés.</span>
+    </div>
+
+    <!-- Détails du mouvement -->
+    <div class="del-details">
+      <div class="del-details-header">Détails du mouvement</div>
+
+      <div class="del-row">
+        <span class="del-row-label">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>Type
+        </span>
+        <span class="del-row-value">
+          <span class="del-type-badge">{{ mouvement.get_type_mouvement_display }}</span>
+        </span>
+      </div>
+
+      <div class="del-row">
+        <span class="del-row-label">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>Date
+        </span>
+        <span class="del-row-value">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span>
+      </div>
+
+      <div class="del-row">
+        <span class="del-row-label">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>Marketeur
+        </span>
+        <span class="del-row-value">{{ mouvement.marketeur }}</span>
+      </div>
+
+      <div class="del-row">
+        <span class="del-row-label">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>Produit
+        </span>
+        <span class="del-row-value">{{ mouvement.produit }}</span>
+      </div>
+
+      {% if mouvement.camion %}
+      <div class="del-row">
+        <span class="del-row-label">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none">
+            <rect x="1" y="3" width="15" height="13" rx="1"/>
+            <path d="M16 8h4l3 3v5h-7V8z"/>
+            <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+          </svg>Camion
+        </span>
+        <span class="del-row-value">{{ mouvement.camion.immatriculation }}</span>
+      </div>
+      {% endif %}
+
+      <div class="del-row">
+        <span class="del-row-label">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>Régime
+        </span>
+        <span class="del-row-value">{{ mouvement.get_regime_douanier_display }}</span>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <form method="post">
+      {% csrf_token %}
+      <div class="del-actions">
+        <a href="{% url 'mouvement_liste' %}" class="del-btn-cancel">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Annuler
+        </a>
+        <button type="submit" class="del-btn-submit">
+          <svg viewBox="0 0 24 24" stroke-width="2.2" style="width:15px;height:15px;stroke:currentColor;fill:none">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          </svg>
+          Supprimer définitivement
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

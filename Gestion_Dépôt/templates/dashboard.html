@@ -1,0 +1,1023 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Tableau de bord{% endblock %}
+{% block page_title %}Tableau de bord{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ════════════════════════════════════════════════════════
+   SGDS Dashboard v3 — Design professionnel
+   Style : Flat data-driven + Warm amber accents
+════════════════════════════════════════════════════════ */
+
+/* ─── ANIMATIONS BASE ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63,125,58,.55); }
+  50%       { box-shadow: 0 0 0 6px rgba(63,125,58,0); }
+}
+@keyframes pulseRed {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(168,51,28,.45); }
+  50%       { box-shadow: 0 0 0 5px rgba(168,51,28,0); }
+}
+@keyframes kpiSettle {
+  0%   { filter: brightness(1.3); }
+  100% { filter: brightness(1); }
+}
+
+.au   { animation: fadeUp .5s cubic-bezier(.22,1,.36,1) both; }
+.au-1 { animation-delay: .06s; }
+.au-2 { animation-delay: .13s; }
+.au-3 { animation-delay: .20s; }
+.au-4 { animation-delay: .28s; }
+.au-5 { animation-delay: .36s; }
+
+/* ─── DASHBOARD WRAPPER ─── */
+.db { display: flex; flex-direction: column; gap: 18px; }
+
+/* ════════════════════════════════════════════════════════
+   HERO BANNER
+════════════════════════════════════════════════════════ */
+.db-hero {
+  background: linear-gradient(135deg, #18150f 0%, #231c0f 55%, #2e2414 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255,255,255,.055);
+  overflow: hidden;
+  position: relative;
+}
+.db-hero-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(circle, rgba(255,255,255,.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.db-hero-glow {
+  position: absolute; right: -60px; top: -60px;
+  width: 300px; height: 300px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(184,84,26,.2), transparent 68%);
+  pointer-events: none;
+}
+.db-hero-glow-2 {
+  position: absolute; left: 20%; bottom: -80px;
+  width: 240px; height: 160px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(184,84,26,.06), transparent 70%);
+  pointer-events: none;
+}
+.db-hero-body {
+  position: relative; z-index: 2;
+  padding: 22px 28px 0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+}
+.db-hero-eyebrow {
+  font-size: 10px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: rgba(255,255,255,.35);
+  font-family: 'JetBrains Mono', monospace; margin-bottom: 8px;
+}
+.db-hero-title { font-size: 19px; font-weight: 800; letter-spacing: -.03em; color: #fff; margin-bottom: 5px; }
+.db-hero-date  { font-size: 12px; color: rgba(255,255,255,.4); }
+
+.db-period-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 15px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+}
+.db-period-badge.open   { background: rgba(63,125,58,.18); border: 1px solid rgba(63,125,58,.28); color: #9fd49a; }
+.db-period-badge.closed { background: rgba(168,51,28,.18); border: 1px solid rgba(168,51,28,.28); color: #f4a896; }
+.db-period-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.db-period-badge.open  .db-period-dot { background: var(--ok); animation: pulseDot 2s infinite; }
+.db-period-badge.closed .db-period-dot { background: var(--err); animation: pulseRed 2s infinite; }
+
+.db-hero-strip {
+  position: relative; z-index: 2;
+  display: flex; align-items: stretch;
+  border-top: 1px solid rgba(255,255,255,.065);
+  margin-top: 20px;
+}
+.db-hero-stat {
+  flex: 1; padding: 12px 20px;
+  border-right: 1px solid rgba(255,255,255,.065);
+  display: flex; align-items: center; gap: 10px;
+}
+.db-hero-stat:last-child { border-right: none; }
+.db-hero-stat-icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: rgba(255,255,255,.48);
+}
+.db-hero-stat-icon svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.db-hero-stat-label { font-size: 10px; color: rgba(255,255,255,.32); margin-bottom: 2px; }
+.db-hero-stat-value { font-size: 14px; font-weight: 700; color: rgba(255,255,255,.84); font-family: 'JetBrains Mono', monospace; letter-spacing: -.02em; }
+
+/* ════════════════════════════════════════════════════════
+   KPI GRID
+════════════════════════════════════════════════════════ */
+.db-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 13px;
+}
+.db-kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 16px 13px 20px;
+  position: relative; overflow: hidden; cursor: default;
+  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s, border-color .18s;
+}
+.db-kpi:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(0,0,0,.09); border-color: var(--border-2); }
+.db-kpi::before {
+  content: "";
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+.db-kpi.k-green::before  { background: linear-gradient(180deg, var(--ok), #6db565); }
+.db-kpi.k-red::before    { background: linear-gradient(180deg, var(--err), #d4664d); }
+.db-kpi.k-blue::before   { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
+.db-kpi.k-amber::before  { background: linear-gradient(180deg, var(--warn), #d4a017); }
+.db-kpi.k-purple::before { background: linear-gradient(180deg, #7a4ba8, #a67dd4); }
+.db-kpi.k-teal::before   { background: linear-gradient(180deg, #14b8a6, #2dd4bf); }
+
+.db-kpi-bg-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); opacity: .05; pointer-events: none; }
+.db-kpi-bg-icon svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.2; }
+.k-green  .db-kpi-bg-icon { color: var(--ok); }
+.k-red    .db-kpi-bg-icon { color: var(--err); }
+.k-blue   .db-kpi-bg-icon { color: #3b82f6; }
+.k-amber  .db-kpi-bg-icon { color: var(--warn); }
+.k-purple .db-kpi-bg-icon { color: #7a4ba8; }
+.k-teal   .db-kpi-bg-icon { color: #14b8a6; }
+
+.db-kpi-top   { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+.db-kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.db-kpi-dot   { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.k-green  .db-kpi-dot { background: var(--ok); }
+.k-red    .db-kpi-dot { background: var(--err); }
+.k-blue   .db-kpi-dot { background: #3b82f6; }
+.k-amber  .db-kpi-dot { background: var(--warn); }
+.k-purple .db-kpi-dot { background: #7a4ba8; }
+.k-teal   .db-kpi-dot { background: #14b8a6; }
+
+.db-kpi-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 30px; font-weight: 800;
+  color: var(--ink); line-height: 1; letter-spacing: -.04em;
+  margin-bottom: 7px; position: relative; z-index: 1;
+}
+.db-kpi-val.settled { animation: kpiSettle .4s ease forwards; }
+.db-kpi-sub {
+  font-size: 11px; color: var(--muted);
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  position: relative; z-index: 1;
+}
+.db-kpi-badge { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
+.db-kpi-badge.up   { background: var(--ok-soft);   color: var(--ok); }
+.db-kpi-badge.down { background: var(--err-soft);  color: var(--err); }
+.db-kpi-badge.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* ════════════════════════════════════════════════════════
+   SEMI-GAUGE v2 — Redesign professionnel
+════════════════════════════════════════════════════════ */
+/* Override des classes existantes pour les tuiles du dashboard */
+.db-cuves-wrap .semi-gauge-wrap {
+  position: relative;
+  width: 114px; height: 70px;
+  margin: 0 auto 10px;
+}
+.db-cuves-wrap .semi-gauge-wrap svg { overflow: visible; }
+
+/* Track de fond — plus fin, plus élégant */
+.db-cuves-wrap .semi-gauge-track {
+  fill: none;
+  stroke: var(--border-2);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+/* Remplissage coloré — spring easing via CSS */
+.db-cuves-wrap .semi-gauge-fill {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.35s cubic-bezier(.34,1.18,.64,1);
+}
+/* Ticks de graduation */
+.sg-tick {
+  stroke: var(--border-2);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+/* Point indicateur mobile */
+.sg-dot {
+  r: 5;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.22));
+  transition: opacity .3s;
+}
+.sg-dot.dot-normale, .sg-dot.dot-ok       { fill: var(--ok); }
+.sg-dot.dot-basse,   .sg-dot.dot-warn     { fill: var(--warn); }
+.sg-dot.dot-critique,.sg-dot.dot-err      { fill: var(--err); }
+.sg-dot.dot-pleine,  .sg-dot.dot-info     { fill: var(--info); }
+
+/* Pourcentage — redesign */
+.db-cuves-wrap .semi-gauge-pct {
+  position: absolute;
+  bottom: -2px; left: 50%; transform: translateX(-50%);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 17px; font-weight: 800;
+  letter-spacing: -.04em; white-space: nowrap;
+  line-height: 1;
+}
+.sg-pct-unit {
+  font-size: 11px; font-weight: 600;
+  opacity: .7; margin-left: 1px;
+}
+
+/* ════════════════════════════════════════════════════════
+   MAIN ROW — Charts (3fr) + Sidebar (2fr)
+════════════════════════════════════════════════════════ */
+.db-main-row { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; }
+.db-sidebar-stack { display: flex; flex-direction: column; gap: 14px; }
+
+.db-card-hd {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.db-card-title { font-size: 12.5px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.db-card-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── Quick Actions Panel ── */
+.db-actions-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.db-actions-hd {
+  padding: 12px 16px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted-2);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.db-action {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 16px;
+  text-decoration: none; color: var(--ink);
+  border-bottom: 1px solid var(--border);
+  transition: background .14s;
+  position: relative;
+}
+.db-action:last-child { border-bottom: none; }
+.db-action:hover { background: var(--accent-soft); }
+.db-action-icon {
+  width: 33px; height: 33px; border-radius: 9px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--muted);
+  transition: all .18s;
+}
+.db-action-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.db-action:hover .db-action-icon { background: var(--accent); border-color: var(--accent); color: #fff; }
+.db-action-body { flex: 1; }
+.db-action-name { font-size: 12.5px; font-weight: 600; }
+.db-action-desc { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+.db-action-chevron { color: var(--muted-2); opacity: 0; transition: opacity .15s, transform .18s; }
+.db-action-chevron svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.db-action:hover .db-action-chevron { opacity: 1; transform: translateX(2px); }
+
+/* ── Stock panel ── */
+.db-stock-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+
+/* ════════════════════════════════════════════════════════
+   CUVES SECTION
+════════════════════════════════════════════════════════ */
+.db-cuves-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.db-cuves-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: 13px; padding: 16px; }
+.cuve-tile { transition: transform .26s cubic-bezier(.22,1,.36,1), box-shadow .26s, border-color .2s; }
+.cuve-tile:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 12px 28px rgba(0,0,0,.11); }
+
+/* ════════════════════════════════════════════════════════
+   ACTIVITY — Tables
+════════════════════════════════════════════════════════ */
+.db-activity-row { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; }
+
+.db-tbl { width: 100%; border-collapse: collapse; }
+.db-tbl thead th {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted);
+  padding: 9px 14px;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.db-tbl thead th.tar { text-align: right; }
+.db-tbl tbody td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.db-tbl tbody tr:last-child td { border-bottom: none; }
+.db-tbl tbody tr { transition: background .12s; }
+.db-tbl tbody tr.clickable { cursor: pointer; }
+.db-tbl tbody tr.clickable:hover { background: var(--surface-2); }
+.db-tbl .tar  { text-align: right; }
+.db-tbl .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.db-tbl .tbl-empty td { text-align: center; color: var(--muted-2); padding: 24px 14px; font-style: italic; }
+
+/* ─── REDUCED MOTION ─── */
+@media (prefers-reduced-motion: reduce) {
+  .au, .au-1, .au-2, .au-3, .au-4, .au-5 { animation: none !important; }
+  .db-cuves-wrap .semi-gauge-fill { transition: none !important; }
+  .db-kpi { transition: none !important; }
+  .cuve-tile { transition: none !important; }
+  .db-action-icon { transition: none !important; }
+  .db-period-dot  { animation: none !important; }
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 1250px) { .db-kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 980px) {
+  .db-main-row, .db-activity-row { grid-template-columns: 1fr; }
+  .db-hero-strip { flex-wrap: wrap; }
+  .db-hero-stat  { min-width: 50%; border-bottom: 1px solid rgba(255,255,255,.065); }
+}
+@media (max-width: 680px) {
+  .db-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .db-hero-body { flex-direction: column; gap: 12px; }
+}
+
+/* ─── DARK MODE ─── */
+[data-theme="dark"] .db-hero { background: linear-gradient(135deg, #0f0c08 0%, #1a1308 55%, #221a08 100%); }
+[data-theme="dark"] .db-kpi:hover { box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+[data-theme="dark"] .db-cuves-wrap .semi-gauge-track { stroke: rgba(255,255,255,.1); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="db">
+
+<!-- ══════════════════════ HERO ══════════════════════ -->
+<div class="db-hero au">
+  <div class="db-hero-grid"></div>
+  <div class="db-hero-glow"></div>
+  <div class="db-hero-glow-2"></div>
+  <div class="db-hero-body">
+    <div>
+      <div class="db-hero-eyebrow">SGDS &middot; Système de Gestion de Dépôt Pétrolier</div>
+      <div class="db-hero-title">Tableau de bord &mdash; Administration</div>
+      <div class="db-hero-date">{{ today|date:"l d F Y" }} &nbsp;&middot;&nbsp; Vue d'ensemble du dépôt</div>
+    </div>
+    {% if periode_courante %}
+    <div class="db-period-badge open">
+      <span class="db-period-dot"></span>
+      Période ouverte &mdash; {{ periode_courante }}
+    </div>
+    {% else %}
+    <div class="db-period-badge closed">
+      <span class="db-period-dot"></span>
+      Aucune période ouverte
+    </div>
+    {% endif %}
+  </div>
+  <div class="db-hero-strip">
+    <div class="db-hero-stat">
+      <div class="db-hero-stat-icon"><svg viewBox="0 0 24 24"><path d="M7 16l-4-4 4-4M3 12h14M21 5v14"/></svg></div>
+      <div><div class="db-hero-stat-label">Entrées du mois</div><div class="db-hero-stat-value">{{ vol_entrees_mois|floatformat:0|intcomma }} L</div></div>
+    </div>
+    <div class="db-hero-stat">
+      <div class="db-hero-stat-icon"><svg viewBox="0 0 24 24"><path d="M17 8l4 4-4 4M3 12h18M3 5v14"/></svg></div>
+      <div><div class="db-hero-stat-label">Sorties du mois</div><div class="db-hero-stat-value">{{ vol_sorties_mois|floatformat:0|intcomma }} L</div></div>
+    </div>
+    <div class="db-hero-stat">
+      <div class="db-hero-stat-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
+      <div><div class="db-hero-stat-label">Cuves actives</div><div class="db-hero-stat-value">{{ nb_cuves_total }}</div></div>
+    </div>
+    <div class="db-hero-stat">
+      <div class="db-hero-stat-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+      <div><div class="db-hero-stat-label">Marketeurs</div><div class="db-hero-stat-value">{{ nb_marketeurs }}</div></div>
+    </div>
+    <div class="db-hero-stat">
+      <div class="db-hero-stat-icon"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M5 5l3 3M16 16l3 3M2 12h4M18 12h4M5 19l3-3M16 8l3-3"/></svg></div>
+      <div><div class="db-hero-stat-label">Jaugeages en attente</div><div class="db-hero-stat-value" {% if nb_jaugeages_attente > 0 %}style="color:#f4a44a"{% endif %}>{{ nb_jaugeages_attente }}</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ ALERTES ══════════════════════ -->
+{% if alertes %}
+<div class="alertes-ribbon no-print au au-1">
+  {% for a in alertes %}
+  <div class="alerte-chip {{ a.niveau }}">{{ a.icone }} {{ a.message }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ══════════════════════ KPI GRID ══════════════════════ -->
+<div class="db-kpi-grid au au-1">
+
+  <div class="db-kpi k-green">
+    <div class="db-kpi-bg-icon"><svg viewBox="0 0 24 24"><path d="M7 16l-4-4 4-4M3 12h14M21 5v14"/></svg></div>
+    <div class="db-kpi-top"><div class="db-kpi-label">Entrées du mois</div><div class="db-kpi-dot"></div></div>
+    <div class="db-kpi-val" data-count="{{ nb_entrees_mois }}">{{ nb_entrees_mois }}</div>
+    <div class="db-kpi-sub"><span class="db-kpi-badge up">↑</span>{{ vol_entrees_mois|floatformat:0|intcomma }} L</div>
+  </div>
+
+  <div class="db-kpi k-red">
+    <div class="db-kpi-bg-icon"><svg viewBox="0 0 24 24"><path d="M17 8l4 4-4 4M3 12h18M3 5v14"/></svg></div>
+    <div class="db-kpi-top"><div class="db-kpi-label">Sorties du mois</div><div class="db-kpi-dot"></div></div>
+    <div class="db-kpi-val" data-count="{{ nb_sorties_mois }}">{{ nb_sorties_mois }}</div>
+    <div class="db-kpi-sub"><span class="db-kpi-badge down">↓</span>{{ vol_sorties_mois|floatformat:0|intcomma }} L</div>
+  </div>
+
+  <div class="db-kpi k-blue">
+    <div class="db-kpi-bg-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+    <div class="db-kpi-top"><div class="db-kpi-label">Marketeurs actifs</div><div class="db-kpi-dot"></div></div>
+    <div class="db-kpi-val" data-count="{{ nb_marketeurs }}">{{ nb_marketeurs }}</div>
+    <div class="db-kpi-sub">clients enregistrés</div>
+  </div>
+
+  <div class="db-kpi k-amber">
+    <div class="db-kpi-bg-icon"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M5 5l3 3M16 16l3 3M2 12h4M18 12h4M5 19l3-3M16 8l3-3"/></svg></div>
+    <div class="db-kpi-top"><div class="db-kpi-label">Jaugeages en attente</div><div class="db-kpi-dot"></div></div>
+    <div class="db-kpi-val" data-count="{{ nb_jaugeages_attente }}" {% if nb_jaugeages_attente > 0 %}style="color:var(--warn)"{% endif %}>{{ nb_jaugeages_attente }}</div>
+    <div class="db-kpi-sub">{% if nb_jaugeages_attente > 0 %}<span class="db-kpi-badge warn">!</span>{% endif %}à valider</div>
+  </div>
+
+  <div class="db-kpi k-purple">
+    <div class="db-kpi-bg-icon"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+    <div class="db-kpi-top"><div class="db-kpi-label">Camions</div><div class="db-kpi-dot"></div></div>
+    <div class="db-kpi-val" data-count="{{ nb_camions }}">{{ nb_camions }}</div>
+    <div class="db-kpi-sub">{{ nb_chauffeurs }} chauffeur(s)</div>
+  </div>
+
+  <div class="db-kpi k-teal">
+    <div class="db-kpi-bg-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg></div>
+    <div class="db-kpi-top"><div class="db-kpi-label">Cuves actives</div><div class="db-kpi-dot"></div></div>
+    <div class="db-kpi-val" data-count="{{ nb_cuves_total }}">{{ nb_cuves_total }}</div>
+    <div class="db-kpi-sub">en service</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════ MAIN ROW ══════════════════════ -->
+<div class="db-main-row au au-2">
+
+  <div class="card">
+    <div class="db-card-hd">
+      <div>
+        <div class="db-card-title">Entrées &amp; Sorties &mdash; 6 derniers mois</div>
+        <div class="db-card-sub">Volumes en m³ · Survolez pour le détail</div>
+      </div>
+    </div>
+    <div class="chart-canvas-wrap"><canvas id="chartMvts"></canvas></div>
+  </div>
+
+  <div class="db-sidebar-stack">
+    <div class="db-actions-panel">
+      <div class="db-actions-hd">Actions rapides</div>
+      <a href="{% url 'mouvement_liste' %}" class="db-action">
+        <div class="db-action-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7-7 7 7"/></svg></div>
+        <div class="db-action-body"><div class="db-action-name">Nouveau mouvement</div><div class="db-action-desc">Entrée &middot; Sortie &middot; Cession</div></div>
+        <span class="db-action-chevron"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+      </a>
+      <a href="{% url 'jaugeage_list' %}" class="db-action">
+        <div class="db-action-icon"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M5 5l3 3M16 16l3 3M2 12h4M18 12h4M5 19l3-3M16 8l3-3"/></svg></div>
+        <div class="db-action-body"><div class="db-action-name">Jaugeages RJJ</div><div class="db-action-desc">{{ nb_jaugeages_attente }} en attente de validation</div></div>
+        <span class="db-action-chevron"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+      </a>
+      <a href="{% url 'cuve_list' %}" class="db-action">
+        <div class="db-action-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg></div>
+        <div class="db-action-body"><div class="db-action-name">Gérer les cuves</div><div class="db-action-desc">{{ nb_cuves_total }} cuves actives</div></div>
+        <span class="db-action-chevron"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+      </a>
+      <a href="{% url 'marketeur_list' %}" class="db-action">
+        <div class="db-action-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+        <div class="db-action-body"><div class="db-action-name">Marketeurs</div><div class="db-action-desc">{{ nb_marketeurs }} clients actifs</div></div>
+        <span class="db-action-chevron"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
+      </a>
+    </div>
+
+    <div class="db-stock-panel">
+      <div class="db-card-hd">
+        <div>
+          <div class="db-card-title">Stock actuel par produit</div>
+          <div class="db-card-sub">Répartition en litres</div>
+        </div>
+      </div>
+      <div class="chart-canvas-wrap" style="padding-bottom:0;position:relative">
+        <canvas id="chartStocks" style="max-height:148px"></canvas>
+      </div>
+      <div class="produit-bars" id="produitBars" style="padding:0 16px 16px">
+        {% for p in produits %}
+        <div class="prod-row">
+          <div class="prod-dot" style="background:var(--db-color-{{ forloop.counter }},var(--accent))"></div>
+          <span class="prod-name">{{ p.nom }}</span>
+          <div class="prod-track">
+            <div class="prod-bar-fill" data-vol="{{ p.stock_actuel|default:0 }}"
+                 style="width:0%;background:var(--db-color-{{ forloop.counter }},var(--accent))"></div>
+          </div>
+          <span class="prod-vol-text">{{ p.stock_actuel|default:0|floatformat:0|intcomma }} L</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ CUVES TEMPS RÉEL ══════════════════════ -->
+<div class="db-cuves-wrap au au-3">
+  <div class="db-card-hd">
+    <div>
+      <div class="db-card-title">Niveaux des cuves &mdash; Temps réel</div>
+      <div class="db-card-sub">Cliquez sur une cuve pour accéder au détail</div>
+    </div>
+    <a href="{% url 'cuve_list' %}" class="btn btn-sm btn-ghost">Gérer les cuves →</a>
+  </div>
+  {% if cuves_data %}
+  <div class="db-cuves-grid">
+    {% for c in cuves_data %}
+    <a href="{% url 'cuve_detail' c.obj.pk %}" class="cuve-tile {{ c.alerte }}">
+      <div class="cuve-status-bar"></div>
+      <div class="cuve-id">{{ c.obj.numero }}</div>
+      <div class="cuve-produit-name">{{ c.produit }}</div>
+      <div class="semi-gauge-wrap">
+        <svg viewBox="0 0 110 66" width="110" height="66">
+          <!-- Tick marks à 25%, 50%, 75% -->
+          <line class="sg-tick" x1="23.2" y1="26.2" x2="19.8" y2="22.8"/>
+          <line class="sg-tick" x1="55"   y1="13"   x2="55"   y2="8"/>
+          <line class="sg-tick" x1="86.8" y1="26.2" x2="90.2" y2="22.8"/>
+          <!-- Track de fond -->
+          <path class="semi-gauge-track" d="M 10,58 A 45,45 0 0,1 100,58" stroke-dasharray="141.4" stroke-dashoffset="0"/>
+          <!-- Remplissage coloré -->
+          <path class="semi-gauge-fill fill-{{ c.alerte }}" d="M 10,58 A 45,45 0 0,1 100,58" stroke-dasharray="141.4" data-pct="{{ c.pct }}" stroke-dashoffset="141.4"/>
+          <!-- Point indicateur mobile -->
+          <circle class="sg-dot dot-{{ c.alerte }}" cx="10" cy="58" data-pct="{{ c.pct }}"/>
+        </svg>
+        <div class="semi-gauge-pct pct-{{ c.alerte }}">{{ c.pct }}<span class="sg-pct-unit">%</span></div>
+      </div>
+      <div class="cuve-volumes">
+        <strong>{{ c.niv|floatformat:0|intcomma }}</strong> L<br>sur {{ c.cap|floatformat:0|intcomma }} L
+      </div>
+      {% if c.alerte == 'critique' %}<span class="cuve-alerte-badge badge-critique">⚠ Critique</span>
+      {% elif c.alerte == 'basse' %}<span class="cuve-alerte-badge badge-basse">↓ Bas</span>
+      {% elif c.alerte == 'pleine' %}<span class="cuve-alerte-badge badge-pleine">↑ Pleine</span>
+      {% else %}<span class="cuve-alerte-badge badge-normale">✓ Normal</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">Aucune cuve active enregistrée.</div>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════ ACTIVITY ══════════════════════ -->
+<div class="db-activity-row au au-4">
+
+  <div class="card">
+    <div class="db-card-hd">
+      <div><div class="db-card-title">Derniers mouvements</div><div class="db-card-sub">Opérations récentes du dépôt</div></div>
+      <a href="{% url 'mouvement_liste' %}" class="btn btn-sm btn-ghost">Voir tout →</a>
+    </div>
+    <table class="db-tbl">
+      <thead>
+        <tr><th>Date</th><th>Type</th><th>Produit</th><th>Marketeur</th><th class="tar">Volume (L)</th></tr>
+      </thead>
+      <tbody>
+      {% for m in derniers_mvts %}
+      <tr class="clickable" onclick="window.location='{% url 'mouvement_detail' m.pk %}'">
+        <td class="mono" style="font-size:11.5px">{{ m.date_mouvement|date:"d/m/Y" }}</td>
+        <td>
+          {% if m.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+          {% elif m.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+          {% else %}<span class="bdg-type cession">{{ m.get_type_mouvement_display }}</span>{% endif %}
+        </td>
+        <td style="font-weight:600">{{ m.produit.nom }}</td>
+        <td style="color:var(--muted);font-size:11.5px">{{ m.marketeur.sigle|default:m.marketeur.raison_sociale }}</td>
+        <td class="mono tar">
+          {% if m.type_mouvement == 'ENTREE' %}{{ m.volume_ambiant_recu|default:"—"|floatformat:0|intcomma }}
+          {% elif m.type_mouvement == 'SORTIE' %}{{ m.volume_ambiant_sortie|default:"—"|floatformat:0|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty"><td colspan="5">Aucun mouvement enregistré.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="db-card-hd">
+      <div><div class="db-card-title">Derniers jaugeages</div><div class="db-card-sub">Relevés journaliers RJJ</div></div>
+      <a href="{% url 'jaugeage_list' %}" class="btn btn-sm btn-ghost">Voir tout →</a>
+    </div>
+    <table class="db-tbl">
+      <thead>
+        <tr><th>Date</th><th>Type</th><th>Statut</th></tr>
+      </thead>
+      <tbody>
+      {% for j in jaugeages_recents %}
+      <tr class="clickable" onclick="window.location='{% url 'jaugeage_detail' j.pk %}'">
+        <td class="mono" style="font-weight:600;font-size:11.5px">{{ j.date_jaugeage|date:"d/m/Y" }}</td>
+        <td style="font-size:11.5px;color:var(--muted)">{{ j.get_type_jaugeage_display }}</td>
+        <td>
+          {% if j.est_valide %}<span class="bdg ok">Validé</span>
+          {% else %}<span class="bdg warn">Attente</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty"><td colspan="3">Aucun jaugeage enregistré.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</div><!-- /db -->
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════
+     CONSTANTES & DONNÉES
+  ══════════════════════════════════════════════════════ */
+  const mvts   = {{ chart_mvts_json|safe }};
+  const stocks = {{ chart_stocks_json|safe }};
+  const PALETTE = ['#b8541a','#3b82f6','#3f7d3a','#a86b00','#7a4ba8','#14b8a6','#a8331c','#2a5b8a'];
+  PALETTE.forEach((c, i) => document.documentElement.style.setProperty(`--db-color-${i+1}`, c));
+
+  /* Respect de la préférence reduced-motion */
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ══════════════════════════════════════════════════════
+     EASING FUNCTIONS
+  ══════════════════════════════════════════════════════ */
+  /* easeOutBack — légère sur-course puis stabilisation (effet spring) */
+  function easeOutBack(t) {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return t >= 1 ? 1 : 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+  /* easeOutQuart — sortie rapide et douce (pour les gauges) */
+  function easeOutQuart(t) {
+    return 1 - Math.pow(1 - t, 4);
+  }
+  /* easeOutCubic — pour les stagger */
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  /* ══════════════════════════════════════════════════════
+     KPI COUNT-UP — spring + formatage locale fr-FR
+  ══════════════════════════════════════════════════════ */
+  function countUp(el, target, delay) {
+    if (reducedMotion) { el.textContent = target.toLocaleString('fr-FR'); return; }
+    const dur = 900;
+    setTimeout(() => {
+      const t0 = performance.now();
+      function step(ts) {
+        const p  = Math.min((ts - t0) / dur, 1);
+        const ease = easeOutBack(p);
+        const val  = Math.round(ease * target);
+        /* Afficher la valeur absolue (easeOutBack peut légèrement dépasser) */
+        el.textContent = Math.max(0, val).toLocaleString('fr-FR');
+        if (p < 1) {
+          requestAnimationFrame(step);
+        } else {
+          /* Valeur finale propre + flash de couleur */
+          el.textContent = target.toLocaleString('fr-FR');
+          el.classList.add('settled');
+          setTimeout(() => el.classList.remove('settled'), 450);
+        }
+      }
+      requestAnimationFrame(step);
+    }, delay || 0);
+  }
+
+  document.querySelectorAll('.db-kpi-val[data-count]').forEach((el, i) => {
+    const n = parseInt(el.dataset.count, 10);
+    if (!isNaN(n) && n > 0) {
+      el.textContent = '0';
+      countUp(el, n, 320 + i * 55);
+    }
+  });
+
+  /* ══════════════════════════════════════════════════════
+     SEMI-GAUGE v2 — Animation du remplissage + point mobile
+     Arc : centre (55,58), rayon 45, C = 141.4
+  ══════════════════════════════════════════════════════ */
+  const CX = 55, CY = 58, R = 45, C = 141.4;
+
+  /* Position sur l'arc pour un pourcentage p (0-1) */
+  function gaugePoint(p) {
+    return {
+      x: CX - R * Math.cos(Math.PI * p),
+      y: CY - R * Math.sin(Math.PI * p)
+    };
+  }
+
+  /* Animation JS du point mobile (cross-browser pour attributs SVG) */
+  function animateDot(dot, pct, startDelay) {
+    if (reducedMotion) {
+      const target = gaugePoint(Math.min(pct, 100) / 100);
+      dot.setAttribute('cx', target.x);
+      dot.setAttribute('cy', target.y);
+      return;
+    }
+    const p      = Math.min(pct, 100) / 100;
+    const target = gaugePoint(p);
+    const sx     = 10, sy = 58; /* position de départ = 0% */
+    const dur    = 1350;
+
+    setTimeout(() => {
+      const t0 = performance.now();
+      function step(ts) {
+        const progress = Math.min((ts - t0) / dur, 1);
+        /* easeOutBack pour le point = légère sur-course */
+        const ease = easeOutBack(progress);
+        dot.setAttribute('cx', sx + (target.x - sx) * ease);
+        dot.setAttribute('cy', sy + (target.y - sy) * ease);
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }, startDelay);
+  }
+
+  /* Lancement de toutes les gauges */
+  document.querySelectorAll('.db-cuves-wrap .semi-gauge-fill').forEach((fill, i) => {
+    const pct    = parseFloat(fill.dataset.pct) || 0;
+    const offset = C - (C * Math.min(pct, 100) / 100);
+    const dot    = fill.nextElementSibling; /* <circle class="sg-dot"> */
+    const delay  = reducedMotion ? 0 : 220 + i * 42;
+
+    /* 1 — Remplissage arc via CSS transition (spring cubic-bezier) */
+    fill.style.strokeDashoffset = C;
+    setTimeout(() => { fill.style.strokeDashoffset = offset; }, delay);
+
+    /* 2 — Point mobile via JS */
+    if (dot && dot.classList.contains('sg-dot')) {
+      animateDot(dot, pct, delay);
+    }
+  });
+
+  /* ══════════════════════════════════════════════════════
+     BARRES PRODUITS — stagger spring
+  ══════════════════════════════════════════════════════ */
+  const bars = document.querySelectorAll('.prod-bar-fill');
+  const vols = Array.from(bars).map(b => parseFloat(b.dataset.vol) || 0);
+  const maxV = Math.max(...vols, 1);
+  bars.forEach((bar, i) => {
+    const pct = (vols[i] / maxV * 100).toFixed(1);
+    if (reducedMotion) { bar.style.width = pct + '%'; return; }
+    setTimeout(() => { bar.style.width = pct + '%'; }, 450 + i * 90);
+  });
+
+  /* ══════════════════════════════════════════════════════
+     STAGGER CUVES TILES — IntersectionObserver + scale+translate
+  ══════════════════════════════════════════════════════ */
+  (function initTileStagger() {
+    const tiles = document.querySelectorAll('.cuve-tile');
+    tiles.forEach(tile => {
+      tile.style.opacity    = '0';
+      tile.style.transform  = 'translateY(14px) scale(0.97)';
+      tile.style.willChange = 'opacity, transform';
+    });
+
+    if (reducedMotion) {
+      tiles.forEach(t => { t.style.opacity = '1'; t.style.transform = 'none'; });
+      return;
+    }
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const i = Array.from(tiles).indexOf(entry.target);
+        setTimeout(() => {
+          entry.target.style.transition = 'opacity .42s cubic-bezier(.22,1,.36,1), transform .42s cubic-bezier(.22,1,.36,1)';
+          entry.target.style.opacity   = '1';
+          entry.target.style.transform = 'translateY(0) scale(1)';
+        }, 380 + i * 42);
+        obs.unobserve(entry.target);
+      });
+    }, { threshold: 0.08 });
+
+    tiles.forEach(t => obs.observe(t));
+  })();
+
+  /* ══════════════════════════════════════════════════════
+     CHART.JS — Plugins personnalisés
+  ══════════════════════════════════════════════════════ */
+
+  /* Plugin 1 : Labels de valeur au-dessus des barres */
+  const barValueLabels = {
+    id: 'barValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      chart.data.datasets.forEach((dataset, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        meta.data.forEach((bar, j) => {
+          const val = dataset.data[j];
+          if (!val || val === 0) return;
+          const label = val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val.toFixed(0);
+          ctx.save();
+          ctx.fillStyle = di === 0 ? '#3f7d3a' : '#a8331c';
+          ctx.font = '600 9.5px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(label, bar.x, bar.y - 3);
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  /* Plugin 2 : Texte central du donut */
+  const donutCenterText = {
+    id: 'donutCenterText',
+    afterDraw(chart) {
+      if (chart.config.type !== 'doughnut') return;
+      const { ctx, chartArea: { top, bottom, left, right } } = chart;
+      const total = (chart.data.datasets[0].data || []).reduce((a, b) => a + b, 0);
+      if (!total) return;
+      const cx = (left + right) / 2;
+      const cy = (top + bottom) / 2;
+      const fmt = total >= 1e6
+        ? (total / 1e6).toFixed(1) + ' Mm³'
+        : total >= 1000
+          ? (total / 1000).toFixed(0) + ' k m³'
+          : total.toFixed(0) + ' m³';
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      ctx.save();
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      /* Sous-label */
+      ctx.fillStyle = isDark ? 'rgba(200,195,185,.45)' : 'rgba(122,116,104,.55)';
+      ctx.font      = '500 9.5px Inter, sans-serif';
+      ctx.letterSpacing = '0.08em';
+      ctx.fillText('STOCK', cx, cy - 11);
+      /* Valeur principale */
+      ctx.fillStyle = isDark ? 'rgba(250,248,242,.88)' : '#1a1814';
+      ctx.font      = '800 14px JetBrains Mono, monospace';
+      ctx.letterSpacing = '-0.03em';
+      ctx.fillText(fmt, cx, cy + 6);
+      ctx.restore();
+    }
+  };
+
+  /* Enregistrement global */
+  Chart.register(barValueLabels, donutCenterText);
+
+  /* ══════════════════════════════════════════════════════
+     CHART — Entrées & Sorties (Bar)
+  ══════════════════════════════════════════════════════ */
+  (function buildBarChart() {
+    const canvas = document.getElementById('chartMvts');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    /* Gradients pour les barres */
+    function makeGrad(r, g, b) {
+      const grad = ctx.createLinearGradient(0, 0, 0, 300);
+      grad.addColorStop(0,   `rgba(${r},${g},${b},.85)`);
+      grad.addColorStop(0.7, `rgba(${r},${g},${b},.5)`);
+      grad.addColorStop(1,   `rgba(${r},${g},${b},.25)`);
+      return grad;
+    }
+
+    new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: mvts.labels,
+        datasets: [
+          {
+            label: 'Entrées (m³)',
+            data: mvts.entrees,
+            backgroundColor: makeGrad(63, 125, 58),
+            borderColor: '#3f7d3a',
+            borderWidth: 1.5,
+            borderRadius: 9,
+            borderSkipped: false,
+            /* Stagger d'entrée : chaque barre arrive 50ms après la précédente */
+            animation: reducedMotion ? {} : { delay: ctx => ctx.dataIndex * 55 }
+          },
+          {
+            label: 'Sorties (m³)',
+            data: mvts.sorties,
+            backgroundColor: makeGrad(168, 51, 28),
+            borderColor: '#a8331c',
+            borderWidth: 1.5,
+            borderRadius: 9,
+            borderSkipped: false,
+            animation: reducedMotion ? {} : { delay: ctx => ctx.dataIndex * 55 + 30 }
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        animation: reducedMotion ? false : {
+          duration: 750,
+          easing: 'easeOutQuart'
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: { size: 11, family: 'Inter, sans-serif' },
+              padding: 18,
+              usePointStyle: true,
+              pointStyleWidth: 10
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(24,21,15,.96)',
+            titleColor: 'rgba(255,255,255,.6)',
+            bodyColor:  '#fff',
+            titleFont: { size: 11, family: 'Inter' },
+            bodyFont:  { size: 11.5, family: 'JetBrains Mono, monospace', weight: '700' },
+            padding: 12,
+            cornerRadius: 10,
+            borderColor: 'rgba(255,255,255,.08)',
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('fr-FR')} m³`
+            }
+          },
+          barValueLabels: {} /* active le plugin */
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: { font: { size: 11, family: 'Inter' }, color: '#7a7468' }
+          },
+          y: {
+            beginAtZero: true,
+            border: { display: false, dash: [4, 4] },
+            grid: { color: 'rgba(0,0,0,.035)', drawTicks: false },
+            ticks: {
+              font: { size: 11, family: 'JetBrains Mono, monospace' },
+              color: '#7a7468',
+              padding: 8,
+              callback: v => v.toLocaleString('fr-FR')
+            }
+          }
+        }
+      }
+    });
+  })();
+
+  /* ══════════════════════════════════════════════════════
+     CHART — Stock Donut
+  ══════════════════════════════════════════════════════ */
+  (function buildDonut() {
+    const canvas = document.getElementById('chartStocks');
+    if (!canvas) return;
+
+    new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: stocks.labels,
+        datasets: [{
+          data: stocks.stocks,
+          backgroundColor: PALETTE.slice(0, stocks.labels.length),
+          borderWidth: 3,
+          borderColor: getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#fff',
+          hoverBorderWidth: 0,
+          hoverOffset: 10
+        }]
+      },
+      options: {
+        responsive: true,
+        cutout: '72%',
+        animation: reducedMotion ? false : {
+          animateRotate: true,
+          duration: 900,
+          easing: 'easeOutQuart'
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(24,21,15,.96)',
+            titleColor: 'rgba(255,255,255,.6)',
+            bodyColor: '#fff',
+            titleFont: { size: 11, family: 'Inter' },
+            bodyFont:  { size: 11.5, family: 'JetBrains Mono, monospace', weight: '700' },
+            padding: 12,
+            cornerRadius: 10,
+            borderColor: 'rgba(255,255,255,.08)',
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => `  ${ctx.label}: ${ctx.parsed.toLocaleString('fr-FR')} m³`
+            }
+          },
+          donutCenterText: {} /* active le plugin */
+        }
+      }
+    });
+  })();
+
+})();
+</script>
+{% endblock %}

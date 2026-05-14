@@ -1,0 +1,176 @@
+﻿{% extends "base.html" %}
+{% load humanize coulage_tags %}
+{% block title %}Frais de Passage Mensuel{% endblock %}
+{% block nav_etat_mensuel_frais_passage %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="#">États</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Frais de Passage</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:200px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none}
+.mode-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow)}
+.mode-title{padding:11px 18px;font-weight:700;font-size:.9rem;background:#f0f4f8;border-bottom:1px solid var(--border);color:var(--navy)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{padding:9px 12px;text-align:right;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+th.left{text-align:left}
+td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+td.left{text-align:left}
+tr:nth-child(even) td{background:rgba(248,250,252,.5)}
+tr:hover td{background:rgba(240,244,248,.6)}
+tr.sous-total td{background:#f0f7ff;font-weight:700;border-top:1px solid var(--navy)}
+tr.grand-total td{background:#e8f0fe;font-weight:700;font-size:.86rem;border-top:2px solid var(--navy)}
+tr:last-child td{border-bottom:none}
+.num{font-family:'JetBrains Mono',monospace;font-size:.82rem}
+.summary-chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;box-shadow:var(--shadow)}
+.chip-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px}
+.chip-val{font-family:inherit;font-weight:700;font-size:.96rem;color:var(--navy)}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] tr.sous-total td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] tr.grand-total td{background:rgba(59,130,246,.08)}
+[data-theme="dark"] .mode-title{background:var(--surface-2) !important;color:var(--ink)}
+
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="ÉTAT DES FRAIS DE PASSAGE" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Frais de Passage Mensuel</h1>
+    <p class="page-subtitle">{% if periode %}{{ periode }}{% else %}Sélectionnez une période{% endif %}</p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and rapport %}
+    <a href="{% url 'etat_mensuel_frais_passage_export' %}?periode_id={{ periode.pk }}"
+       class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+        <a href="{% url 'etat_mensuel_frais_passage' %}" class="btn-reset">Réinitialiser</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if not rapport %}
+<div class="empty-state"><p>Aucune donnée pour cette période.</p></div>
+{% else %}
+
+{% if rapport.total_general %}
+<div class="summary-chips">
+  <div class="chip">
+    <span class="chip-label">Volume Global Sorti</span>
+    <span class="chip-val">{{ rapport.total_general.volume_global|floatformat:2|intcomma }} L</span>
+  </div>
+  <div class="chip">
+    <span class="chip-label">Montant Total (FCFA)</span>
+    <span class="chip-val">{{ rapport.total_general.montant|floatformat:2|intcomma }}</span>
+  </div>
+  {% if rapport.parametres %}
+  <div class="chip">
+    <span class="chip-label">PU Global (FCFA/L)</span>
+    <span class="chip-val">{{ rapport.parametres.prix_unitaire_global|floatformat:4 }}</span>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% for mode_data in rapport.modes %}
+<div class="mode-block">
+  <div class="mode-title">{{ mode_data.mode_libelle }}</div>
+  <table>
+    <thead>
+      <tr>
+        <th class="left">Marketeur</th>
+        {% for p in rapport.produits %}
+        <th>{{ p.nom }} (L)</th>
+        {% endfor %}
+        <th>Vol. Global (L)</th>
+        <th>Motif</th>
+        <th>PU (FCFA/L)</th>
+        <th>Montant (FCFA)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for ligne in mode_data.lignes %}
+    <tr>
+      <td class="left">{{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}</td>
+      {% for p in rapport.produits %}
+      <td class="num">{{ ligne.volumes_par_produit|lookup_id:p|default:"—"|floatformat:2|intcomma }}</td>
+      {% endfor %}
+      <td class="num">{{ ligne.volume_global|floatformat:2|intcomma }}</td>
+      <td style="font-size:.78rem;text-align:left">{{ ligne.motif|default:"—" }}</td>
+      <td class="num">{{ ligne.pu|floatformat:4 }}</td>
+      <td class="num"><strong>{{ ligne.montant|floatformat:2|intcomma }}</strong></td>
+    </tr>
+    {% endfor %}
+    {# Sous-total mode #}
+    <tr class="sous-total">
+      <td class="left">Sous-total {{ mode_data.mode_libelle }}</td>
+      {% for p in rapport.produits %}<td class="num">{{ mode_data.sous_totaux.volumes_par_produit|lookup_id:p|default:"—"|floatformat:2|intcomma }}</td>{% endfor %}
+      <td class="num">{{ mode_data.sous_totaux.volume_global|floatformat:2|intcomma }}</td>
+      <td></td><td></td>
+      <td class="num"><strong>{{ mode_data.sous_totaux.montant|floatformat:2|intcomma }}</strong></td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+{# Grand total #}
+{% if rapport.total_general %}
+<div class="mode-block">
+  <div class="mode-title" style="background:#e8f0fe">TOTAL GÉNÉRAL</div>
+  <table>
+    <tbody>
+    <tr class="grand-total">
+      <td class="left">TOTAL</td>
+      {% for p in rapport.produits %}
+      <td class="num">{{ rapport.total_general.volumes_par_produit|lookup_id:p|default:"—"|floatformat:2|intcomma }}</td>
+      {% endfor %}
+      <td class="num">{{ rapport.total_general.volume_global|floatformat:2|intcomma }} L</td>
+      <td></td><td></td>
+      <td class="num">{{ rapport.total_general.montant|floatformat:2|intcomma }} FCFA</td>
+    </tr>
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<p style="font-size:.75rem;color:var(--muted);margin-top:8px">
+  ℹ Les volumes par produit dans le détail nécessitent un templatetag personnalisé.
+  Utilisez <strong>↓ Excel</strong> pour la vue complète avec tous les volumes par produit.
+</p>
+{% endif %}
+{% endblock %}

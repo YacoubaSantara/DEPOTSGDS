@@ -1,0 +1,150 @@
+
+<style>
+/* ── Bouton Aperçu/Imprimer ─────────────────────────────────── */
+.btn-print-main{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 18px;background:var(--navy);color:#fff;
+  border:none;border-radius:8px;font-size:.82rem;font-weight:600;
+  cursor:pointer;transition:all .2s;font-family:inherit
+}
+.btn-print-main:hover{background:#16304f;transform:translateY(-1px);box-shadow:0 4px 14px rgba(30,58,95,.3)}
+.btn-export-main{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 18px;background:#16a34a;color:#fff;
+  border-radius:8px;font-size:.82rem;font-weight:600;
+  text-decoration:none;transition:all .2s
+}
+.btn-export-main:hover{background:#15803d;transform:translateY(-1px)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] .btn-print-main{background:var(--accent);color:#fff}
+[data-theme="dark"] .btn-print-main:hover{background:var(--accent-2);box-shadow:0 4px 14px rgba(212,104,31,.3)}
+[data-theme="dark"] .btn-export-main{background:var(--ok);color:#fff}
+[data-theme="dark"] .btn-export-main:hover{background:var(--ok);filter:brightness(1.1)}
+
+/* ── En-tête impression : caché à l'écran ─────────────────────── */
+.print-header{display:none}
+
+/* ══════════════════════════════════════════════════════════════
+   @MEDIA PRINT
+══════════════════════════════════════════════════════════════ */
+@media print {
+  /* Masquer tous les éléments de navigation et d'interface */
+  .topbar, .sidebar, .breadcrumb-bar,
+  .filters-bar, .page-header,
+  .btn-print-main, .btn-export-main,
+  .btn, .no-print, .toast-container,
+  nav, .nav, #sidebar, form.filter-form { display:none !important; }
+
+  /* Réinitialiser la mise en page */
+  html, body { margin:0; padding:0; background:#fff; font-size:9pt; color:#000; }
+  body { font-family:'Arial',sans-serif; }
+  .main-content,.content-wrapper,main,
+  [class*="content"],[class*="wrapper"] {
+    margin:0 !important; padding:0 !important;
+    width:100% !important; max-width:none !important;
+    box-shadow:none !important;
+  }
+
+  /* Afficher l'en-tête impression */
+  .print-header { display:block !important; }
+
+  /* Tableaux */
+  .table-wrap, .section-block {
+    box-shadow:none !important;
+    border:1.5px solid #1e3a5f;
+    border-radius:0;
+    overflow:visible;
+    margin-bottom:14px;
+  }
+  table { width:100%; border-collapse:collapse; font-size:8pt; page-break-inside:auto; }
+  thead { display:table-header-group; }  /* répéter l'en-tête sur chaque page */
+  tfoot { display:table-footer-group; }
+  tr    { page-break-inside:avoid; }
+
+  th {
+    background:#1e3a5f !important;
+    color:#fff !important;
+    padding:4px 7px;
+    font-size:7pt;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    border:1px solid #0f2240;
+    font-weight:700;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  td {
+    padding:3px 7px;
+    border:1px solid #d4dae3;
+    font-size:7.5pt;
+    color:#000;
+  }
+  tr:hover td { background:transparent; }
+
+  /* Couleurs des lignes de tableaux */
+  tr.row-report td       { background:#dbeafe !important; font-weight:700; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-cumul td        { background:#f1f5f9 !important; font-weight:700; border-top:2px solid #1e3a5f !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-entree td       { background:#f0fdf4 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-sortie td       { background:#fef2f2 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-cession td      { background:#eff6ff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-acquittement td { background:#fffbeb !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-ouverture td    { background:#eef2ff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-entrees td      { background:#f0fdf4 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-sorties td      { background:#fff7ed !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-comptable td    { background:#eff6ff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-pg td           { background:#fef2f2 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-ratio td        { background:#f8fafc !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-fermeture td    { background:#f0fdf4 !important; font-weight:700; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  /* Couleurs des valeurs numériques */
+  .num     { font-family:monospace; font-size:8pt; }
+  .num-pos { color:#15803d !important; font-weight:700; }
+  .num-neg { color:#b91c1c !important; font-weight:700; }
+  .num-stock { color:#1e3a5f !important; font-weight:700; }
+  .num-warn { color:#92400e !important; font-weight:700; }
+
+  /* Badges simplifiés */
+  .badge {
+    padding:1px 4px; border-radius:2px; font-size:6.5pt; font-weight:700;
+    border:1px solid #aaa !important; background:transparent !important; color:#000 !important;
+  }
+  .badge-entree      { border-color:#166534 !important; color:#166534 !important; }
+  .badge-sortie      { border-color:#b91c1c !important; color:#b91c1c !important; }
+  .badge-sd          { border-color:#92400e !important; color:#92400e !important; }
+  .badge-ac          { border-color:#166534 !important; color:#166534 !important; }
+  .badge-mkt         { border-color:#0c4a6e !important; color:#0c4a6e !important; }
+  .badge-green       { border-color:#166534 !important; color:#166534 !important; }
+  .badge-red         { border-color:#b91c1c !important; color:#b91c1c !important; }
+
+  /* Titres de sections */
+  .section-title { padding:5px 8px !important; font-size:9pt !important; border-bottom:1px solid #d4dae3; }
+  .section-entree .section-title       { background:#dcfce7 !important; color:#166534 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .section-sortie .section-title       { background:#fee2e2 !important; color:#991b1b !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .section-cession .section-title      { background:#dbeafe !important; color:#1e40af !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .section-acquittement .section-title { background:#fef3c7 !important; color:#92400e !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+  /* Réglage de page */
+  @page {
+    margin:12mm 10mm 16mm 10mm;
+    size:A4 landscape;
+  }
+}
+</style>
+
+<script>
+/* ── Fonctions impression partagées ─────────────────────────── */
+(function() {
+  function _getDateStr() {
+    var now = new Date();
+    return now.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
+      + ' à ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+  }
+  function _setDateEl() {
+    var el = document.getElementById('print-date-val');
+    if (el) el.textContent = _getDateStr();
+  }
+  document.addEventListener('DOMContentLoaded', _setDateEl);
+  window.lancerImpression = function() { _setDateEl(); window.print(); };
+})();
+</script>

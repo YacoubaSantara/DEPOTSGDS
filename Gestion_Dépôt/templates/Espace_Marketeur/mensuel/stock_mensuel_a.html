@@ -1,0 +1,149 @@
+﻿{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Mon Stock Mensuel A{% endblock %}
+{% block nav_client_mensuel_stock_a %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="{% url 'client_dashboard' %}">Mon Espace</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Stock Mensuel Format A</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:200px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.produit-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:24px;overflow:hidden;box-shadow:var(--shadow)}
+.produit-title{background:var(--navy);color:#fff;padding:11px 18px;font-weight:700;font-size:.92rem}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.79rem;min-width:900px}
+th{padding:7px 9px;text-align:center;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
+th.left{text-align:left}
+th.g{background:var(--navy);color:#fff;font-size:.7rem}
+td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+td.left{text-align:left}
+tr:hover td{background:rgba(240,244,248,.4)}
+tr.total-row td{background:#e8f0fe;font-weight:700;border-top:2px solid var(--navy)}
+.num{font-family:'JetBrains Mono',monospace;font-size:.79rem}
+.num-neg{color:#dc2626}
+.num-pos{color:#16a34a}
+.kpi-bar{display:flex;flex-wrap:wrap;gap:12px;padding:12px 18px;border-top:1px solid var(--border)}
+.kpi{display:flex;flex-direction:column;gap:2px}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.kpi-value{font-size:.88rem;font-weight:700;font-family:inherit}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] tr.total-row td{background:rgba(59,130,246,.08)}
+[data-theme="dark"] .num-neg{color:var(--err)}
+[data-theme="dark"] .num-pos{color:var(--ok)}
+
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="STOCK MENSUEL A — COMPTE INDIVIDUEL" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Mon Stock Mensuel — Format A</h1>
+    <p class="page-subtitle">{{ marketeur.raison_sociale }}{% if periode %} — {{ periode }}{% endif %}</p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and rapport %}
+    <a href="{% url 'client_mensuel_stock_a_export' %}?periode_id={{ periode.pk }}"
+       class="btn-export-main">↓ Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div style="align-self:flex-end"><button type="submit" class="btn-filter">Afficher</button></div>
+    </div>
+  </form>
+</div>
+
+{% if not rapport or not rapport.produits %}
+<div class="empty-state"><p>Sélectionnez une période pour afficher l'état.</p></div>
+{% else %}
+
+{% for pk, info in rapport.lignes_par_produit.items %}
+<div class="produit-block">
+  <div class="produit-title">{{ info.produit.nom|upper }}</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="left" rowspan="2">Marketeur</th>
+          <th class="g" colspan="2">Stock Départ</th>
+          <th class="g" colspan="2">Récept. SD</th>
+          <th class="g" colspan="2">Récept. AC</th>
+          <th class="g">P/G Récept.</th>
+          <th class="g" colspan="2">Entrées Nettes</th>
+          <th class="g" colspan="2">Sorties</th>
+          <th class="g" colspan="2">Stock Comptable</th>
+        </tr>
+        <tr>
+          <th>AMB</th><th>@15°C</th>
+          <th>AMB</th><th>@15°C</th>
+          <th>AMB</th><th>@15°C</th>
+          <th>AMB</th>
+          <th>AMB</th><th>@15°C</th>
+          <th>AMB</th><th>@15°C</th>
+          <th>AMB</th><th>@15°C</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for ligne in info.lignes %}
+      <tr>
+        <td class="left">{{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}</td>
+        <td class="num">{{ ligne.stock_debut_amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.stock_debut_15c|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.rec_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.rec_sd_15c|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.rec_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.rec_ac_15c|floatformat:2|intcomma }}</td>
+        <td class="num {% if ligne.pg_rec_amb < 0 %}num-neg{% elif ligne.pg_rec_amb > 0 %}num-pos{% endif %}">{{ ligne.pg_rec_amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.entrees_nettes_amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.entrees_nettes_15c|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.sorties_amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ ligne.sorties_15c|floatformat:2|intcomma }}</td>
+        <td class="num" style="color:var(--navy);font-weight:600">{{ ligne.stock_comptable_amb|floatformat:2|intcomma }}</td>
+        <td class="num" style="color:var(--navy);font-weight:600">{{ ligne.stock_comptable_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="kpi-bar">
+    {% if info.sf_amb is not None %}
+    <div class="kpi"><span class="kpi-label">Stock Fermeture AMB</span><span class="kpi-value" style="color:var(--navy)">{{ info.sf_amb|floatformat:2|intcomma }} L</span></div>
+    {% endif %}
+    {% if info.pg_phys_amb is not None %}
+    <div class="kpi"><span class="kpi-label">P/G Physique AMB</span><span class="kpi-value {% if info.pg_phys_amb < 0 %}num-neg{% else %}num-pos{% endif %}">{{ info.pg_phys_amb|floatformat:2|intcomma }} L</span></div>
+    {% endif %}
+    {% if info.ratio is not None %}
+    <div class="kpi"><span class="kpi-label">Ratio</span><span class="kpi-value {% if info.ratio < 0 %}num-neg{% else %}num-pos{% endif %}">{{ info.ratio|floatformat:4 }} %</span></div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

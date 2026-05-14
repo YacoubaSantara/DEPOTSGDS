@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% block title %}{% if action == 'Nouveau' %}Nouveau camion{% else %}Modifier {{ camion.immatriculation }}{% endif %}{% endblock %}
+{% block nav_camion %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'camion_list' %}">Camions</a>
+<span class="breadcrumb-sep">/</span>
+{% if action == 'Nouveau' %}
+<span class="breadcrumb-current">Nouveau camion</span>
+{% else %}
+<a href="{% url 'camion_detail' camion.pk %}">{{ camion.immatriculation }}</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Modifier</span>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">{% if action == 'Nouveau' %}Enregistrer un camion{% else %}Modifier le camion{% endif %}</h1>
+    <div class="ph-sub">{% if action == 'Nouveau' %}Ajouter un nouveau camion citerne au parc{% else %}Modifier les informations de {{ camion.immatriculation }}{% endif %}</div>
+  </div>
+</div>
+
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+
+  <!-- Identification -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Identification du véhicule</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.immatriculation.id_for_label }}">Immatriculation<span class="req">*</span></label>
+          {{ form.immatriculation }}{{ form.immatriculation.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.marque.id_for_label }}">Marque<span class="req">*</span></label>
+          {{ form.marque }}{{ form.marque.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.modele.id_for_label }}">Modèle</label>
+          {{ form.modele }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.annee_fabrication.id_for_label }}">Année de fabrication</label>
+          {{ form.annee_fabrication }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.couleur.id_for_label }}">Couleur</label>
+          {{ form.couleur }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.numero_serie_chassis.id_for_label }}">N° Série châssis</label>
+          {{ form.numero_serie_chassis }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.numero_serie_moteur.id_for_label }}">N° Série moteur</label>
+          {{ form.numero_serie_moteur }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Citerne -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Caractéristiques citerne</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.type_produit.id_for_label }}">Type de produit transporté<span class="req">*</span></label>
+          {{ form.type_produit }}{{ form.type_produit.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.capacite_totale.id_for_label }}">Capacité totale (litres)<span class="req">*</span></label>
+          {{ form.capacite_totale }}{{ form.capacite_totale.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.nombre_compartiments.id_for_label }}">Nombre de compartiments</label>
+          {{ form.nombre_compartiments }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_mise_en_circulation.id_for_label }}">Date de mise en circulation</label>
+          {{ form.date_mise_en_circulation }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.carte_grise.id_for_label }}">Carte grise (fichier)</label>
+          {{ form.carte_grise }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assurance -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Assurance</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.compagnie_assurance.id_for_label }}">Compagnie d'assurance</label>
+          {{ form.compagnie_assurance }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.numero_police_assurance.id_for_label }}">N° Police d'assurance</label>
+          {{ form.numero_police_assurance }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_expiration_assurance.id_for_label }}">Date d'expiration</label>
+          {{ form.date_expiration_assurance }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technique -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Entretien technique</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.kilometrage.id_for_label }}">Kilométrage (km)</label>
+          {{ form.kilometrage }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_derniere_revision.id_for_label }}">Dernière révision</label>
+          {{ form.date_derniere_revision }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.date_prochaine_revision.id_for_label }}">Prochaine révision</label>
+          {{ form.date_prochaine_revision }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statut & Affectation -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-h"><div class="card-h-title">Statut & Affectation</div></div>
+    <div class="card-b">
+      <div class="dg-3">
+        <div class="field">
+          <label class="field-label" for="{{ form.statut.id_for_label }}">Statut</label>
+          {{ form.statut }}
+        </div>
+        <div class="field">
+          <label class="field-label" for="{{ form.marketeur.id_for_label }}">Marketeur associé</label>
+          {{ form.marketeur }}
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label class="field-label" for="{{ form.notes.id_for_label }}">Notes / Observations</label>
+        {{ form.notes }}
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;justify-content:flex-end;padding:18px 0">
+    <a href="{% if action == 'Modifier' %}{% url 'camion_detail' camion.pk %}{% else %}{% url 'camion_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+    <button type="submit" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      {% if action == 'Nouveau' %}Enregistrer le camion{% else %}Sauvegarder les modifications{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}

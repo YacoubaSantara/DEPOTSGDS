@@ -1,0 +1,776 @@
+﻿{% extends "base.html" %}
+{% load l10n %}
+{% block title %}{{ titre }}{% endblock %}
+{% block page_title %}{{ titre }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.fcheader-camion{background:var(--ink)}
+.fcheader-cuves{background:#2a6b52}
+.fcheader-entree{background:#3f7d3a}
+.fcheader-sortie{background:#a8331c}
+.fcheader-cession{background:#2a5b8a}
+.fcheader-acquittement{background:#7a4ba8}
+.fcheader-notes{background:var(--muted)}
+
+/* ── Dark mode ── */
+[data-theme="dark"] .fcheader-cuves{background:rgba(34,197,94,.12)}
+[data-theme="dark"] .fcheader-entree{background:rgba(34,197,94,.12)}
+[data-theme="dark"] .fcheader-sortie{background:rgba(239,68,68,.12)}
+[data-theme="dark"] .fcheader-cession{background:rgba(59,130,246,.12)}
+[data-theme="dark"] .fcheader-acquittement{background:rgba(168,85,247,.12)}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'mouvement_liste' %}" style="color:var(--muted)">Mouvements</a>
+<span class="breadcrumb-sep">/</span>
+<span class="tb-crumb-current">{{ titre }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">{{ titre }}</h1>
+    <div class="ph-sub">Renseignez le type de mouvement, puis complétez les champs correspondants.</div>
+  </div>
+</div>
+
+{% if mouvement and mouvement.numero_enregistrement %}
+<div class="hero" style="margin-bottom:20px">
+  <div class="hero-top">
+    <div class="hero-icon" style="background:rgba(255,255,255,.08)">
+      <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    </div>
+    <div class="hero-body">
+      <div class="hero-eyebrow">Mouvement en cours d'édition</div>
+      <div class="hero-title mono" data-numero-enregistrement="{{ mouvement.numero_enregistrement }}">{{ mouvement.numero_enregistrement }}</div>
+    </div>
+    <div class="hero-actions">
+      {% if mouvement.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+      {% elif mouvement.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+      {% elif mouvement.type_mouvement == 'CESSION' %}<span class="bdg-type cession">Cession</span>
+      {% elif mouvement.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg-type acquit">Acquittement</span>
+      {% endif %}
+      <div style="font-size:11px;color:rgba(255,255,255,.5);text-align:right">
+        Créé {{ mouvement.date_saisie|date:"d/m/Y à H:i" }}<br/>
+        Modifié {{ mouvement.date_modification|date:"d/m/Y à H:i" }}
+      </div>
+    </div>
+  </div>
+  <hr class="hero-divider"/>
+  <div style="font-size:12px;color:rgba(255,255,255,.55);display:flex;align-items:center;gap:8px;position:relative;z-index:1">
+    <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Le numéro et le type sont figés. Les valeurs calculées seront actualisées à l'enregistrement.
+  </div>
+</div>
+{% endif %}
+
+{% localize off %}
+<form method="post" id="mvt-form">
+{% csrf_token %}
+
+<!-- TYPE SELECTOR -->
+<input type="hidden" name="type_mouvement" id="id_type_mouvement" value="{{ form.type_mouvement.value|default_if_none:'' }}">
+
+{% if mode != 'modification' %}
+<div class="type-selector">
+  <button type="button" class="type-btn t-entree" data-type="ENTREE">
+    <svg viewBox="0 0 24 24"><path d="M3 12h18M15 5l7 7-7 7"/></svg>Entrée
+  </button>
+  <button type="button" class="type-btn t-sortie" data-type="SORTIE">
+    <svg viewBox="0 0 24 24"><path d="M21 12H3M9 19l-7-7 7-7"/></svg>Sortie
+  </button>
+  <button type="button" class="type-btn t-cession" data-type="CESSION">
+    <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Cession
+  </button>
+  <button type="button" class="type-btn t-acquittement" data-type="ACQUITTEMENT">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Acquittement
+  </button>
+</div>
+{% if form.type_mouvement.errors %}
+<div class="alert alert-error" style="margin-bottom:16px">
+  <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Veuillez sélectionner un type de mouvement.
+</div>
+{% endif %}
+{% endif %}
+
+<!-- SECTION COMMUNE -->
+<div class="form-card">
+  <div class="form-card-header">
+    <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+    <h3>Informations générales</h3>
+  </div>
+  <div class="form-card-body">
+    <div class="fields-grid">
+      <div class="field-group">
+        <label>Produit <span class="req">*</span></label>
+        <div class="radio-cards">
+          {% for p in form.produit.field.queryset %}
+          <label class="radio-card">
+            <input type="radio" name="produit" id="prod_{{ p.pk }}" value="{{ p.pk }}"
+                   data-produit="{{ p.pk }}"
+                   {% if form.produit.value|stringformat:"s" == p.pk|stringformat:"s" %}checked{% endif %}
+                   onchange="onProduitChange()">
+            <label for="prod_{{ p.pk }}">{{ p.nom }}</label>
+          </label>
+          {% endfor %}
+        </div>
+        {% if form.produit.errors %}<span class="field-error">{{ form.produit.errors|join:" " }}</span>{% endif %}
+      </div>
+
+      <div class="field-group">
+        <label>Date du mouvement <span class="req">*</span></label>
+        <input type="date" name="date_mouvement" value="{{ form.date_mouvement.value|date:'Y-m-d'|default_if_none:'' }}"
+               {% if form.date_mouvement.errors %}class="is-invalid"{% endif %}>
+        {% if form.date_mouvement.errors %}<span class="field-error">{{ form.date_mouvement.errors|join:" " }}</span>{% endif %}
+      </div>
+
+      <div class="field-group col-full">
+        <label>Régime douanier <span class="req">*</span></label>
+        <div class="radio-cards">
+          <label class="radio-card">
+            <input type="radio" name="regime_douanier" id="regime-acquitte" value="ACQUITTE"
+                   {% if form.regime_douanier.value == 'ACQUITTE' %}checked{% endif %}>
+            <label for="regime-acquitte">Acquitté — taxes payées, distribuable</label>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="regime_douanier" id="regime-sous-douane" value="SOUS_DOUANE"
+                   {% if form.regime_douanier.value == 'SOUS_DOUANE' or not form.regime_douanier.value %}checked{% endif %}>
+            <label for="regime-sous-douane">Sous douane — taxes en attente</label>
+          </label>
+        </div>
+        {% if form.regime_douanier.errors %}<span class="field-error">{{ form.regime_douanier.errors|join:" " }}</span>{% endif %}
+      </div>
+
+      <div class="field-group">
+        <label>Marketeur (propriétaire) <span class="req">*</span></label>
+        <select name="marketeur" id="id_marketeur" {% if form.marketeur.errors %}class="is-invalid"{% endif %}>
+          <option value="">— Sélectionner —</option>
+          {% for mkt in form.marketeur.field.queryset %}
+          <option value="{{ mkt.pk }}" {% if form.marketeur.value|stringformat:"s" == mkt.pk|stringformat:"s" %}selected{% endif %}>
+            {{ mkt.raison_sociale }}{% if mkt.sigle %} ({{ mkt.sigle }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        {% if form.marketeur.errors %}<span class="field-error">{{ form.marketeur.errors|join:" " }}</span>{% endif %}
+      </div>
+
+      <div class="field-group">
+        <label>N° d'enregistrement</label>
+        {% if mouvement and mouvement.numero_enregistrement %}
+        <div style="display:flex;align-items:center;gap:10px;padding:0 11px;height:34px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius)">
+          <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:var(--muted);fill:none;flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span class="mono" style="font-weight:700;color:var(--ink)">{{ mouvement.numero_enregistrement }}</span>
+          <span style="font-size:11px;color:var(--muted)">— figé</span>
+        </div>
+        {% else %}
+        <div style="padding:0 11px;height:34px;display:flex;align-items:center;background:var(--surface-2);border:1px dashed var(--border);border-radius:var(--radius);color:var(--muted);font-size:12px;font-style:italic">
+          Généré automatiquement après enregistrement
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION CAMION -->
+<div class="form-card" id="section-camion">
+  <div class="form-card-header fcheader-camion">
+    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <h3>Camion & Chauffeur</h3>
+  </div>
+  <div class="form-card-body">
+    <div class="fields-grid">
+      <div class="field-group">
+        <label id="camion-label">Camion <span class="req" id="camion-req">*</span></label>
+        <select name="camion" id="id_camion" {% if form.camion.errors %}class="is-invalid"{% endif %} onchange="onCamionChange()">
+          <option value="">— Sélectionner —</option>
+          {% for cam in camions %}
+          <option value="{{ cam.pk }}" data-marketeur="{{ cam.marketeur }}" data-marketeur-id="{{ cam.marketeur_id|default_if_none:'' }}"
+                  {% if form.camion.value|stringformat:"s" == cam.pk|stringformat:"s" %}selected{% endif %}>
+            {{ cam.immatriculation }} — {{ cam.marque }}{% if cam.capacite_totale %} ({{ cam.capacite_totale|floatformat:0 }} L){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        {% if form.camion.errors %}<span class="field-error">{{ form.camion.errors|join:" " }}</span>{% endif %}
+      </div>
+
+      <div class="field-group">
+        <label>Transporteur (marketeur du camion)</label>
+        <div class="transporteur-field" id="transporteur-display">
+          {% if mouvement and mouvement.camion and mouvement.camion.marketeur %}{{ mouvement.camion.marketeur }}{% else %}— sélectionnez un camion —{% endif %}
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label>Chauffeur</label>
+        <select name="chauffeur" id="id_chauffeur">
+          <option value="">— Optionnel —</option>
+          {% for chf in form.chauffeur.field.queryset %}
+          <option value="{{ chf.pk }}" {% if form.chauffeur.value|stringformat:"s" == chf.pk|stringformat:"s" %}selected{% endif %}>
+            {{ chf.nom }} {{ chf.prenom }}{% if chf.numero_permis %} · {{ chf.numero_permis }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SECTION CUVES (ENTREE / SORTIE / ACQUITTEMENT) -->
+<div class="form-card" id="section-cuves" style="display:none">
+  <div class="form-card-header fcheader-cuves">
+    <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+    <h3 id="section-cuves-titre">Cuves affectées</h3>
+  </div>
+  <div class="form-card-body">
+    <div class="fields-grid">
+      <div class="field-group col-full">
+        {{ lignes_formset.management_form }}
+        <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-top:6px">
+          <div style="display:grid;grid-template-columns:28px 1fr 136px 136px 34px;background:var(--surface-2);border-bottom:1px solid var(--border);padding:7px 10px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;gap:6px">
+            <span style="text-align:center">#</span><span>Cuve</span>
+            <span style="text-align:center">Vol. ambiant (L)</span>
+            <span style="text-align:center">Vol. @15°C (L)</span>
+            <span></span>
+          </div>
+          <div id="lignes-cuves-container">
+            {% for lform in lignes_formset %}
+            <div class="ligne-cuve-row" data-idx="{{ forloop.counter0 }}"
+                 style="display:grid;grid-template-columns:28px 1fr 136px 136px 34px;align-items:start;gap:6px;padding:7px 10px;border-bottom:1px solid var(--surface-2);background:var(--surface)">
+              {% for hidden in lform.hidden_fields %}{{ hidden }}{% endfor %}
+              <span style="display:none">{{ lform.DELETE }}</span>
+              <span class="ligne-num" style="text-align:center;font-size:11px;font-weight:600;color:var(--muted-2);padding-top:8px">{{ forloop.counter }}</span>
+              <div>
+                <select name="{{ lform.cuve.html_name }}" class="form-control cuve-select" style="font-size:12px;padding:5px 8px">
+                  <option value="">— Optionnel —</option>
+                  {% for cuve in cuves %}
+                  <option value="{{ cuve.pk }}" data-produit="{{ cuve.produit_id|default_if_none:'' }}"
+                          {% if lform.cuve.value|stringformat:"s" == cuve.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ cuve.numero }} — {{ cuve.designation }}{% if cuve.produit %} ({{ cuve.produit.nom }}){% endif %}
+                  </option>
+                  {% endfor %}
+                </select>
+                {% if lform.cuve.errors %}<span class="field-error">{{ lform.cuve.errors|join:" " }}</span>{% endif %}
+              </div>
+              <div>
+                <input type="number" name="{{ lform.volume_ambiant.html_name }}" step="0.01" min="0"
+                       class="form-control vol-ambiant-input" style="font-size:12px;padding:5px 8px;text-align:right"
+                       value="{{ lform.volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" oninput="updateTotalVolume()">
+                {% if lform.volume_ambiant.errors %}<span class="field-error">{{ lform.volume_ambiant.errors|join:" " }}</span>{% endif %}
+              </div>
+              <div>
+                <input type="number" name="{{ lform.volume_15c.html_name }}" step="0.01" min="0"
+                       class="form-control" style="font-size:12px;padding:5px 8px;text-align:right"
+                       value="{{ lform.volume_15c.value|default_if_none:'' }}" placeholder="0.00">
+                {% if lform.volume_15c.errors %}<span class="field-error">{{ lform.volume_15c.errors|join:" " }}</span>{% endif %}
+              </div>
+              <div style="padding-top:2px;text-align:center">
+                <button type="button" class="btn-suppr-ligne" onclick="supprimerLigne(this)" title="Supprimer"
+                        style="background:var(--err-soft);border:1px solid rgba(168,51,28,.3);border-radius:var(--radius);width:28px;height:28px;cursor:pointer;color:var(--err);display:inline-flex;align-items:center;justify-content:center;padding:0">
+                  <svg viewBox="0 0 24 24" stroke-width="2" style="width:12px;height:12px;stroke:currentColor;fill:none"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                </button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);border-top:1px solid var(--border);padding:8px 12px">
+            <span style="font-size:12px;color:var(--muted)">
+              Total vol. ambiant :
+              <span id="total-vol-ambiant" class="mono" style="font-weight:700;color:var(--ink)">—</span>
+            </span>
+            <button type="button" onclick="ajouterLigneCuve()"
+                    style="background:var(--info-soft);border:1px solid rgba(42,91,138,.3);border-radius:var(--radius);padding:5px 12px;cursor:pointer;color:var(--info);font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px">
+              <svg viewBox="0 0 24 24" stroke-width="2.5" style="width:12px;height:12px;stroke:currentColor;fill:none"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Ajouter une cuve
+            </button>
+          </div>
+        </div>
+        {% for error in lignes_formset.non_form_errors %}
+        <span class="field-error" style="display:block;margin-top:4px">{{ error }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION ENTREE -->
+<div class="form-card" id="section-entree" style="display:none">
+  <div class="form-card-header fcheader-entree">
+    <svg viewBox="0 0 24 24"><path d="M3 12h18M15 5l7 7-7 7"/></svg>
+    <h3>Données d'entrée</h3>
+  </div>
+  <div class="form-card-body">
+    <p class="subsection-title">Provenance</p>
+    <div class="fields-grid">
+      <div class="field-group"><label>Dépôt expéditeur</label><input type="text" name="provenance" value="{{ form.provenance.value|default_if_none:'' }}" placeholder="Ex: ABIDJAN, DAKAR…"></div>
+      <div class="field-group"><label>N° BL Dépôt Chargeur</label><input type="text" name="bl_expediteur" value="{{ form.bl_expediteur.value|default_if_none:'' }}" placeholder="Ex: BL-ABJ-2026-001"></div>
+      <div class="field-group"><label>N° BL Client</label><input type="text" name="bl_client" value="{{ form.bl_client.value|default_if_none:'' }}" placeholder="Ex: BL-CLT-001"></div>
+      <div class="field-group"><label>Date de chargement</label><input type="date" name="date_chargement" value="{{ form.date_chargement.value|date:'Y-m-d'|default_if_none:'' }}"></div>
+      <div class="field-group"><label>Date de déchargement</label><input type="date" name="date_dechargement" value="{{ form.date_dechargement.value|date:'Y-m-d'|default_if_none:'' }}"></div>
+      <div class="field-group"><label>Date du permis</label><input type="date" name="date_permis" value="{{ form.date_permis.value|date:'Y-m-d'|default_if_none:'' }}"></div>
+      <div class="field-group"><label>N° Permis</label><input type="text" name="numero_permis_sortie" value="{{ form.numero_permis_sortie.value|default_if_none:'' }}" placeholder="Ex: 2026/DGD/001"></div>
+      <div class="field-group"><label>N° S</label><input type="text" name="numero_s" value="{{ form.numero_s.value|default_if_none:'' }}"></div>
+      <div class="field-group"><label>N° C</label><input type="text" name="numero_c" value="{{ form.numero_c.value|default_if_none:'' }}"></div>
+    </div>
+
+    <p class="subsection-title">Données BL Expéditeur</p>
+    <div class="fields-grid-4">
+      <div class="field-group"><label>Vol. ambiant expéditeur (L)</label><input type="number" step="0.01" min="0" name="volume_ambiant_expediteur" value="{{ form.volume_ambiant_expediteur.value|default_if_none:'' }}" placeholder="0.00"></div>
+      <div class="field-group"><label>Vol. @15°C expéditeur (L)</label><input type="number" step="0.01" min="0" name="volume_15c_expediteur" value="{{ form.volume_15c_expediteur.value|default_if_none:'' }}" placeholder="0.00"></div>
+      <div class="field-group"><label>Densité @15°C expéditeur (kg/m³)</label><input type="number" step="0.01" min="0" name="densite_15c_expediteur" value="{{ form.densite_15c_expediteur.value|default_if_none:'' }}" placeholder="Ex: 737.80"></div>
+      <div class="field-group"><label>Température au chargement (°C)</label><input type="number" step="0.01" name="temperature_chargement" value="{{ form.temperature_chargement.value|default_if_none:'' }}" placeholder="Ex: 28.00"></div>
+    </div>
+
+    <p class="subsection-title">Données obtenues à la réception</p>
+    <div style="border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
+      <div style="padding:16px 20px">
+        <div class="fields-grid-4">
+          <div class="field-group">
+            <label>Vol. ambiant reçu (L) <span class="req">*</span></label>
+            <input type="number" step="0.01" min="0" name="volume_ambiant_recu" value="{{ form.volume_ambiant_recu.value|default_if_none:'' }}" placeholder="0.00" {% if form.volume_ambiant_recu.errors %}class="is-invalid"{% endif %}>
+            {% if form.volume_ambiant_recu.errors %}<span class="field-error">{{ form.volume_ambiant_recu.errors|join:" " }}</span>{% endif %}
+          </div>
+          <div class="field-group">
+            <label>Température réception (°C) <span class="req">*</span></label>
+            <input type="number" step="0.01" name="temperature_reception" value="{{ form.temperature_reception.value|default_if_none:'' }}" placeholder="Ex: 30.00" {% if form.temperature_reception.errors %}class="is-invalid"{% endif %}>
+            {% if form.temperature_reception.errors %}<span class="field-error">{{ form.temperature_reception.errors|join:" " }}</span>{% endif %}
+          </div>
+          <div class="field-group">
+            <label>Temp. échantillon labo T<sub>L</sub> (°C) <span class="req">*</span></label>
+            <input type="number" step="0.01" name="temperature_labo" value="{{ form.temperature_labo.value|default_if_none:'' }}" placeholder="Ex: 29.50" {% if form.temperature_labo.errors %}class="is-invalid"{% endif %}>
+            {% if form.temperature_labo.errors %}<span class="field-error">{{ form.temperature_labo.errors|join:" " }}</span>{% endif %}
+          </div>
+          <div class="field-group">
+            <label>D<sub>OBS</sub> labo (kg/m³) <span class="req">*</span></label>
+            <input type="number" step="0.01" min="0" name="densite_observee_labo" value="{{ form.densite_observee_labo.value|default_if_none:'' }}" placeholder="Ex: 742.00" {% if form.densite_observee_labo.errors %}class="is-invalid"{% endif %}>
+            {% if form.densite_observee_labo.errors %}<span class="field-error">{{ form.densite_observee_labo.errors|join:" " }}</span>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div style="border-top:2px dashed var(--border);background:var(--surface-2);padding:14px 20px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--muted);fill:none;stroke-width:2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Calculés automatiquement à l'enregistrement — col. AC, AG
+        </div>
+        <div class="fields-grid">
+          <div class="field-group">
+            <label style="color:var(--muted)">P/G Réception — V<sub>amb</sub> reçu − V<sub>amb</sub> expéditeur (L)</label>
+            <div id="pv-pg-reception">
+              {% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.perte_gain_reception is not None %}
+                <div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;font-weight:600;color:{% if mouvement.perte_gain_reception < 0 %}var(--err){% else %}var(--ok){% endif %}">
+                  {% if mouvement.perte_gain_reception > 0 %}+{% endif %}{{ mouvement.perte_gain_reception|floatformat:2 }} L
+                </div>
+              {% else %}
+                <div class="calc-pending" style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px dashed var(--border);border-radius:var(--radius)">— sera calculé à l'enregistrement —</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="field-group">
+            <label style="color:var(--muted)">D 15°C calculée — labo (kg/m³)</label>
+            <div id="pv-densite-15c">
+              {% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.densite_15c_calculee %}
+                <div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;font-weight:600;color:var(--ink)">
+                  {{ mouvement.densite_15c_calculee }} kg/m³
+                </div>
+              {% else %}
+                <div class="calc-pending" style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px dashed var(--border);border-radius:var(--radius)">— sera calculé à l'enregistrement —</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="subsection-title">Contrôle final avant déchargement</p>
+    <div class="calc-zone">
+      <div class="calc-zone-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Colonnes AH–AL — calculés via API MPMS (TRH_15 / TVCF_15)
+      </div>
+      <div class="calc-row">
+        <span class="calc-label">Écart densité 15°C — col. AH</span>
+        <span id="pv-ecart-densite">
+          {% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.ecart_densite_15c is not None %}
+            {% with e=mouvement.ecart_densite_15c %}
+              {% if e >= -0.001 and e <= 0.001 %}<span class="calc-value" style="color:var(--ok)">{{ e|floatformat:4 }}</span>
+              {% else %}<span class="calc-value" style="color:var(--warn);font-weight:700">{{ e|floatformat:4 }} ⚠</span>{% endif %}
+            {% endwith %}
+          {% else %}<span class="calc-pending">— sera calculé à l'enregistrement —</span>{% endif %}
+        </span>
+      </div>
+      <div class="calc-row"><span class="calc-label">K<sub>conv</sub> @15°C — col. AI</span>
+        <span id="pv-vcf" class="calc-value">{% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.coefficient_conversion_15c %}{{ mouvement.coefficient_conversion_15c }}{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+      </div>
+      <div class="calc-row"><span class="calc-label">Volume @15°C reçu — col. AJ (L)</span>
+        <span id="pv-volume-15c" class="calc-value">{% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.volume_15c_recu %}{{ mouvement.volume_15c_recu|floatformat:0 }} L{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+      </div>
+      <div class="calc-row"><span class="calc-label">P/G @15°C — col. AK (L)</span>
+        <span id="pv-pg-15c">{% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.perte_gain_15c is not None %}
+          <span class="calc-value {% if mouvement.perte_gain_15c < 0 %}negative{% else %}positive{% endif %}">{% if mouvement.perte_gain_15c > 0 %}+{% endif %}{{ mouvement.perte_gain_15c|floatformat:2 }} L</span>
+          {% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}
+        </span>
+      </div>
+      <div class="calc-row"><span class="calc-label">Poids — col. AL (kg)</span>
+        <span id="pv-poids" class="calc-value">{% if mouvement and mouvement.type_mouvement == 'ENTREE' and mouvement.poids_kg %}{{ mouvement.poids_kg|floatformat:0 }} kg{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION SORTIE -->
+<div class="form-card" id="section-sortie" style="display:none">
+  <div class="form-card-header fcheader-sortie">
+    <svg viewBox="0 0 24 24"><path d="M21 12H3M9 19l-7-7 7-7"/></svg>
+    <h3>Données de sortie</h3>
+  </div>
+  <div class="form-card-body">
+    <p class="subsection-title">Client & Destination</p>
+    <div class="fields-grid-3">
+      <div class="field-group"><label>Référence client externe</label><input type="text" name="reference_client_externe" value="{{ form.reference_client_externe.value|default_if_none:'' }}" placeholder="Ex: CMD-2026-005"></div>
+      <div class="field-group"><label>Destination</label><input type="text" name="destination" value="{{ form.destination.value|default_if_none:'' }}" placeholder="Ex: Bamako — Station Nord"></div>
+      <div class="field-group"><label>Code destination</label><input type="text" name="code_destination" value="{{ form.code_destination.value|default_if_none:'' }}" placeholder="Ex: BKO-N"></div>
+    </div>
+
+    <p class="subsection-title">Permis douanier</p>
+    <div class="fields-grid-4">
+      <div class="field-group"><label>Date du permis</label><input type="date" name="date_permis" value="{{ form.date_permis.value|date:'Y-m-d'|default_if_none:'' }}"></div>
+      <div class="field-group"><label>N° Permis</label><input type="text" name="numero_permis_sortie" value="{{ form.numero_permis_sortie.value|default_if_none:'' }}" placeholder="Ex: 2026/DGD/001"></div>
+      <div class="field-group"><label>N° S</label><input type="text" name="numero_s" value="{{ form.numero_s.value|default_if_none:'' }}"></div>
+      <div class="field-group"><label>N° C</label><input type="text" name="numero_c" value="{{ form.numero_c.value|default_if_none:'' }}"></div>
+    </div>
+
+    <p class="subsection-title">Volumes & Densité</p>
+    <div class="fields-grid-3">
+      <div class="field-group">
+        <label>Vol. ambiant sortie (L) <span class="req">*</span></label>
+        <input type="number" step="0.01" min="0" name="volume_ambiant_sortie" value="{{ form.volume_ambiant_sortie.value|default_if_none:'' }}" placeholder="0.00" {% if form.volume_ambiant_sortie.errors %}class="is-invalid"{% endif %}>
+        {% if form.volume_ambiant_sortie.errors %}<span class="field-error">{{ form.volume_ambiant_sortie.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Densité @15°C sortie (kg/m³) <span class="req">*</span></label>
+        <input type="number" step="0.01" min="0" name="densite_15c_sortie" value="{{ form.densite_15c_sortie.value|default_if_none:'' }}" placeholder="Ex: 737.80" {% if form.densite_15c_sortie.errors %}class="is-invalid"{% endif %}>
+        {% if form.densite_15c_sortie.errors %}<span class="field-error">{{ form.densite_15c_sortie.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Température sortie (°C) <span class="req">*</span></label>
+        <input type="number" step="0.01" name="temperature_sortie" value="{{ form.temperature_sortie.value|default_if_none:'' }}" placeholder="Ex: 31.00" {% if form.temperature_sortie.errors %}class="is-invalid"{% endif %}>
+        {% if form.temperature_sortie.errors %}<span class="field-error">{{ form.temperature_sortie.errors|join:" " }}</span>{% endif %}
+      </div>
+    </div>
+
+    <p class="subsection-title">Règlement</p>
+    <div class="field-group" style="max-width:320px">
+      <label>Mode de règlement</label>
+      <select name="mode_reglement">
+        <option value="">— Non précisé —</option>
+        {% for val, lib in form.mode_reglement.field.choices %}{% if val %}<option value="{{ val }}" {% if form.mode_reglement.value == val %}selected{% endif %}>{{ lib }}</option>{% endif %}{% endfor %}
+      </select>
+    </div>
+
+    <p class="subsection-title">Contrôle automatique (API MPMS)</p>
+    <div class="calc-zone">
+      <div class="calc-zone-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Calculés via API MPMS (TVCF_15)</div>
+      <div class="calc-row"><span class="calc-label">K<sub>conv</sub> @15°C sortie</span>
+        <span id="pv-sortie-vcf" class="calc-value">{% if mouvement and mouvement.type_mouvement == 'SORTIE' and mouvement.coefficient_conversion_sortie %}{{ mouvement.coefficient_conversion_sortie }}{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+      </div>
+      <div class="calc-row"><span class="calc-label">Volume @15°C sortie (L)</span>
+        <span id="pv-sortie-volume-15c" class="calc-value">{% if mouvement and mouvement.type_mouvement == 'SORTIE' and mouvement.volume_15c_sortie %}{{ mouvement.volume_15c_sortie|floatformat:0 }} L{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+      </div>
+      <div class="calc-row"><span class="calc-label">Poids sortie (kg)</span>
+        <span id="pv-sortie-poids" class="calc-value">{% if mouvement and mouvement.type_mouvement == 'SORTIE' and mouvement.poids_sortie_kg %}{{ mouvement.poids_sortie_kg|floatformat:0 }} kg{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION CESSION -->
+<div class="form-card" id="section-cession" style="display:none">
+  <div class="form-card-header fcheader-cession">
+    <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+    <h3>Données de cession</h3>
+  </div>
+  <div class="form-card-body">
+    <p class="subsection-title">Données de la cession</p>
+    <div class="fields-grid">
+      <div class="field-group">
+        <label>Marketeur destinataire <span class="req">*</span></label>
+        <select name="cession_marketeur_destinataire" {% if form.cession_marketeur_destinataire.errors %}class="is-invalid"{% endif %}>
+          <option value="">— Sélectionner —</option>
+          {% for mkt in form.cession_marketeur_destinataire.field.queryset %}
+          <option value="{{ mkt.pk }}" {% if form.cession_marketeur_destinataire.value|stringformat:"s" == mkt.pk|stringformat:"s" %}selected{% endif %}>
+            {{ mkt.raison_sociale }}{% if mkt.sigle %} ({{ mkt.sigle }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        {% if form.cession_marketeur_destinataire.errors %}<span class="field-error">{{ form.cession_marketeur_destinataire.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Vol. ambiant cédé (L) <span class="req">*</span></label>
+        <input type="number" step="0.01" min="0" name="cession_volume_ambiant" value="{{ form.cession_volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" {% if form.cession_volume_ambiant.errors %}class="is-invalid"{% endif %}>
+        {% if form.cession_volume_ambiant.errors %}<span class="field-error">{{ form.cession_volume_ambiant.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group"><label>Vol. @15°C cédé (L)</label><input type="number" step="0.01" min="0" name="cession_volume_15c" value="{{ form.cession_volume_15c.value|default_if_none:'' }}" placeholder="0.00"></div>
+      <div class="field-group col-full"><label>Motif de la cession</label><input type="text" name="cession_motif" value="{{ form.cession_motif.value|default_if_none:'' }}" placeholder="Ex: Transfert de stock inter-dépôts"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION ACQUITTEMENT -->
+<div class="form-card" id="section-acquittement" style="display:none">
+  <div class="form-card-header fcheader-acquittement">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    <h3>Données d'acquittement</h3>
+  </div>
+  <div class="form-card-body">
+    <div class="info-band">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <p>Un acquittement <strong>libère la douane</strong> sur un volume SOUS DOUANE et <strong>l'ajoute au stock disponible</strong>.
+         Sélectionnez l'entrée Sous douane d'origine via son N° BL, puis précisez la/les cuve(s) à créditer dans la section « Cuves à créditer » ci-dessous.
+         <strong>Le régime douanier est forcé sur ACQUITTÉ.</strong></p>
+    </div>
+
+    <p class="subsection-title">Entrée Sous douane source</p>
+    <div class="fields-grid">
+      <div class="field-group col-full">
+        <label>Entrée Sous douane associée (N° BL Dépôt Chargeur)</label>
+        <select name="entree_source" class="form-control" {% if form.entree_source.errors %}class="is-invalid"{% endif %}>
+          <option value="">— Aucune (acquittement de stock initial) —</option>
+          {% for entree in form.entree_source.field.queryset %}
+          <option value="{{ entree.pk }}"
+                  {% if form.entree_source.value|stringformat:"s" == entree.pk|stringformat:"s" %}selected{% endif %}>
+            {{ entree.numero_enregistrement }} — {{ entree.date_mouvement|date:"d/m/Y" }}
+            {% if entree.bl_expediteur %} | BL : {{ entree.bl_expediteur }}{% endif %}
+            — {{ entree.marketeur }} / {{ entree.produit }}
+            ({{ entree.volume_ambiant_recu|floatformat:0|default:"?" }} L)
+          </option>
+          {% endfor %}
+        </select>
+        <span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+          Optionnel. Laissez vide si cet acquittement porte sur un stock initial saisi dans l'inventaire.
+        </span>
+        {% if form.entree_source.errors %}<span class="field-error">{{ form.entree_source.errors|join:" " }}</span>{% endif %}
+      </div>
+    </div>
+
+    <p class="subsection-title">Déclaration douanière</p>
+    <div class="fields-grid">
+      <div class="field-group">
+        <label>Vol. ambiant à acquitter (L) <span class="req">*</span></label>
+        <input type="number" step="0.01" min="0" name="acquittement_volume_ambiant" value="{{ form.acquittement_volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" {% if form.acquittement_volume_ambiant.errors %}class="is-invalid"{% endif %}>
+        {% if form.acquittement_volume_ambiant.errors %}<span class="field-error">{{ form.acquittement_volume_ambiant.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Vol. @15°C à acquitter (L) <span class="req">*</span></label>
+        <input type="number" step="0.01" min="0" name="acquittement_volume_15c" value="{{ form.acquittement_volume_15c.value|default_if_none:'' }}" placeholder="0.00">
+      </div>
+      <div class="field-group">
+        <label>Référence déclaration douanière <span class="req">*</span></label>
+        <input type="text" name="acquittement_reference_declaration" value="{{ form.acquittement_reference_declaration.value|default_if_none:'' }}" placeholder="Ex: D48 N°12345/2026">
+        {% if form.acquittement_reference_declaration.errors %}<span class="field-error">{{ form.acquittement_reference_declaration.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Date de la déclaration <span class="req">*</span></label>
+        <input type="date" name="acquittement_date_declaration" value="{{ form.acquittement_date_declaration.value|date:'Y-m-d'|default_if_none:'' }}">
+        {% if form.acquittement_date_declaration.errors %}<span class="field-error">{{ form.acquittement_date_declaration.errors|join:" " }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES -->
+<div class="form-card">
+  <div class="form-card-header fcheader-notes">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <h3>Notes & Suivi</h3>
+  </div>
+  <div class="form-card-body">
+    <div class="field-group">
+      <label>Notes / Observations</label>
+      <textarea name="notes" rows="3" placeholder="Informations complémentaires…">{{ form.notes.value|default_if_none:'' }}</textarea>
+    </div>
+  </div>
+</div>
+
+<!-- ACTIONS STICKY -->
+<div class="form-footer">
+  <div class="form-footer-left">
+    {% if mouvement %}<span>Mouvement #{{ mouvement.pk }} — Créé le {{ mouvement.date_saisie|date:"d/m/Y à H:i" }}</span>{% endif %}
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    {% if mode == 'modification' and mouvement %}
+    <a href="{% url 'mouvement_detail' mouvement.pk %}" class="btn">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+      Retour à la fiche
+    </a>
+    {% else %}
+    <a href="{% url 'mouvement_liste' %}" class="btn">Annuler</a>
+    {% endif %}
+    {% if mouvement and request.user.is_staff %}
+    <button type="button" class="btn btn-danger" onclick="confirmerSuppression()">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+      Supprimer
+    </button>
+    {% endif %}
+    <button type="submit" class="btn btn-accent">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      {% if mode == 'modification' %}Enregistrer les modifications{% else %}Enregistrer{% endif %}
+    </button>
+  </div>
+</div>
+
+{% if mouvement and request.user.is_staff %}
+<form id="form-supprimer" method="post" action="{% url 'mouvement_supprimer' mouvement.pk %}" style="display:none">{% csrf_token %}</form>
+{% endif %}
+
+</form>
+{% endlocalize %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const SECTIONS_PAR_TYPE = {
+    'ENTREE':       ['section-camion','section-entree','section-cuves'],
+    'SORTIE':       ['section-camion','section-sortie','section-cuves'],
+    'CESSION':      ['section-camion','section-cession'],
+    'ACQUITTEMENT': ['section-acquittement','section-cuves']
+  };
+  const TOUTES_SECTIONS=['section-camion','section-entree','section-sortie','section-cession','section-acquittement','section-cuves'];
+
+  function selectType(type){
+    document.getElementById('id_type_mouvement').value=type;
+    document.querySelectorAll('.type-btn').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
+    TOUTES_SECTIONS.forEach(id=>{var e=document.getElementById(id);if(e)e.style.display='none';});
+    (SECTIONS_PAR_TYPE[type]||[]).forEach(id=>{var e=document.getElementById(id);if(e)e.style.display='block';});
+    var rA=document.getElementById('regime-acquitte'),rS=document.getElementById('regime-sous-douane');
+    if(type==='ACQUITTEMENT'){rA.checked=true;rS.disabled=true;rS.closest('.radio-card').style.opacity='0.4';}
+    else{rS.disabled=false;rS.closest('.radio-card').style.opacity='1';}
+    // Adapter le titre de la section cuves selon le type
+    var titreC=document.getElementById('section-cuves-titre');
+    if(titreC){titreC.textContent=(type==='ACQUITTEMENT')?'Cuves à créditer (stock libéré)':'Cuves affectées';}
+  }
+
+  window.onCamionChange=function(){
+    var sel=document.getElementById('id_camion'),opt=sel.options[sel.selectedIndex],d=document.getElementById('transporteur-display');
+    if(sel.value&&opt.dataset.marketeur&&opt.dataset.marketeur!=='None'){d.textContent=opt.dataset.marketeur;d.style.color='var(--ink)';}
+    else{d.textContent='— sélectionnez un camion —';d.style.color='var(--muted)';}
+  };
+
+  window.onProduitChange=function(){
+    var c=document.querySelector('input[name="produit"]:checked'),pId=c?c.value:'';
+    document.querySelectorAll('.cuve-select').forEach(function(s){
+      Array.from(s.options).forEach(function(o){if(!o.value)return;o.style.display=(!pId||o.dataset.produit===pId)?'':'none';});
+      var cur=s.options[s.selectedIndex];if(cur&&cur.value&&cur.style.display==='none')s.value='';
+    });
+  };
+
+  var totalForms=document.getElementById('id_lignes-TOTAL_FORMS');
+  window.updateTotalVolume=function(){
+    var inps=document.querySelectorAll('.vol-ambiant-input'),total=0,hasVal=false;
+    inps.forEach(function(inp){var row=inp.closest('.ligne-cuve-row');if(row&&row.style.display!=='none'){var v=parseFloat(inp.value);if(!isNaN(v)&&v>0){total+=v;hasVal=true;}}});
+    var el=document.getElementById('total-vol-ambiant');
+    if(el)el.textContent=hasVal?total.toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:2})+' L':'—';
+  };
+
+  window.ajouterLigneCuve=function(){
+    var container=document.getElementById('lignes-cuves-container'),idx=parseInt(totalForms.value);
+    var c=document.querySelector('input[name="produit"]:checked'),pId=c?c.value:'';
+    var refSelect=document.querySelector('.cuve-select'),optHtml='<option value="">— Optionnel —</option>';
+    if(refSelect){Array.from(refSelect.options).forEach(function(o){if(!o.value)return;var v=!pId||o.dataset.produit===pId;optHtml+='<option value="'+o.value+'" data-produit="'+(o.dataset.produit||'')+'"'+(v?'':' style="display:none"')+'>'+o.textContent+'</option>';});}
+    var vc=container.querySelectorAll('.ligne-cuve-row:not([style*="display: none"]):not([style*="display:none"])').length+1;
+    var h='<div class="ligne-cuve-row" data-idx="'+idx+'" style="display:grid;grid-template-columns:28px 1fr 136px 136px 34px;align-items:start;gap:6px;padding:7px 10px;border-bottom:1px solid var(--surface-2);background:var(--surface)">'
+      +'<span class="ligne-num" style="text-align:center;font-size:11px;font-weight:600;color:var(--muted-2);padding-top:8px">'+vc+'</span>'
+      +'<div><select name="lignes-'+idx+'-cuve" class="form-control cuve-select" style="font-size:12px;padding:5px 8px">'+optHtml+'</select></div>'
+      +'<div><input type="number" name="lignes-'+idx+'-volume_ambiant" step="0.01" min="0" class="form-control vol-ambiant-input" style="font-size:12px;padding:5px 8px;text-align:right" placeholder="0.00" oninput="updateTotalVolume()"></div>'
+      +'<div><input type="number" name="lignes-'+idx+'-volume_15c" step="0.01" min="0" class="form-control" style="font-size:12px;padding:5px 8px;text-align:right" placeholder="0.00"></div>'
+      +'<div style="padding-top:2px;text-align:center"><button type="button" class="btn-suppr-ligne" onclick="supprimerLigne(this)" style="background:var(--err-soft);border:1px solid rgba(168,51,28,.3);border-radius:var(--radius);width:28px;height:28px;cursor:pointer;color:var(--err);display:inline-flex;align-items:center;justify-content:center;padding:0"><svg viewBox="0 0 24 24" stroke-width="2" style="width:12px;height:12px;stroke:currentColor;fill:none"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div>'
+      +'</div>';
+    container.insertAdjacentHTML('beforeend',h);totalForms.value=idx+1;
+  };
+
+  window.supprimerLigne=function(btn){
+    var row=btn.closest('.ligne-cuve-row'),del=row.querySelector('input[name$="-DELETE"]');
+    if(del){del.checked=true;row.style.display='none';}else{row.remove();totalForms.value=parseInt(totalForms.value)-1;}
+  };
+
+  document.querySelector('form').addEventListener('submit',function(){
+    TOUTES_SECTIONS.forEach(function(id){var e=document.getElementById(id);if(e&&e.style.display==='none'){e.querySelectorAll('input,select,textarea').forEach(function(i){i.disabled=true;});}});
+  });
+
+  document.querySelectorAll('.type-btn').forEach(b=>b.addEventListener('click',function(){selectType(this.dataset.type);}));
+  var typeInitial=document.getElementById('id_type_mouvement').value;
+  if(typeInitial)selectType(typeInitial);
+  window.onProduitChange();
+  window.updateTotalVolume();
+})();
+
+window.confirmerSuppression=function(){
+  var num=document.querySelector('[data-numero-enregistrement]'),label=num?num.dataset.numeroEnregistrement:'ce mouvement';
+  if(confirm('Êtes-vous sûr de vouloir supprimer définitivement le mouvement N° '+label+' ?\nCette action est irréversible.'))
+    document.getElementById('form-supprimer').submit();
+};
+
+// Aperçu calculs temps réel
+(function(){
+  var PREVIEW_URL='{% url "mouvement_calcul_preview" %}';
+  var PENDING_HTML='<span class="calc-pending">— sera calculé à l\'enregistrement —</span>';
+  var previewTimer=null;
+  var TRIGGER_ENTREE=['volume_ambiant_recu','volume_ambiant_expediteur','temperature_labo','densite_observee_labo','temperature_reception','densite_15c_expediteur'];
+  var TRIGGER_SORTIE=['volume_ambiant_sortie','densite_15c_sortie','temperature_sortie'];
+
+  function getVal(n){var e=document.querySelector('[name="'+n+'"]');return e&&e.value!==''?e.value:null;}
+
+  function fmtPgReception(v){if(v===undefined||v===null)return'<div class="calc-pending" style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px dashed var(--border);border-radius:var(--radius)">— sera calculé à l\'enregistrement —</div>';var n=parseFloat(v),color=n<0?'var(--err)':'var(--ok)';return'<div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;font-weight:600;color:'+color+'">'+(n>0?'+':'')+n.toFixed(2)+' L</div>';}
+  function fmtDensite(v){if(v===undefined||v===null)return'<div class="calc-pending" style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px dashed var(--border);border-radius:var(--radius)">— sera calculé à l\'enregistrement —</div>';return'<div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;font-weight:600;color:var(--ink)">'+parseFloat(v).toFixed(2)+' kg/m³</div>';}
+  function fmtEcart(v){if(v===undefined||v===null)return PENDING_HTML;var n=parseFloat(v);if(Math.abs(n)<=0.001)return'<span class="calc-value" style="color:var(--ok)">'+n.toFixed(4)+'</span>';return'<span class="calc-value" style="color:var(--warn);font-weight:700">'+n.toFixed(4)+' ⚠</span>';}
+  function fmtSigned(v,d,s){if(v===undefined||v===null)return PENDING_HTML;var n=parseFloat(v),cls=n<0?'negative':'positive';return'<span class="calc-value '+cls+'">'+(n>0?'+':'')+n.toFixed(d)+(s?' '+s:'')+'</span>';}
+  function fmtVal(v,d,s){if(v===undefined||v===null)return PENDING_HTML;return'<span class="calc-value">'+parseFloat(v).toFixed(d)+(s?' '+s:'')+'</span>';}
+
+  function setLoading(ids){ids.forEach(function(id){var e=document.getElementById(id);if(e)e.innerHTML='<span class="calc-pending" style="color:var(--muted-2)">⟳ calcul…</span>';});}
+  function clearCalc(ids){ids.forEach(function(id){var e=document.getElementById(id);if(e)e.innerHTML=PENDING_HTML;});}
+
+  function doPreview(){
+    var type=document.getElementById('id_type_mouvement').value;
+    var csrf=document.querySelector('[name=csrfmiddlewaretoken]').value;
+    if(type==='ENTREE'){
+      var payload={type_mouvement:'ENTREE'};TRIGGER_ENTREE.forEach(function(f){payload[f]=getVal(f);});
+      if(!payload.volume_ambiant_recu&&!payload.densite_observee_labo){clearCalc(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']);return;}
+      setLoading(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']);
+      fetch(PREVIEW_URL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)})
+        .then(r=>r.json()).then(d=>{
+          var el;
+          el=document.getElementById('pv-pg-reception');if(el)el.innerHTML=fmtPgReception(d.perte_gain_reception);
+          el=document.getElementById('pv-densite-15c');if(el)el.innerHTML=fmtDensite(d.densite_15c_calculee);
+          el=document.getElementById('pv-ecart-densite');if(el)el.innerHTML=fmtEcart(d.ecart_densite_15c);
+          el=document.getElementById('pv-vcf');if(el)el.innerHTML=fmtVal(d.coefficient_conversion_15c,4);
+          el=document.getElementById('pv-volume-15c');if(el)el.innerHTML=d.volume_15c_recu!==undefined?'<span class="calc-value">'+Math.round(d.volume_15c_recu).toLocaleString('fr-FR')+' L</span>':PENDING_HTML;
+          el=document.getElementById('pv-pg-15c');if(el)el.innerHTML=fmtSigned(d.perte_gain_15c,2,'L');
+          el=document.getElementById('pv-poids');if(el)el.innerHTML=d.poids_kg!==undefined?'<span class="calc-value">'+Math.round(d.poids_kg).toLocaleString('fr-FR')+' kg</span>':PENDING_HTML;
+        }).catch(()=>clearCalc(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']));
+    } else if(type==='SORTIE'){
+      var payload={type_mouvement:'SORTIE'};TRIGGER_SORTIE.forEach(function(f){payload[f]=getVal(f);});
+      if(!payload.volume_ambiant_sortie&&!payload.densite_15c_sortie){clearCalc(['pv-sortie-vcf','pv-sortie-volume-15c','pv-sortie-poids']);return;}
+      setLoading(['pv-sortie-vcf','pv-sortie-volume-15c','pv-sortie-poids']);
+      fetch(PREVIEW_URL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)})
+        .then(r=>r.json()).then(d=>{
+          var el;
+          el=document.getElementById('pv-sortie-vcf');if(el)el.innerHTML=fmtVal(d.coefficient_conversion_sortie,4);
+          el=document.getElementById('pv-sortie-volume-15c');if(el)el.innerHTML=d.volume_15c_sortie!==undefined?'<span class="calc-value">'+Math.round(d.volume_15c_sortie).toLocaleString('fr-FR')+' L</span>':PENDING_HTML;
+          el=document.getElementById('pv-sortie-poids');if(el)el.innerHTML=d.poids_sortie_kg!==undefined?'<span class="calc-value">'+Math.round(d.poids_sortie_kg).toLocaleString('fr-FR')+' kg</span>':PENDING_HTML;
+        }).catch(()=>clearCalc(['pv-sortie-vcf','pv-sortie-volume-15c','pv-sortie-poids']));
+    }
+  }
+
+  function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(doPreview,600);}
+  TRIGGER_ENTREE.concat(TRIGGER_SORTIE).forEach(function(n){var e=document.querySelector('[name="'+n+'"]');if(e)e.addEventListener('input',schedulePreview);});
+  var ti=document.getElementById('id_type_mouvement').value;
+  if(ti==='ENTREE'||ti==='SORTIE')doPreview();
+  document.querySelectorAll('.type-btn').forEach(b=>b.addEventListener('click',function(){clearTimeout(previewTimer);previewTimer=setTimeout(doPreview,200);}));
+})();
+</script>
+{% endblock %}

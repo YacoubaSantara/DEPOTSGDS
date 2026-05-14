@@ -1,0 +1,305 @@
+﻿{% extends "base.html" %}
+{% block title %}Fiche Société — {{ societe.raison_sociale }}{% endblock %}
+{% block nav_societe %}active{% endblock %}
+
+{% block breadcrumb %}
+  <span class="breadcrumb-current">Administration</span>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Fiche Société</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout deux colonnes ── */
+.societe-layout{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start}
+@media(max-width:860px){.societe-layout{grid-template-columns:1fr}}
+
+/* ── Carte aperçu logo ── */
+.logo-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);text-align:center}
+.logo-preview{width:160px;height:120px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:var(--bg);padding:8px;margin:0 auto 16px;display:block}
+.logo-placeholder{width:160px;height:120px;border-radius:8px;border:2px dashed var(--border);background:var(--bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:var(--muted);font-size:.75rem;text-align:center;padding:8px}
+.societe-name{font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:4px}
+.societe-sub{font-size:.8rem;color:var(--muted)}
+
+/* ── Sections formulaire ── */
+.form-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px}
+.section-title{padding:12px 20px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg);display:flex;align-items:center;gap:8px}
+.section-body{padding:20px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.form-full{grid-column:1/-1}
+
+/* ── Champs ── */
+.field-group{display:flex;flex-direction:column;gap:5px}
+.field-group label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field-group input,
+.field-group textarea,
+.field-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:.85rem;color:var(--text);font-family:inherit;transition:border .2s}
+.field-group input:focus,
+.field-group textarea:focus{border-color:var(--navy);outline:none}
+.field-group input[type="file"]{padding:7px 10px;font-size:.78rem}
+.field-group input[type="color"]{padding:4px 6px;height:38px;cursor:pointer}
+.field-help{font-size:.7rem;color:var(--muted);margin-top:3px}
+
+/* ── Erreurs ── */
+.field-error{font-size:.72rem;color:#dc2626;margin-top:3px}
+
+/* ── Actions ── */
+.form-actions{display:flex;gap:10px;align-items:center;margin-top:8px}
+.btn-save{padding:10px 28px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;transition:background .2s}
+.btn-save:hover{background:var(--navy-l)}
+
+/* ── Badge dernière modif ── */
+.last-modif{font-size:.75rem;color:var(--muted);display:flex;align-items:center;gap:5px}
+
+/* ── Tampon miniature ── */
+.tampon-preview{max-width:100px;max-height:60px;object-fit:contain;border:1px solid var(--border);border-radius:4px;padding:4px;background:var(--bg)}
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate id="societe-form">
+{% csrf_token %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Fiche Société / Dépôt</h1>
+    <p class="page-subtitle">Informations officielles utilisées dans les en-têtes des états et exports</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="last-modif">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Modifié le {{ societe.date_modification|date:"d/m/Y à H:i" }}
+    </span>
+    <button type="submit" class="btn-save" style="padding:9px 22px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.84rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Enregistrer
+    </button>
+  </div>
+</div>
+
+{# Messages affichés par le système de toast dans base.html #}
+
+<div class="societe-layout">
+
+    {# ── Colonne gauche : aperçu logo ── #}
+    <aside>
+      <div class="logo-card">
+        {% if societe.logo %}
+          <img src="{{ societe.logo.url }}" alt="Logo" class="logo-preview" id="logo-img">
+        {% else %}
+          <div class="logo-placeholder" id="logo-placeholder">
+            <span>Aucun logo<br>uploadé</span>
+          </div>
+          <img src="" alt="Logo" class="logo-preview" id="logo-img" style="display:none">
+        {% endif %}
+        <p class="societe-name">{{ societe.raison_sociale|default:"—" }}</p>
+        <p class="societe-sub">{{ societe.nom_depot }}</p>
+        {% if societe.tampon %}
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <span style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:6px">TAMPON</span>
+          <img src="{{ societe.tampon.url }}" alt="Tampon" class="tampon-preview">
+        </div>
+        {% endif %}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;justify-content:center">
+          <span style="font-size:.7rem;color:var(--muted)">Couleur</span>
+          <span style="display:inline-block;width:24px;height:24px;border-radius:50%;background:{{ societe.couleur_principale|default:'var(--ink)' }};border:1px solid var(--border)" id="color-preview"></span>
+          <span style="font-size:.78rem;font-weight:600;color:var(--navy)" id="color-val">{{ societe.couleur_principale|default:'var(--ink)' }}</span>
+        </div>
+      </div>
+    </aside>
+
+    {# ── Colonne droite : formulaire ── #}
+    <main>
+
+      {# Section 1 — Identification #}
+      <div class="form-section">
+        <div class="section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+          Identification
+        </div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field-group form-full">
+              <label>Raison sociale *</label>
+              {{ form.raison_sociale }}
+              {% if form.raison_sociale.errors %}<span class="field-error">{{ form.raison_sociale.errors|join:", " }}</span>{% endif %}
+            </div>
+            <div class="field-group">
+              <label>Sigle</label>
+              {{ form.sigle }}
+            </div>
+            <div class="field-group">
+              <label>Forme juridique</label>
+              {{ form.forme_juridique }}
+            </div>
+            <div class="field-group">
+              <label>N° Contribuable / NIF</label>
+              {{ form.numero_contribuable }}
+            </div>
+            <div class="field-group">
+              <label>N° IFU</label>
+              {{ form.numero_ifu }}
+            </div>
+            <div class="field-group">
+              <label>Capital social (FCFA)</label>
+              {{ form.capital_social }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Section 2 — Dépôt #}
+      <div class="form-section">
+        <div class="section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Dépôt
+        </div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field-group">
+              <label>Nom du dépôt</label>
+              {{ form.nom_depot }}
+            </div>
+            <div class="field-group">
+              <label>Type de dépôt</label>
+              {{ form.type_depot }}
+            </div>
+            <div class="field-group">
+              <label>N° Agrément</label>
+              {{ form.numero_agrement }}
+            </div>
+            <div class="field-group">
+              <label>Autorité de tutelle</label>
+              {{ form.autorite_tutelle }}
+            </div>
+            <div class="field-group">
+              <label>Date de création</label>
+              {{ form.date_creation }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Section 3 — Coordonnées #}
+      <div class="form-section">
+        <div class="section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Coordonnées
+        </div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field-group form-full">
+              <label>Adresse complète</label>
+              {{ form.adresse }}
+            </div>
+            <div class="field-group">
+              <label>Ville</label>
+              {{ form.ville }}
+            </div>
+            <div class="field-group">
+              <label>Pays</label>
+              {{ form.pays }}
+            </div>
+            <div class="field-group">
+              <label>Boîte postale</label>
+              {{ form.boite_postale }}
+            </div>
+            <div class="field-group">
+              <label>Téléphone principal</label>
+              {{ form.telephone }}
+            </div>
+            <div class="field-group">
+              <label>Téléphone secondaire</label>
+              {{ form.telephone2 }}
+            </div>
+            <div class="field-group">
+              <label>Email</label>
+              {{ form.email }}
+            </div>
+            <div class="field-group">
+              <label>Site web</label>
+              {{ form.site_web }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Section 4 — Logo & Visuel #}
+      <div class="form-section">
+        <div class="section-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="13" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Logo &amp; Visuel
+        </div>
+        <div class="section-body">
+          <div class="form-grid">
+            <div class="field-group">
+              <label>Logo (PNG/JPG recommandé)</label>
+              {{ form.logo }}
+              {% if societe.logo %}
+              <span class="field-help">Fichier actuel : <a href="{{ societe.logo.url }}" target="_blank" style="color:var(--navy)">voir le logo</a></span>
+              {% endif %}
+            </div>
+            <div class="field-group">
+              <label>Tampon / Cachet</label>
+              {{ form.tampon }}
+              {% if societe.tampon %}
+              <span class="field-help">Fichier actuel : <a href="{{ societe.tampon.url }}" target="_blank" style="color:var(--navy)">voir le tampon</a></span>
+              {% endif %}
+            </div>
+            <div class="field-group">
+              <label>Couleur principale (en-têtes)</label>
+              {{ form.couleur_principale }}
+              <span class="field-help">Utilisée dans les en-têtes des états imprimés</span>
+            </div>
+            <div class="field-group form-full">
+              <label>Texte pied de page des états</label>
+              {{ form.pied_de_page }}
+              <span class="field-help">Apparaît en bas de chaque état imprimé/exporté (ex: "Document officiel SGDS SANKE — Tout droit réservé")</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Second bouton en bas pour les longues pages #}
+      <div class="form-actions" style="margin-top:8px;padding-bottom:16px">
+        <button type="submit" class="btn-save" style="padding:10px 28px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Enregistrer les modifications
+        </button>
+      </div>
+
+    </main>
+  </div>
+</form>
+
+<script>
+(function(){
+  /* Aperçu logo en temps réel */
+  const logoInput = document.querySelector('input[name="logo"]');
+  if(logoInput){
+    logoInput.addEventListener('change', function(){
+      if(!this.files || !this.files[0]) return;
+      const reader = new FileReader();
+      reader.onload = function(e){
+        const img = document.getElementById('logo-img');
+        const ph  = document.getElementById('logo-placeholder');
+        img.src = e.target.result;
+        img.style.display = 'block';
+        if(ph) ph.style.display = 'none';
+      };
+      reader.readAsDataURL(this.files[0]);
+    });
+  }
+  /* Aperçu couleur en temps réel */
+  const colorInput = document.querySelector('input[name="couleur_principale"]');
+  if(colorInput){
+    const preview = document.getElementById('color-preview');
+    const valEl   = document.getElementById('color-val');
+    colorInput.addEventListener('input', function(){
+      if(preview) preview.style.background = this.value;
+      if(valEl)   valEl.textContent = this.value;
+    });
+  }
+})();
+</script>
+{% endblock %}

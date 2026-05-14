@@ -1,0 +1,731 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Inventaire Initial Marketeurs{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ══ Inventaire Initial — CSS variables (dark mode natif) ══════ */
+
+/* En-tête de section marketeur */
+.inv-section-header { display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; }
+.inv-avatar {
+  width:2.5rem; height:2.5rem; border-radius:.5rem;
+  background:var(--navy,#1e3a5f); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:.85rem; flex-shrink:0;
+}
+.inv-mkt-name  { font-weight:700; color:var(--ink); font-size:1rem; }
+.inv-mkt-sigle { font-size:.78rem; color:var(--muted); }
+
+/* Tableau */
+.inv-table-wrap {
+  overflow-x:auto; border-radius:.625rem;
+  border:1px solid var(--border); background:var(--surface);
+}
+.inv-table { width:100%; border-collapse:collapse; font-size:.875rem; }
+.inv-table thead tr { background:var(--surface-2); border-bottom:2px solid var(--border); }
+.inv-table thead th {
+  padding:.65rem 1rem; text-align:left;
+  font-weight:600; color:var(--muted); white-space:nowrap;
+}
+.inv-table thead th.right  { text-align:right; }
+.inv-table thead th.center { text-align:center; }
+.inv-table tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+.inv-table tbody tr:hover { background:var(--surface-2) !important; }
+.inv-table tbody tr:nth-child(even) { background:var(--surface-2); }
+.inv-table tbody tr:nth-child(odd)  { background:var(--surface); }
+.inv-table tbody td { padding:.6rem 1rem; color:var(--ink); }
+.inv-table tbody td.muted  { color:var(--muted); font-size:.8rem; }
+.inv-table tbody td.right  { text-align:right; font-variant-numeric:tabular-nums; }
+.inv-table tbody td.center { text-align:center; }
+.inv-table tbody td.bold   { font-weight:600; }
+
+/* Ligne de totaux */
+.inv-totals-row td {
+  background:var(--surface-2) !important;
+  border-top:2px solid var(--border) !important;
+  font-size:.8rem;
+}
+.inv-totals-row .lbl-total {
+  font-weight:700; color:var(--ink); font-size:.78rem;
+  display:flex; align-items:center; gap:.4rem;
+}
+.inv-totals-row .val-total {
+  font-weight:700; font-size:.85rem; color:var(--ink);
+  text-align:right; font-variant-numeric:tabular-nums;
+}
+.inv-totals-row .val-sd { color:var(--inv-sd-txt,#1e40af); font-size:.78rem; }
+.inv-totals-row .val-ac { color:var(--inv-ac-txt,#166534); font-size:.78rem; }
+[data-theme="dark"] .inv-totals-row .val-sd { --inv-sd-txt:#93c5fd; }
+[data-theme="dark"] .inv-totals-row .val-ac { --inv-ac-txt:#86efac; }
+
+/* Badges régime */
+.bdg-sd {
+  background:var(--bdg-sd-bg,#dbeafe); color:var(--bdg-sd-txt,#1e40af);
+  padding:.2rem .6rem; border-radius:9999px; font-size:.75rem; font-weight:600;
+}
+.bdg-ac {
+  background:var(--bdg-ac-bg,#dcfce7); color:var(--bdg-ac-txt,#166534);
+  padding:.2rem .6rem; border-radius:9999px; font-size:.75rem; font-weight:600;
+}
+[data-theme="dark"] .bdg-sd { --bdg-sd-bg:#1e3a5f; --bdg-sd-txt:#93c5fd; }
+[data-theme="dark"] .bdg-ac { --bdg-ac-bg:#064e3b; --bdg-ac-txt:#6ee7b7; }
+
+/* Chips cuves */
+.cuve-chips { display:flex; flex-wrap:wrap; gap:.3rem; }
+.cuve-chip {
+  display:inline-flex; align-items:center;
+  background:var(--surface-2); color:var(--muted);
+  border:1px solid var(--border); border-radius:.375rem;
+  padding:.15rem .5rem; font-size:.72rem; font-weight:600;
+}
+
+/* Bouton Saisie en masse */
+.btn-masse {
+  display:inline-flex; align-items:center; gap:.5rem;
+  padding:.42rem .9rem;
+  background:var(--accent-soft,#fff7ed); color:var(--accent,#e8760a);
+  border:1.5px solid var(--accent,#e8760a); border-radius:.5rem;
+  font-size:.8rem; font-weight:700; cursor:pointer;
+  text-decoration:none; transition:all .2s;
+}
+.btn-masse:hover { background:var(--accent,#e8760a); color:#fff; }
+[data-theme="dark"] .btn-masse {
+  background:var(--accent-soft,#2a1808);
+  color:var(--accent-ink,#f0a878);
+  border-color:var(--accent,#d4681f);
+}
+[data-theme="dark"] .btn-masse:hover { background:var(--accent,#d4681f); color:#fff; }
+
+/* Boutons action tableau */
+.btn-edit {
+  background:var(--info-soft,#eff6ff); color:var(--info,#3b82f6);
+  border:1px solid var(--info-border,#bfdbfe); border-radius:.375rem;
+  padding:.3rem .65rem; font-size:.78rem; cursor:pointer; font-weight:600;
+  transition:background .15s;
+}
+.btn-edit:hover { background:var(--info,#3b82f6); color:#fff; }
+[data-theme="dark"] .btn-edit { --info-soft:#1e3a5f; --info-border:#2563eb; }
+
+.btn-del {
+  background:var(--err-soft,#fef2f2); color:var(--err,#dc2626);
+  border:1px solid var(--err-border,#fecaca); border-radius:.375rem;
+  padding:.3rem .65rem; font-size:.78rem; cursor:pointer; font-weight:600;
+  transition:background .15s;
+}
+.btn-del:hover { background:var(--err,#dc2626); color:#fff; }
+[data-theme="dark"] .btn-del { --err-soft:#3b0a0a; --err-border:#7f1d1d; }
+
+/* Note tronquée */
+.inv-note-cell {
+  max-width:160px; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; font-size:.78rem; color:var(--muted);
+}
+
+/* ══ MODAL ══════════════════════════════════════════════════ */
+.inv-modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.5); z-index:1000;
+  align-items:center; justify-content:center;
+}
+.inv-modal-box {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:.875rem; width:100%; max-width:620px;
+  box-shadow:0 24px 64px rgba(0,0,0,.3); margin:1rem;
+  max-height:92vh; overflow-y:auto;
+}
+
+/* Header du modal — couleur selon le mode */
+.inv-modal-header {
+  padding:1.25rem 1.5rem; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:1; border-radius:.875rem .875rem 0 0;
+  transition:background .2s;
+}
+.inv-modal-header.mode-new  { background:var(--modal-new-bg,#1e3a5f); }
+.inv-modal-header.mode-edit { background:var(--modal-edit-bg,#c2410c); }
+[data-theme="dark"] .inv-modal-header.mode-new  { --modal-new-bg:#0f2440; }
+[data-theme="dark"] .inv-modal-header.mode-edit { --modal-edit-bg:#7c2d12; }
+
+.inv-modal-title { font-weight:700; font-size:1.05rem; color:#fff; }
+.inv-modal-sub   { font-size:.78rem; color:rgba(255,255,255,.75); margin-top:.15rem; }
+.inv-modal-close {
+  background:rgba(255,255,255,.15); border:none; border-radius:.375rem;
+  width:2rem; height:2rem; display:flex; align-items:center; justify-content:center;
+  font-size:1.1rem; color:#fff; cursor:pointer; flex-shrink:0; line-height:1;
+  transition:background .15s;
+}
+.inv-modal-close:hover { background:rgba(255,255,255,.3); }
+
+.inv-modal-body { padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
+
+/* Alerte mode édition */
+.inv-edit-alert {
+  background:var(--edit-alert-bg,#fff7ed); color:var(--edit-alert-txt,#92400e);
+  border:1px solid var(--edit-alert-bdr,#fcd34d); border-radius:.5rem;
+  padding:.65rem .9rem; font-size:.8rem; font-weight:600;
+  display:flex; align-items:center; gap:.5rem;
+}
+[data-theme="dark"] .inv-edit-alert {
+  --edit-alert-bg:#2a1808; --edit-alert-txt:#fbbf24; --edit-alert-bdr:#78500a;
+}
+
+/* Bloc info (champs verrouillés en edit) */
+.inv-info-block {
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:.5rem; padding:.75rem 1rem; display:flex;
+  flex-direction:column; gap:.5rem;
+}
+.inv-info-row { display:flex; align-items:center; gap:.75rem; font-size:.84rem; }
+.inv-info-lbl { font-weight:600; color:var(--muted); min-width:80px; }
+.inv-info-val { color:var(--ink); font-weight:600; }
+
+/* Champs formulaire */
+.inv-field-label {
+  display:block; font-size:.8rem; font-weight:600;
+  color:var(--ink); margin-bottom:.35rem;
+}
+.inv-field-label .req { color:#ef4444; margin-left:.15rem; }
+.inv-field-label .opt { color:var(--muted); font-weight:400; font-size:.73rem; }
+
+.inv-field-input {
+  width:100%; padding:.55rem .75rem;
+  border:1.5px solid var(--border); border-radius:.5rem;
+  font-size:.875rem; background:var(--surface); color:var(--ink);
+  box-sizing:border-box; font-family:inherit; transition:border-color .15s;
+}
+.inv-field-input:focus { outline:none; border-color:var(--accent,#e8760a); box-shadow:0 0 0 3px rgba(232,118,10,.15); }
+.inv-field-input.is-invalid { border-color:#ef4444; }
+select.inv-field-input { height:auto; }
+
+/* Multi-select cuves */
+.cuves-select-wrap {
+  border:1.5px solid var(--border); border-radius:.5rem;
+  overflow:hidden; background:var(--surface);
+  transition:border-color .15s;
+}
+.cuves-select-wrap:focus-within { border-color:var(--accent,#e8760a); }
+.cuves-select-wrap select {
+  width:100%; border:none; background:transparent; color:var(--ink);
+  font-size:.84rem; padding:.4rem .5rem; font-family:inherit; min-height:110px;
+}
+.cuves-select-wrap select:focus { outline:none; }
+
+/* Footer du modal */
+.inv-modal-footer {
+  display:flex; justify-content:flex-end; gap:.75rem;
+  padding:1rem 1.5rem; border-top:1px solid var(--border);
+  position:sticky; bottom:0; background:var(--surface); z-index:1;
+}
+.inv-btn-cancel {
+  padding:.55rem 1.2rem; border:1px solid var(--border); border-radius:.5rem;
+  background:var(--surface); color:var(--ink); font-size:.875rem;
+  cursor:pointer; font-weight:600; transition:background .15s;
+}
+.inv-btn-cancel:hover { background:var(--surface-2); }
+.inv-btn-submit {
+  padding:.55rem 1.4rem; border:none; border-radius:.5rem;
+  font-size:.875rem; font-weight:700; cursor:pointer; color:#fff;
+  transition:background .15s;
+}
+.inv-btn-submit.mode-new  { background:#1e3a5f; }
+.inv-btn-submit.mode-new:hover  { background:#16304f; }
+.inv-btn-submit.mode-edit { background:#c2410c; }
+.inv-btn-submit.mode-edit:hover { background:#9a3412; }
+[data-theme="dark"] .inv-btn-submit.mode-new  { background:#2563eb; }
+[data-theme="dark"] .inv-btn-submit.mode-new:hover  { background:#1d4ed8; }
+[data-theme="dark"] .inv-btn-submit.mode-edit { background:#ea580c; }
+[data-theme="dark"] .inv-btn-submit.mode-edit:hover { background:#c2410c; }
+
+/* État vide */
+.inv-empty {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:.75rem; padding:3rem; text-align:center; color:var(--muted);
+}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Inventaire Initial</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Inventaire Initial Marketeurs</h1>
+    <div class="ph-sub">Stocks de départ saisis au démarrage — intégrés automatiquement dans le REPORT de la carte de stock</div>
+  </div>
+  {% if request.user.is_staff %}
+  <div class="ph-actions" style="display:flex;gap:.75rem;flex-wrap:wrap;">
+    <a href="{% url 'inventaire_initial_masse' %}" class="btn-masse">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Saisie en masse
+    </a>
+    <button onclick="ouvrirModalNouveau()" class="btn btn-accent">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/>
+        <line x1="12" y1="11" x2="12" y2="21"/>
+      </svg>
+      Nouveau stock initial
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+<div style="padding:0 1.5rem 2rem;">
+
+  {% if not grouped %}
+  <div class="inv-empty">
+    <div style="font-size:2.5rem;margin-bottom:.75rem;">📦</div>
+    <div style="font-weight:700;font-size:1rem;margin-bottom:.5rem;">Aucun stock initial saisi</div>
+    <div style="font-size:.875rem;">Utilisez « Nouveau stock initial » ou « Saisie en masse » pour enregistrer les stocks de départ.</div>
+  </div>
+
+  {% else %}
+
+  {% for group in grouped %}
+  <div style="margin-bottom:2rem;">
+
+    <!-- En-tête marketeur -->
+    <div class="inv-section-header">
+      <div class="inv-avatar">
+        {{ group.marketeur.sigle|default:group.marketeur.raison_sociale|slice:":2"|upper }}
+      </div>
+      <div>
+        <div class="inv-mkt-name">{{ group.marketeur.raison_sociale }}</div>
+        {% if group.marketeur.sigle %}
+        <div class="inv-mkt-sigle">{{ group.marketeur.sigle }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="inv-table-wrap">
+      <table class="inv-table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th class="center">Régime</th>
+            <th class="right">Vol. ambiant (L)</th>
+            <th class="right">Vol. @15°C (L)</th>
+            <th class="center">Date inventaire</th>
+            <th>Cuves</th>
+            <th>Notes</th>
+            <th class="muted">Saisi par</th>
+            {% if request.user.is_staff %}<th class="center">Actions</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in group.lignes %}
+          <tr>
+            <td class="bold">{{ inv.produit.code }} — {{ inv.produit.nom }}</td>
+            <td class="center">
+              {% if inv.regime_douanier == 'SOUS_DOUANE' %}
+              <span class="bdg-sd">SD</span>
+              {% else %}
+              <span class="bdg-ac">AC</span>
+              {% endif %}
+            </td>
+            <td class="right">{{ inv.volume_ambiant|floatformat:2|intcomma }}</td>
+            <td class="right">{{ inv.volume_15c|floatformat:2|intcomma }}</td>
+            <td class="center muted">{{ inv.date_inventaire|date:"d/m/Y" }}</td>
+            <td>
+              {% if inv.cuves.all %}
+              <div class="cuve-chips">
+                {% for cuve in inv.cuves.all %}
+                <span class="cuve-chip" title="{{ cuve.designation }}">{{ cuve.numero }}</span>
+                {% endfor %}
+              </div>
+              {% else %}
+              <span class="muted" style="font-size:.78rem;">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if inv.notes %}
+              <span class="inv-note-cell" title="{{ inv.notes }}">{{ inv.notes }}</span>
+              {% else %}
+              <span style="color:var(--muted);font-size:.78rem;">—</span>
+              {% endif %}
+            </td>
+            <td class="muted">{{ inv.saisi_par|default:"—" }}</td>
+            {% if request.user.is_staff %}
+            <td class="center">
+              <div style="display:flex;gap:.5rem;justify-content:center;align-items:center;">
+                <!-- Bouton Modifier : données en data-* pour éviter le bug cuves PKs -->
+                <button class="btn-edit"
+                  data-pk="{{ inv.pk }}"
+                  data-marketeur="{{ inv.marketeur.pk }}"
+                  data-marketeur-label="{{ inv.marketeur.raison_sociale }}{% if inv.marketeur.sigle %} ({{ inv.marketeur.sigle }}){% endif %}"
+                  data-produit="{{ inv.produit.pk }}"
+                  data-produit-label="{{ inv.produit.code }} — {{ inv.produit.nom }}"
+                  data-regime="{{ inv.regime_douanier }}"
+                  data-regime-label="{% if inv.regime_douanier == 'SOUS_DOUANE' %}Sous douane (SD){% else %}Acquitté (AC){% endif %}"
+                  data-vamb="{{ inv.volume_ambiant|stringformat:'.2f' }}"
+                  data-v15c="{{ inv.volume_15c|stringformat:'.2f' }}"
+                  data-date="{{ inv.date_inventaire|date:'Y-m-d' }}"
+                  data-notes="{{ inv.notes|default:''|escapejs }}"
+                  data-cuves="{% for c in inv.cuves.all %}{{ c.pk }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                  onclick="ouvrirModalEdition(this)">
+                  ✏️ Modifier
+                </button>
+                <form method="post" action="{% url 'inventaire_initial_supprimer' inv.pk %}"
+                      onsubmit="return confirm('Supprimer ce stock initial ?\n{{ inv.produit.code }} — {{ inv.get_regime_douanier_display }}')">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-del">🗑 Supprimer</button>
+                </form>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+
+          <!-- ── Ligne de totaux par marketeur ── -->
+          <tr class="inv-totals-row">
+            <td colspan="2">
+              <span class="lbl-total">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                </svg>
+                Total {{ group.marketeur.sigle|default:group.marketeur.raison_sociale }}
+              </span>
+              <div style="font-size:.72rem;margin-top:.2rem;display:flex;gap:.75rem;">
+                <span class="val-sd">SD : {{ group.total_amb_sd|floatformat:0|intcomma }} L</span>
+                <span class="val-ac">AC : {{ group.total_amb_ac|floatformat:0|intcomma }} L</span>
+              </div>
+            </td>
+            <td class="val-total">{{ group.total_amb|floatformat:2|intcomma }}</td>
+            <td class="val-total">{{ group.total_15c|floatformat:2|intcomma }}</td>
+            <td colspan="{% if request.user.is_staff %}5{% else %}4{% endif %}"></td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% endif %}
+</div>
+
+{% if request.user.is_staff %}
+<!-- ══ MODAL SAISIE / MODIFICATION ════════════════════════════ -->
+<div id="modal-saisie" class="inv-modal-overlay">
+  <div class="inv-modal-box">
+
+    <!-- Header -->
+    <div id="modal-header" class="inv-modal-header mode-new">
+      <div>
+        <div class="inv-modal-title" id="modal-title">Nouveau stock initial</div>
+        <div class="inv-modal-sub"  id="modal-sub">Si la combinaison existe déjà, elle sera mise à jour.</div>
+      </div>
+      <button class="inv-modal-close" onclick="fermerModal()">✕</button>
+    </div>
+
+    <form method="post" action="{% url 'inventaire_initial_saisir' %}" id="form-saisie" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="pk_edit" id="pk-edit" value="">
+
+      <div class="inv-modal-body">
+
+        <!-- ── Alerte mode édition (masquée en mode création) ── -->
+        <div id="edit-alert" class="inv-edit-alert" style="display:none;">
+          ⚠️ Mode modification — seuls les volumes, la date, les cuves et les notes peuvent être changés.
+        </div>
+
+        <!-- ── Bloc info (visible en édition uniquement) ── -->
+        <div id="section-info" style="display:none;">
+          <div class="inv-info-block">
+            <div class="inv-info-row">
+              <span class="inv-info-lbl">Marketeur</span>
+              <span class="inv-info-val" id="disp-marketeur"></span>
+            </div>
+            <div class="inv-info-row">
+              <span class="inv-info-lbl">Produit</span>
+              <span class="inv-info-val" id="disp-produit"></span>
+            </div>
+            <div class="inv-info-row">
+              <span class="inv-info-lbl">Régime</span>
+              <span id="disp-regime"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Champs clés (visibles en création uniquement) ── -->
+        <div id="section-keys">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+
+            <div style="grid-column:span 2;">
+              <label class="inv-field-label">Marketeur <span class="req">*</span></label>
+              <select name="marketeur" id="sel-marketeur" required class="inv-field-input" onchange="filtrerCuves()">
+                <option value="">— Choisir —</option>
+                {% for mkt in marketeurs %}
+                <option value="{{ mkt.pk }}">{{ mkt.raison_sociale }}{% if mkt.sigle %} ({{ mkt.sigle }}){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="inv-field-label">Produit <span class="req">*</span></label>
+              <select name="produit" id="sel-produit" required class="inv-field-input" onchange="filtrerCuves()">
+                <option value="">— Choisir —</option>
+                {% for p in produits %}
+                <option value="{{ p.pk }}">{{ p.code }} — {{ p.nom }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="inv-field-label">Régime douanier <span class="req">*</span></label>
+              <select name="regime_douanier" id="sel-regime" required class="inv-field-input">
+                <option value="SOUS_DOUANE">Sous douane (SD)</option>
+                <option value="ACQUITTE">Acquitté (AC)</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Volumes ── -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div>
+            <label class="inv-field-label">Volume ambiant (L) <span class="req">*</span></label>
+            <input type="number" name="volume_ambiant" id="inp-vamb"
+                   step="0.01" min="0" required value="0"
+                   class="inv-field-input" placeholder="0.00"
+                   oninput="syncV15c(this)">
+          </div>
+          <div>
+            <label class="inv-field-label">
+              Volume @15°C (L) <span class="req">*</span>
+              <span class="opt" id="lbl-coeff"></span>
+            </label>
+            <input type="number" name="volume_15c" id="inp-v15c"
+                   step="0.01" min="0" required value="0"
+                   class="inv-field-input" placeholder="0.00">
+          </div>
+        </div>
+
+        <!-- ── Date ── -->
+        <div>
+          <label class="inv-field-label">Date d'inventaire <span class="req">*</span></label>
+          <input type="date" name="date_inventaire" id="inp-date" required class="inv-field-input">
+        </div>
+
+        <!-- ── Cuves ── -->
+        <div>
+          <label class="inv-field-label">
+            Cuves associées
+            <span class="opt">— optionnel · Ctrl+clic pour sélection multiple</span>
+          </label>
+          <div class="cuves-select-wrap">
+            <select name="cuves" id="sel-cuves" multiple>
+              {% for cuve in cuves %}
+              <option value="{{ cuve.pk }}" data-produit="{{ cuve.produit_id|default:'' }}">
+                {{ cuve.numero }}{% if cuve.designation %} — {{ cuve.designation }}{% endif %}{% if cuve.produit %} ({{ cuve.produit.code }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem;">
+            Seules les cuves du produit sélectionné sont affichées. Laissez vide si non applicable.
+          </div>
+        </div>
+
+        <!-- ── Notes ── -->
+        <div>
+          <label class="inv-field-label">Notes <span class="opt">— optionnel</span></label>
+          <textarea name="notes" id="inp-notes" rows="2"
+                    class="inv-field-input" style="height:auto;resize:vertical;min-height:3rem;"></textarea>
+        </div>
+
+      </div><!-- /body -->
+
+      <div class="inv-modal-footer">
+        <button type="button" class="inv-btn-cancel" onclick="fermerModal()">Annuler</button>
+        <button type="submit" id="btn-submit" class="inv-btn-submit mode-new">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:.4rem;">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          <span id="btn-submit-label">Enregistrer</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// ── Données cuves pour filtrage dynamique ─────────────────────
+const CUVES_DATA = {
+{% for cuve in cuves %}
+  "{{ cuve.pk }}": "{{ cuve.produit_id|default:'' }}",
+{% endfor %}
+};
+
+// ── Filtrer cuves selon le produit sélectionné ────────────────
+function filtrerCuves(forceProduitPk) {
+  const produitPk = forceProduitPk || document.getElementById('sel-produit').value;
+  const sel = document.getElementById('sel-cuves');
+  Array.from(sel.options).forEach(opt => {
+    const ok = !produitPk || CUVES_DATA[opt.value] === produitPk;
+    opt.style.display = ok ? '' : 'none';
+    if (!ok) opt.selected = false;
+  });
+}
+
+// ── Calcul indicatif vol @15°C (coeff ≈ 0.9985 — indicatif seulement) ─
+function syncV15c(vambInput) {
+  // On n'écrase pas si l'utilisateur a déjà saisi @15°C manuellement
+  // On se contente d'afficher un hint sur le label
+  const vamb = parseFloat(vambInput.value) || 0;
+  const hint = vamb ? `≈ ${(vamb * 0.9985).toFixed(0)} L indicatif` : '';
+  document.getElementById('lbl-coeff').textContent = hint;
+}
+
+// ── Ouvrir modal — mode CRÉATION ─────────────────────────────
+function ouvrirModalNouveau() {
+  _setMode('new');
+  document.getElementById('pk-edit').value  = '';
+  document.getElementById('sel-marketeur').value = '';
+  document.getElementById('sel-produit').value   = '';
+  document.getElementById('sel-regime').value    = 'SOUS_DOUANE';
+  document.getElementById('inp-vamb').value      = '';
+  document.getElementById('inp-v15c').value      = '';
+  document.getElementById('lbl-coeff').textContent = '';
+  // Date du jour par défaut
+  document.getElementById('inp-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('inp-notes').value = '';
+  Array.from(document.getElementById('sel-cuves').options).forEach(o => o.selected = false);
+  filtrerCuves('');
+  document.getElementById('modal-saisie').style.display = 'flex';
+  setTimeout(() => document.getElementById('sel-marketeur').focus(), 100);
+}
+
+// ── Ouvrir modal — mode ÉDITION ───────────────────────────────
+function ouvrirModalEdition(btn) {
+  const d = btn.dataset;
+  _setMode('edit');
+
+  document.getElementById('pk-edit').value = d.pk;
+
+  // Bloc info
+  document.getElementById('disp-marketeur').textContent = d.marketeurLabel;
+  document.getElementById('disp-produit').textContent   = d.produitLabel;
+  document.getElementById('disp-regime').innerHTML =
+    d.regime === 'SOUS_DOUANE'
+      ? '<span class="bdg-sd">SD — Sous douane</span>'
+      : '<span class="bdg-ac">AC — Acquitté</span>';
+
+  // Champs éditables
+  document.getElementById('inp-vamb').value  = d.vamb;
+  document.getElementById('inp-v15c').value  = d.v15c;
+  document.getElementById('inp-date').value  = d.date;
+  document.getElementById('inp-notes').value = d.notes;
+  document.getElementById('lbl-coeff').textContent = '';
+
+  // Cuves : filtrer par produit puis sélectionner les PKs existants
+  filtrerCuves(d.produit);
+  const pks = d.cuves ? d.cuves.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const sel = document.getElementById('sel-cuves');
+  Array.from(sel.options).forEach(opt => {
+    opt.selected = pks.includes(opt.value);
+  });
+
+  document.getElementById('modal-saisie').style.display = 'flex';
+  setTimeout(() => document.getElementById('inp-vamb').focus(), 100);
+}
+
+// ── Changer le mode visuel du modal (new / edit) ──────────────
+function _setMode(mode) {
+  const header   = document.getElementById('modal-header');
+  const btnSub   = document.getElementById('btn-submit');
+  const keys     = document.getElementById('section-keys');
+  const info     = document.getElementById('section-info');
+  const alert    = document.getElementById('edit-alert');
+
+  header.className  = `inv-modal-header mode-${mode}`;
+  btnSub.className  = `inv-btn-submit mode-${mode}`;
+
+  if (mode === 'new') {
+    document.getElementById('modal-title').textContent     = 'Nouveau stock initial';
+    document.getElementById('modal-sub').textContent       = 'Si la combinaison existe déjà, elle sera mise à jour.';
+    document.getElementById('btn-submit-label').textContent = 'Enregistrer';
+    keys.style.display  = '';
+    info.style.display  = 'none';
+    alert.style.display = 'none';
+    // Réactiver les selects clés
+    ['sel-marketeur','sel-produit','sel-regime'].forEach(id => {
+      document.getElementById(id).disabled = false;
+    });
+  } else {
+    document.getElementById('modal-title').textContent      = 'Modifier le stock initial';
+    document.getElementById('modal-sub').textContent        = 'Les champs clés (marketeur, produit, régime) sont verrouillés.';
+    document.getElementById('btn-submit-label').textContent = 'Enregistrer les modifications';
+    keys.style.display  = 'none';
+    info.style.display  = '';
+    alert.style.display = '';
+  }
+}
+
+// ── Fermer le modal ───────────────────────────────────────────
+function fermerModal() {
+  document.getElementById('modal-saisie').style.display = 'none';
+}
+
+// Fermer en cliquant sur le fond
+document.getElementById('modal-saisie').addEventListener('click', function(e) {
+  if (e.target === this) fermerModal();
+});
+
+// Fermer avec Échap
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') fermerModal();
+});
+
+// ── Validation légère avant soumission ───────────────────────
+document.getElementById('form-saisie').addEventListener('submit', function(e) {
+  let ok = true;
+  const vamb = parseFloat(document.getElementById('inp-vamb').value);
+  const v15c = parseFloat(document.getElementById('inp-v15c').value);
+  const date = document.getElementById('inp-date').value;
+
+  [document.getElementById('inp-vamb'), document.getElementById('inp-v15c'), document.getElementById('inp-date')].forEach(el => {
+    el.classList.remove('is-invalid');
+  });
+
+  if (isNaN(vamb) || vamb < 0) {
+    document.getElementById('inp-vamb').classList.add('is-invalid');
+    ok = false;
+  }
+  if (isNaN(v15c) || v15c < 0) {
+    document.getElementById('inp-v15c').classList.add('is-invalid');
+    ok = false;
+  }
+  if (!date) {
+    document.getElementById('inp-date').classList.add('is-invalid');
+    ok = false;
+  }
+
+  // En mode création : vérifier champs clés
+  const pkEdit = document.getElementById('pk-edit').value;
+  if (!pkEdit) {
+    if (!document.getElementById('sel-marketeur').value) {
+      document.getElementById('sel-marketeur').classList.add('is-invalid');
+      ok = false;
+    }
+    if (!document.getElementById('sel-produit').value) {
+      document.getElementById('sel-produit').classList.add('is-invalid');
+      ok = false;
+    }
+  }
+
+  if (!ok) e.preventDefault();
+});
+</script>
+{% endif %}
+
+{% endblock %}

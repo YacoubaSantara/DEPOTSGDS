@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Mon Espace — {{ mkt.raison_sociale }}{% endblock %}
+{% block nav_client_dashboard %}active{% endblock %}
+
+{% block breadcrumb %}
+  <span class="breadcrumb-current">Mon Espace</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ══════════════════════════════════════════
+   DASHBOARD MARKETEUR — Animations & Redesign
+══════════════════════════════════════════ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes heroOrb {
+  0%,100% { transform: scale(1) translate(0,0); }
+  33%      { transform: scale(1.06) translate(8px,-6px); }
+  66%      { transform: scale(.96) translate(-6px,4px); }
+}
+@keyframes stockBarIn {
+  from { width: 0 !important; }
+}
+
+.anim-up   { animation: fadeInUp .55s cubic-bezier(.22,1,.36,1) both; }
+.anim-up-1 { animation-delay: .07s; }
+.anim-up-2 { animation-delay: .14s; }
+.anim-up-3 { animation-delay: .21s; }
+.anim-up-4 { animation-delay: .28s; }
+
+/* ── HERO CARD ── */
+.mkt-hero {
+  background: linear-gradient(135deg, #1a1814 0%, #2c2218 50%, #3a2c1a 100%);
+  border-radius: var(--radius-lg);
+  padding: 26px 30px;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 24px;
+  flex-wrap: wrap;
+  position: relative; overflow: hidden;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.mkt-hero-dots {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(circle, rgba(255,255,255,.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.mkt-hero-orb {
+  position: absolute; right: -80px; top: -80px;
+  width: 340px; height: 340px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(184,84,26,.25), transparent 60%);
+  animation: heroOrb 9s ease-in-out infinite;
+}
+.mkt-hero-orb-2 {
+  position: absolute; left: 20%; bottom: -100px;
+  width: 260px; height: 200px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(184,84,26,.07), transparent 70%);
+}
+
+.mkt-hero-avatar {
+  width: 72px; height: 72px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.08);
+  border: 2px solid rgba(255,255,255,.16);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.55rem; font-weight: 800; color: #fff;
+  flex-shrink: 0; overflow: hidden;
+  position: relative; z-index: 1;
+  transition: transform .3s;
+}
+.mkt-hero:hover .mkt-hero-avatar { transform: scale(1.04); }
+.mkt-hero-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.mkt-hero-info { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.mkt-hero-eyebrow {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .12em; color: rgba(255,255,255,.4);
+  font-family: 'JetBrains Mono', monospace; margin-bottom: 6px;
+}
+.mkt-hero-name {
+  font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: #fff;
+}
+.mkt-hero-meta {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font-size: .8rem; color: rgba(255,255,255,.5);
+}
+.mkt-hero-meta span { display: flex; align-items: center; gap: 5px; }
+.mkt-hero-rep {
+  font-size: .8rem; color: rgba(255,255,255,.5); margin-top: 8px;
+}
+.mkt-hero-rep strong { color: rgba(255,255,255,.85); font-weight: 600; }
+
+.mkt-hero-action { position: relative; z-index: 1; flex-shrink: 0; }
+.mkt-hero-btn {
+  height: 36px; padding: 0 18px;
+  background: rgba(255,255,255,.09);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: var(--radius);
+  color: #fff; font-size: 12.5px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: all .22s;
+}
+.mkt-hero-btn:hover { background: rgba(255,255,255,.18); transform: translateY(-1px); }
+.mkt-hero-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+/* ── KPI GRID ── */
+.mkt-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.mkt-kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px 16px;
+  position: relative; overflow: hidden;
+  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s;
+  cursor: default;
+}
+.mkt-kpi:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.09);
+  border-color: var(--border-2);
+}
+.mkt-kpi::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.mkt-kpi.k-green::before  { background: linear-gradient(90deg,var(--ok),#6db565); }
+.mkt-kpi.k-red::before    { background: linear-gradient(90deg,var(--err),#d4664d); }
+.mkt-kpi.k-blue::before   { background: linear-gradient(90deg,#3b82f6,#60a5fa); }
+.mkt-kpi.k-amber::before  { background: linear-gradient(90deg,var(--warn),#d4a017); }
+
+.mkt-kpi-glow {
+  position: absolute; right: -24px; top: -24px;
+  width: 90px; height: 90px; border-radius: 50%; opacity: .07;
+}
+.k-green .mkt-kpi-glow { background: var(--ok); }
+.k-red   .mkt-kpi-glow { background: var(--err); }
+.k-blue  .mkt-kpi-glow { background: #3b82f6; }
+.k-amber .mkt-kpi-glow { background: var(--warn); }
+
+.mkt-kpi-icon {
+  width: 36px; height: 36px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+.k-green .mkt-kpi-icon { background: var(--ok-soft);      color: var(--ok); }
+.k-red   .mkt-kpi-icon { background: var(--err-soft);     color: var(--err); }
+.k-blue  .mkt-kpi-icon { background: rgba(59,130,246,.1); color: #3b82f6; }
+.k-amber .mkt-kpi-icon { background: var(--warn-soft);    color: var(--warn); }
+.mkt-kpi-icon svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+.mkt-kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 5px; }
+.mkt-kpi-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px; font-weight: 800;
+  color: var(--ink); line-height: 1; letter-spacing: -.03em;
+}
+.mkt-kpi-sub { font-size: 11px; color: var(--muted); margin-top: 7px; }
+
+/* ── SECTION TITLE BAR ── */
+.mkt-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mkt-section-title {
+  font-size: .95rem; font-weight: 800; color: var(--ink); margin: 0;
+  display: flex; align-items: center; gap: 9px;
+  letter-spacing: -.01em;
+}
+.mkt-section-title::before {
+  content: "";
+  display: inline-block; width: 4px; height: 18px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  border-radius: 2px;
+}
+
+/* ── STOCK CARDS ── */
+.mkt-stock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.mkt-stock-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  position: relative; overflow: hidden;
+  transition: transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s, border-color .2s;
+}
+.mkt-stock-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.09);
+  border-color: var(--accent);
+}
+.mkt-stock-card::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+.mkt-stock-card-glow {
+  position: absolute; right: -30px; bottom: -30px;
+  width: 100px; height: 100px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(184,84,26,.08), transparent 70%);
+}
+
+.mkt-stock-name { font-weight: 700; color: var(--ink); margin-bottom: 2px; font-size: 14px; letter-spacing: -.01em; }
+.mkt-stock-code { font-size: .72rem; color: var(--muted); margin-bottom: 14px; font-family: 'JetBrains Mono', monospace; }
+.mkt-stock-vol-row { display: flex; align-items: baseline; gap: 6px; }
+.mkt-stock-vol  { font-family: 'JetBrains Mono', monospace; font-size: 1.85rem; font-weight: 800; color: var(--accent); line-height: 1; }
+.mkt-stock-unit { font-size: .75rem; color: var(--muted); }
+
+.mkt-stock-bar-wrap {
+  margin-top: 14px; height: 5px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 3px; overflow: hidden;
+}
+.mkt-stock-bar-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 1.2s cubic-bezier(.4,0,.2,1);
+}
+.mkt-stock-io {
+  display: flex; gap: 18px; margin-top: 12px;
+  font-size: .75rem; color: var(--muted);
+}
+.mkt-stock-io span { display: flex; align-items: center; gap: 5px; }
+.dot-ok  { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);  display: inline-block; flex-shrink: 0; }
+.dot-err { width: 7px; height: 7px; border-radius: 50%; background: var(--err); display: inline-block; flex-shrink: 0; }
+
+/* ── TABLE ROW ANIMATIONS ── */
+.tbl tbody tr { animation: fadeInUp .3s cubic-bezier(.22,1,.36,1) both; }
+.tbl tbody tr:nth-child(1)  { animation-delay: .02s; }
+.tbl tbody tr:nth-child(2)  { animation-delay: .04s; }
+.tbl tbody tr:nth-child(3)  { animation-delay: .06s; }
+.tbl tbody tr:nth-child(4)  { animation-delay: .08s; }
+.tbl tbody tr:nth-child(5)  { animation-delay: .10s; }
+.tbl tbody tr:nth-child(6)  { animation-delay: .12s; }
+.tbl tbody tr:nth-child(7)  { animation-delay: .14s; }
+.tbl tbody tr:nth-child(8)  { animation-delay: .16s; }
+.tbl tbody tr:nth-child(9)  { animation-delay: .18s; }
+.tbl tbody tr:nth-child(10) { animation-delay: .20s; }
+
+/* Card hover enhancement */
+.card { transition: box-shadow .2s; }
+.card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.06); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .mkt-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .mkt-kpi-grid { grid-template-columns: 1fr; }
+  .mkt-hero { padding: 20px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="mkt-hero anim-up">
+  <div class="mkt-hero-dots"></div>
+  <div class="mkt-hero-orb"></div>
+  <div class="mkt-hero-orb-2"></div>
+
+  <div class="mkt-hero-avatar">
+    {% if mkt.logo %}<img src="{{ mkt.logo.url }}" alt="{{ mkt.raison_sociale }}">
+    {% else %}{{ mkt.raison_sociale|slice:":2"|upper }}{% endif %}
+  </div>
+
+  <div class="mkt-hero-info">
+    <div class="mkt-hero-eyebrow">SGDS · Espace Marketeur</div>
+    <div class="mkt-hero-name">
+      {{ mkt.raison_sociale }}
+      {% if mkt.statut == 'ACTIF' %}<span class="bdg ok">{{ mkt.get_statut_display }}</span>
+      {% elif mkt.statut == 'SUSPENDU' %}<span class="bdg warn">{{ mkt.get_statut_display }}</span>
+      {% elif mkt.statut == 'BLACKLIST' %}<span class="bdg err">{{ mkt.get_statut_display }}</span>
+      {% else %}<span class="bdg">{{ mkt.get_statut_display }}</span>{% endif %}
+    </div>
+    <div class="mkt-hero-meta">
+      <span>{{ mkt.get_forme_juridique_display }}</span>
+      {% if mkt.ville %}<span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        {{ mkt.ville }}{% if mkt.pays %}, {{ mkt.pays }}{% endif %}
+      </span>{% endif %}
+      {% if mkt.telephone %}<span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 6.82 19.79 19.79 0 016.1 2.18 2 2 0 018.09 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L12.09 9a16 16 0 006.91 6.91l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+        {{ mkt.telephone }}
+      </span>{% endif %}
+      {% if mkt.email %}<span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        {{ mkt.email }}
+      </span>{% endif %}
+    </div>
+    <div class="mkt-hero-rep">
+      Représentant : <strong>{{ mkt.representant_complet }}</strong>
+      {% if mkt.fonction_representant %} — {{ mkt.fonction_representant }}{% endif %}
+    </div>
+  </div>
+
+  <div class="mkt-hero-action">
+    <a href="{% url 'marketeur_detail' mkt.pk %}" class="mkt-hero-btn">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Voir la fiche
+    </a>
+  </div>
+</div>
+
+<!-- ═══════════════ KPI GRID ═══════════════ -->
+<div class="mkt-kpi-grid anim-up anim-up-1">
+
+  <div class="mkt-kpi k-green">
+    <div class="mkt-kpi-glow"></div>
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24"><path d="M7 16l-4-4 4-4M3 12h14M21 5v14"/></svg>
+    </div>
+    <div class="mkt-kpi-label">Entrées totales</div>
+    <div class="mkt-kpi-val" data-count="{{ nb_entrees }}">{{ nb_entrees|intcomma }}</div>
+    <div class="mkt-kpi-sub">{{ total_vol_entree_15c|floatformat:0|intcomma }} L @15°C</div>
+  </div>
+
+  <div class="mkt-kpi k-red">
+    <div class="mkt-kpi-glow"></div>
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24"><path d="M17 8l4 4-4 4M3 12h18M3 5v14"/></svg>
+    </div>
+    <div class="mkt-kpi-label">Sorties totales</div>
+    <div class="mkt-kpi-val" data-count="{{ nb_sorties }}">{{ nb_sorties|intcomma }}</div>
+    <div class="mkt-kpi-sub">{{ total_vol_sortie_15c|floatformat:0|intcomma }} L @15°C</div>
+  </div>
+
+  <div class="mkt-kpi k-blue">
+    <div class="mkt-kpi-glow"></div>
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg>
+    </div>
+    <div class="mkt-kpi-label">Cessions</div>
+    <div class="mkt-kpi-val" data-count="{{ nb_cessions }}">{{ nb_cessions|intcomma }}</div>
+    <div class="mkt-kpi-sub">Transferts entre marketeurs</div>
+  </div>
+
+  <div class="mkt-kpi k-amber">
+    <div class="mkt-kpi-glow"></div>
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg>
+    </div>
+    <div class="mkt-kpi-label">Produits en stock</div>
+    <div class="mkt-kpi-val" data-count="{{ stocks|length }}">{{ stocks|length }}</div>
+    <div class="mkt-kpi-sub">avec activité enregistrée</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════ STOCK PAR PRODUIT ═══════════════ -->
+<div class="mkt-section-header anim-up anim-up-2">
+  <h2 class="mkt-section-title">Mon stock par produit</h2>
+</div>
+
+{% if stocks %}
+<div class="mkt-stock-grid anim-up anim-up-2">
+  {% for s in stocks %}
+  <div class="mkt-stock-card">
+    <div class="mkt-stock-card-glow"></div>
+    <div class="mkt-stock-name">{{ s.produit.nom }}</div>
+    <div class="mkt-stock-code">{{ s.produit.code }} · {{ s.produit.famille }}</div>
+    <div class="mkt-stock-vol-row">
+      <span class="mkt-stock-vol" data-count="{{ s.stock_amb|floatformat:0 }}">{{ s.stock_amb|floatformat:0|intcomma }}</span>
+      <span class="mkt-stock-unit">L Amb.</span>
+    </div>
+    <div class="mkt-stock-bar-wrap">
+      <div class="mkt-stock-bar-fill" style="width:0%"
+           data-entrees="{{ s.entrees_amb|add:s.inv_amb|default:0 }}"
+           data-stock="{{ s.stock_amb|floatformat:0|default:0 }}"></div>
+    </div>
+    <div class="mkt-stock-io">
+      <span><span class="dot-ok"></span> Entrées : {{ s.entrees|floatformat:0|intcomma }} L</span>
+      <span><span class="dot-err"></span> Sorties : {{ s.sorties|floatformat:0|intcomma }} L</span>
+      {% if s.inv_amb %}<span style="font-size:.72rem;color:var(--muted);margin-top:2px;width:100%;">📦 Stock initial : {{ s.inv_amb|floatformat:0|intcomma }} L</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card anim-up anim-up-2" style="margin-bottom:20px">
+  <div class="empty" style="padding:52px 24px">Aucun stock enregistré pour le moment.</div>
+</div>
+{% endif %}
+
+<!-- ═══════════════ DERNIERS MOUVEMENTS ═══════════════ -->
+<div class="mkt-section-header anim-up anim-up-3">
+  <h2 class="mkt-section-title">10 derniers mouvements</h2>
+  <a href="{% url 'client_mouvements' %}" class="btn btn-ghost btn-sm">Voir tout →</a>
+</div>
+
+<div class="card anim-up anim-up-3" style="margin-bottom:20px">
+  {% if derniers_mouvements %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Produit</th>
+        <th>Régime</th>
+        <th class="tar">Vol. ambiant (L)</th>
+        <th class="tar">Vol. @15°C (L)</th>
+        <th>Camion</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for mvt in derniers_mouvements %}
+      <tr>
+        <td class="mono" style="font-size:.78rem;color:var(--muted)">{{ mvt.numero_enregistrement|default:"—" }}</td>
+        <td style="white-space:nowrap;font-weight:500">{{ mvt.date_mouvement|date:"d/m/Y" }}</td>
+        <td>
+          {% if mvt.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+          {% elif mvt.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+          {% elif mvt.type_mouvement == 'CESSION' %}<span class="bdg-type cession">Cession</span>
+          {% elif mvt.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg-type acquit">Acquittement</span>
+          {% else %}<span class="bdg">{{ mvt.get_type_mouvement_display }}</span>{% endif %}
+        </td>
+        <td style="font-weight:600">{{ mvt.produit.nom }}</td>
+        <td>
+          {% if mvt.regime_douanier == 'ACQUITTE' %}<span class="bdg ok">Acquitté</span>
+          {% else %}<span class="bdg warn">Sous douane</span>{% endif %}
+        </td>
+        <td class="num tar">{% if mvt.volume_ambiant_principal %}{{ mvt.volume_ambiant_principal|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="num tar" style="font-weight:700">{% if mvt.volume_principal %}{{ mvt.volume_principal|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+        <td class="mono" style="font-size:.78rem;color:var(--muted)">{% if mvt.camion %}{{ mvt.camion.immatriculation }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty" style="padding:52px 24px">Aucun mouvement enregistré.</div>
+  {% endif %}
+</div>
+
+<!-- ═══════════════ FRAIS DE COULAGE ═══════════════ -->
+<div class="mkt-section-header anim-up anim-up-4">
+  <h2 class="mkt-section-title">Mes frais de coulage récents</h2>
+</div>
+
+<div class="card anim-up anim-up-4">
+  {% if frais_coulage %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Période</th>
+        <th>Produit</th>
+        <th class="tar">Volume sorti (L)</th>
+        <th class="tar">QP Coulage (L)</th>
+        <th class="tar">Prix unitaire (FCFA/L)</th>
+        <th class="tar">Montant (FCFA)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ligne in frais_coulage %}
+      <tr>
+        <td style="font-weight:700">{{ ligne.cloture.periode }}</td>
+        <td>{% if ligne.produit %}{{ ligne.produit.nom }}{% else %}—{% endif %}</td>
+        <td class="num tar">{{ ligne.volume_sorti|floatformat:2|intcomma }}</td>
+        <td class="num tar">{{ ligne.qp_coul|floatformat:2|intcomma }}</td>
+        <td class="num tar">{{ ligne.prix_unitaire|floatformat:4|intcomma }}</td>
+        <td class="num tar" style="font-weight:800;color:var(--accent)">{{ ligne.montant|floatformat:0|intcomma }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty" style="padding:52px 24px">Aucun frais de coulage disponible pour le moment.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  'use strict';
+
+  /* ── KPI count-up ── */
+  function countUp(el, target) {
+    const dur = 800;
+    const t0 = performance.now();
+    const step = ts => {
+      const p = Math.min((ts - t0) / dur, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(ease * target).toLocaleString('fr-FR');
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  document.querySelectorAll('.mkt-kpi-val[data-count]').forEach(el => {
+    const n = parseInt(el.dataset.count, 10);
+    if (!isNaN(n) && n > 0) {
+      el.textContent = '0';
+      setTimeout(() => countUp(el, n), 280);
+    }
+  });
+
+  /* ── Stock bar fill ── */
+  const stockBars = document.querySelectorAll('.mkt-stock-bar-fill');
+  const stockVols = Array.from(stockBars).map(b => parseFloat(b.dataset.stock) || 0);
+  const maxStock  = Math.max(...stockVols, 1);
+  stockBars.forEach((bar, i) => {
+    const pct = (stockVols[i] / maxStock * 100).toFixed(1);
+    setTimeout(() => { bar.style.width = pct + '%'; }, 350 + i * 90);
+  });
+
+  /* ── Stock volume count-up ── */
+  document.querySelectorAll('.mkt-stock-vol[data-count]').forEach((el, i) => {
+    const n = parseInt(el.dataset.count, 10);
+    if (!isNaN(n) && n > 0) {
+      el.textContent = '0';
+      setTimeout(() => countUp(el, n), 400 + i * 80);
+    }
+  });
+
+  /* ── Stock cards staggered entrance ── */
+  document.querySelectorAll('.mkt-stock-card').forEach((card, i) => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(14px)';
+    setTimeout(() => {
+      card.style.transition = 'opacity .42s ease, transform .42s cubic-bezier(.22,1,.36,1), box-shadow .22s, border-color .2s';
+      card.style.opacity = '1';
+      card.style.transform = 'translateY(0)';
+    }, 180 + i * 75);
+  });
+
+})();
+</script>
+{% endblock %}
