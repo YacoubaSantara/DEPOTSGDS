@@ -23,7 +23,15 @@
       "Bash(python -c \"import SGDS.views\")",
       "Bash(python manage.py makemigrations --check)",
       "Bash(python manage.py test SGDS.tests_coulage)",
-      "Bash(python manage.py test SGDS.tests_coulage.TestSuiviEvolution SGDS.tests_coulage.TestFraisPassage)"
+      "Bash(python manage.py test SGDS.tests_coulage.TestSuiviEvolution SGDS.tests_coulage.TestFraisPassage)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(python *)",
+      "Bash(npx expo *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('expo-linear-gradient:', p.dependencies['expo-linear-gradient']\\); console.log\\('react-native-svg:', p.dependencies['react-native-svg']\\);\")",
+      "Bash(node -e ' *)",
+      "Skill(ui-ux-pro-max)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
