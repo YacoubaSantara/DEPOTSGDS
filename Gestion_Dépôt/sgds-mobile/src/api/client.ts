@@ -11,13 +11,14 @@ import * as SecureStore from 'expo-secure-store';
 
 // ── Configuration ─────────────────────────────────────────────
 // Changer cette URL selon l'environnement
-export const API_BASE_URL = 'http://192.168.1.102:9000/api/v1';
+export const API_BASE_URL = 'http://192.168.1.111:9000/api/v1';
 
 export const STORAGE_KEYS = {
-  ACCESS_TOKEN:  'sgds_access_token',
-
-  REFRESH_TOKEN: 'sgds_refresh_token',
-  USER:          'sgds_user',
+  ACCESS_TOKEN:          'sgds_access_token',
+  REFRESH_TOKEN:         'sgds_refresh_token',
+  USER:                  'sgds_user',
+  BIOMETRIC_ENABLED:     'sgds_biometric_enabled',
+  BIOMETRIC_CREDENTIALS: 'sgds_biometric_credentials',
 } as const;
 
 // ── Instance Axios ────────────────────────────────────────────

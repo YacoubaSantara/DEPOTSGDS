@@ -32,4 +32,11 @@ export const authApi = {
       '/auth/refresh/',
       { refresh },
     ),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    apiClient.post('/profil/password/', {
+      ancien_mot_de_passe:  oldPassword,
+      nouveau_mot_de_passe: newPassword,
+      confirmation:         newPassword,
+    }),
 };

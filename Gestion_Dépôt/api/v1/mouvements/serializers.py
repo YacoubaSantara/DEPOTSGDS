@@ -14,7 +14,7 @@ class MouvementListSerializer(serializers.Serializer):
     produit          = serializers.CharField()
     produit_sigle    = serializers.CharField(allow_null=True, allow_blank=True)
     regime           = serializers.CharField(allow_null=True)
-    date             = serializers.DateField()
+    date             = serializers.DateTimeField()  # date_saisie — inclut l'heure
     quantite_ambiant = serializers.DecimalField(**D)
     quantite_15      = serializers.DecimalField(**D)
     observation      = serializers.CharField(allow_null=True, allow_blank=True)

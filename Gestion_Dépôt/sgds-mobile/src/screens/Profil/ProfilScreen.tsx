@@ -1,28 +1,36 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 import { profilApi, ProfilData } from '../../api/profil';
+import { STORAGE_KEYS } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
+import { Colors, Radius, FontSize, TypeMeta } from '../../constants/colors';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { getErrorMessage } from '../../utils/format';
+import type { ProfilStackParams } from '../../navigation/AppNavigator';
+
+type Nav = NativeStackNavigationProp<ProfilStackParams>;
 
 function fmtVol(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + ' M';
   if (n >= 1_000)     return (n / 1_000).toFixed(0) + ' k';
   return n.toFixed(0);
 }
-import { useAuth } from '../../context/AuthContext';
-import { Colors, Radius, FontSize, TypeMeta } from '../../constants/colors';
-import { LoadingSpinner } from '../../components/LoadingSpinner';
-import { getErrorMessage } from '../../utils/format';
 
 export function ProfilScreen() {
   const { logout } = useAuth();
+  const navigation = useNavigation<Nav>();
 
-  const [profil, setProfil] = useState<ProfilData | null>(null);
+  const [profil, setProfil]   = useState<ProfilData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchProfil = useCallback(async () => {
@@ -64,7 +72,6 @@ export function ProfilScreen() {
         >
           <View style={styles.heroBlob} />
 
-          {/* Top bar */}
           <View style={styles.heroBar}>
             <Text style={styles.heroBarTitle}>Profil</Text>
             <TouchableOpacity style={styles.editBtn}>
@@ -72,7 +79,6 @@ export function ProfilScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Avatar + info */}
           <View style={styles.heroProfile}>
             <LinearGradient
               colors={[Colors.orange, Colors.orangeDeep]}
@@ -93,33 +99,15 @@ export function ProfilScreen() {
           </View>
         </LinearGradient>
 
-        {/* ── STATS CARD (floating) ─────────────────────────── */}
+        {/* ── STATS CARD ────────────────────────────────────── */}
         <View style={styles.statsWrap}>
           <View style={styles.statsCard}>
             {[
-              {
-                v: String(profil?.total_mouvements ?? 0),
-                l: 'Mouvements',
-                c: Colors.navy,
-              },
-              {
-                v: fmtVol(profil?.volume_total_ambiant ?? 0),
-                l: 'Litres traités (Amb)',
-                c: Colors.entree,
-              },
-              {
-                v: profil?.marketeur_sigle ?? profil?.marketeur_nom?.slice(0, 4).toUpperCase() ?? '—',
-                l: 'Marketeur',
-                c: Colors.orange,
-              },
+              { v: String(profil?.total_mouvements ?? 0),   l: 'Mouvements',         c: Colors.navy },
+              { v: fmtVol(profil?.volume_total_ambiant ?? 0), l: 'Litres traités (Amb)', c: Colors.entree },
+              { v: profil?.marketeur_sigle ?? profil?.marketeur_nom?.slice(0, 4).toUpperCase() ?? '—', l: 'Marketeur', c: Colors.orange },
             ].map((s, i, arr) => (
-              <View
-                key={i}
-                style={[
-                  styles.statCol,
-                  i < arr.length - 1 && styles.statColBorder,
-                ]}
-              >
+              <View key={i} style={[styles.statCol, i < arr.length - 1 && styles.statColBorder]}>
                 <Text style={[styles.statValue, { color: s.c }]}>{s.v}</Text>
                 <Text style={styles.statLabel}>{s.l}</Text>
               </View>
@@ -131,9 +119,11 @@ export function ProfilScreen() {
         <SectionHeader title="Coordonnées" />
         <View style={styles.pad}>
           <DetailCard rows={[
-            ['Email',           profil?.email ?? null],
-            ['Téléphone',       profil?.telephone ?? null],
-            ['Membre depuis',   profil?.date_joined ? new Date(profil.date_joined).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null],
+            ['Email',         profil?.email ?? null],
+            ['Téléphone',     profil?.telephone ?? null],
+            ['Membre depuis', profil?.date_joined
+              ? new Date(profil.date_joined).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+              : null],
           ]} />
         </View>
 
@@ -142,16 +132,27 @@ export function ProfilScreen() {
         <View style={[styles.pad, { gap: 8 }]}>
           <PrefRow iconName="notifications-outline" label="Notifications" sub="Mouvements, alertes stock" toggle defaultOn />
           <PrefRow iconName="globe-outline"          label="Langue"        sub="Français" trail="FR" />
-          <PrefRow iconName="shield-outline"         label="Sécurité"      sub="Mot de passe, 2FA" chev />
-          <PrefRow iconName="finger-print"           label="Biométrique"   sub="Touch ID activé" toggle defaultOn />
+          <PrefRow
+            iconName="shield-outline"
+            label="Sécurité"
+            sub="Mot de passe, biométrie"
+            chev
+            onPress={() => navigation.navigate('Securite')}
+          />
+          <BiometricRow />
         </View>
 
         {/* ── APPLICATION ──────────────────────────────────── */}
         <SectionHeader title="Application" />
         <View style={[styles.pad, { gap: 8 }]}>
-          <PrefRow iconName="cloud-download-outline" label="Données hors ligne" sub="Synchronisé" chev />
-          <PrefRow iconName="qr-code-outline"        label="Apparier un appareil" sub="Scanner pour ajouter" chev />
-          <PrefRow iconName="document-text-outline"  label="Conditions d'utilisation" chev />
+          <PrefRow iconName="cloud-download-outline" label="Données hors ligne"    sub="Synchronisé" chev />
+          <PrefRow iconName="qr-code-outline"        label="Apparier un appareil"  sub="Scanner pour ajouter" chev />
+          <PrefRow
+            iconName="document-text-outline"
+            label="Conditions d'utilisation"
+            chev
+            onPress={() => navigation.navigate('ConditionsUtilisation')}
+          />
         </View>
 
         {/* ── DÉCONNEXION ──────────────────────────────────── */}
@@ -164,6 +165,81 @@ export function ProfilScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// ── BiometricRow ───────────────────────────────────────────────
+
+function BiometricRow() {
+  const [supported, setSupported]   = useState(false);
+  const [enabled, setEnabled]       = useState(false);
+  const [bioLabel, setBioLabel]     = useState('Biométrie');
+  const [loading, setLoading]       = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const hasHw      = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!hasHw || !isEnrolled) return;
+
+      setSupported(true);
+
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        setBioLabel('Face ID');
+      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        setBioLabel('Empreinte digitale');
+      }
+
+      const stored = await SecureStore.getItemAsync(STORAGE_KEYS.BIOMETRIC_ENABLED);
+      setEnabled(stored === 'true');
+    })();
+  }, []);
+
+  if (!supported) return null;
+
+  const handleToggle = async (value: boolean) => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      if (value) {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage:         `Activer ${bioLabel} pour SGDS`,
+          cancelLabel:           'Annuler',
+          disableDeviceFallback: true,
+        });
+        if (!result.success) { setLoading(false); return; }
+        await SecureStore.setItemAsync(STORAGE_KEYS.BIOMETRIC_ENABLED, 'true');
+        setEnabled(true);
+        Alert.alert('Biométrie activée', `${bioLabel} sera utilisé pour vous connecter rapidement.`);
+      } else {
+        await SecureStore.deleteItemAsync(STORAGE_KEYS.BIOMETRIC_ENABLED);
+        setEnabled(false);
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible de modifier le paramètre biométrique.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.prefRow}>
+      <View style={styles.prefIcon}>
+        <Ionicons name="finger-print" size={16} color={Colors.navy} />
+      </View>
+      <View style={styles.prefBody}>
+        <Text style={styles.prefLabel}>{bioLabel}</Text>
+        <Text style={styles.prefSub}>{enabled ? 'Activé' : 'Désactivé'}</Text>
+      </View>
+      <Switch
+        value={enabled}
+        onValueChange={handleToggle}
+        trackColor={{ false: Colors.mist, true: Colors.navy }}
+        thumbColor={Colors.white}
+        disabled={loading}
+      />
+    </View>
   );
 }
 
@@ -193,14 +269,20 @@ function DetailCard({ rows }: { rows: [string, string | null][] }) {
 }
 
 function PrefRow({
-  iconName, label, sub, toggle, defaultOn, chev, trail,
+  iconName, label, sub, toggle, defaultOn, chev, trail, onPress,
 }: {
   iconName: any; label: string; sub?: string;
   toggle?: boolean; defaultOn?: boolean; chev?: boolean; trail?: string;
+  onPress?: () => void;
 }) {
   const [on, setOn] = useState(!!defaultOn);
   return (
-    <View style={styles.prefRow}>
+    <TouchableOpacity
+      style={styles.prefRow}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress && !toggle}
+    >
       <View style={styles.prefIcon}>
         <Ionicons name={iconName} size={16} color={Colors.navy} />
       </View>
@@ -221,7 +303,7 @@ function PrefRow({
       ) : chev ? (
         <Ionicons name="chevron-forward" size={16} color={Colors.silver} />
       ) : null}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -229,7 +311,6 @@ function PrefRow({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.paper },
 
-  // Hero
   hero: {
     paddingTop: 14, paddingHorizontal: 20, paddingBottom: 80,
     overflow: 'hidden',
@@ -257,21 +338,19 @@ const styles = StyleSheet.create({
     shadowColor: Colors.orange, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 16,
     elevation: 6,
   },
-  avatarText: { color: Colors.white, fontSize: 30, fontWeight: '800' },
-  heroInfo:   { flex: 1, minWidth: 0 },
-  heroName:   { color: Colors.white, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
+  avatarText:   { color: Colors.white, fontSize: 30, fontWeight: '800' },
+  heroInfo:     { flex: 1, minWidth: 0 },
+  heroName:     { color: Colors.white, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   heroUsername: { color: Colors.white + 'bf', fontSize: 12, marginTop: 2 },
   orgPill: {
     marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 4, paddingHorizontal: 10,
     backgroundColor: Colors.white + '1a',
     borderWidth: 1, borderColor: Colors.white + '22',
-    borderRadius: 999,
-    alignSelf: 'flex-start',
+    borderRadius: 999, alignSelf: 'flex-start',
   },
   orgText: { color: Colors.white, fontSize: 10, fontWeight: '600' },
 
-  // Stats
   statsWrap: { paddingHorizontal: 16, marginTop: -58, zIndex: 2 },
   statsCard: {
     backgroundColor: Colors.white, borderRadius: 20,
@@ -285,23 +364,20 @@ const styles = StyleSheet.create({
   statValue:     { fontSize: 18, fontWeight: '800' },
   statLabel:     { fontSize: 9, color: Colors.slate, fontWeight: '600', marginTop: 2, textAlign: 'center' },
 
-  // Section
   sectionHeader: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 10 },
   sectionTitle:  { fontSize: 14, fontWeight: '800', color: Colors.ink, letterSpacing: -0.2 },
 
-  // Detail card
   pad: { paddingHorizontal: 16 },
   detailCard: {
     backgroundColor: Colors.white, borderRadius: 20, paddingHorizontal: 16,
     shadowColor: Colors.ink,
     shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  detailRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
   detailRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.cloud },
-  detailLabel: { fontSize: 11, color: Colors.slate, fontWeight: '600' },
-  detailValue: { fontSize: 13, color: Colors.ink, fontWeight: '600', textAlign: 'right', flex: 1 },
+  detailLabel:     { fontSize: 11, color: Colors.slate, fontWeight: '600' },
+  detailValue:     { fontSize: 13, color: Colors.ink, fontWeight: '600', textAlign: 'right', flex: 1 },
 
-  // Pref row
   prefRow: {
     backgroundColor: Colors.white, borderRadius: 14, padding: 12,
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -314,7 +390,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.navyTint,
     alignItems: 'center', justifyContent: 'center',
   },
-  prefBody: { flex: 1 },
+  prefBody:  { flex: 1 },
   prefLabel: { fontSize: 13, fontWeight: '700', color: Colors.ink },
   prefSub:   { fontSize: 11, color: Colors.slate, marginTop: 1 },
   prefTrail: { fontSize: 12, color: Colors.slate, fontWeight: '600' },
@@ -329,7 +405,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2,
   },
 
-  // Logout
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     height: 50, borderRadius: 14,

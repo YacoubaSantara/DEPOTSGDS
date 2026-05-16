@@ -59,7 +59,7 @@ def _serialize_list(m):
         'produit':          m.produit.nom,
         'produit_sigle':    getattr(m.produit, 'sigle', '') or m.produit.nom[:4].upper(),
         'regime':           LABELS_REGIME.get(m.regime_douanier, m.regime_douanier),
-        'date':             m.date_mouvement,
+        'date':             m.date_saisie,       # DateTimeField → inclut la date ET l'heure
         'quantite_ambiant': _volume_amb(m) or 0,
         'quantite_15':      _volume_15c(m) or 0,
         'observation':      m.notes or '',

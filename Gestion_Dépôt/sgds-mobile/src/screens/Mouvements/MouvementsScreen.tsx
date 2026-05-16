@@ -1,18 +1,22 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, SectionList, TouchableOpacity, StyleSheet,
-  TextInput, ScrollView, ActivityIndicator,
+  TextInput, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import dayjs from 'dayjs';
 
 import { mouvementsApi, MouvementListItem, MouvementFilters } from '../../api/mouvements';
 import { Colors, Radius, Spacing, FontSize, TypeMeta } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { getErrorMessage } from '../../utils/format';
+import { buildMouvementsListHtml } from '../../utils/pdfTemplate';
 import type { MouvementsStackParams } from '../../navigation/AppNavigator';
 
 type Nav = NativeStackNavigationProp<MouvementsStackParams>;
@@ -100,6 +104,44 @@ export function MouvementsScreen() {
       .map(d => ({ title: d, data: groups[d] }));
   }, [filtered]);
 
+  const FILTER_LABELS: Record<string, string> = {
+    '':             'Tous les mouvements',
+    'ENTREE':       'Entrées uniquement',
+    'SORTIE':       'Sorties uniquement',
+    'CESSION':      'Cessions uniquement',
+    'ACQUITTEMENT': 'Acquittements uniquement',
+  };
+
+  const handleExportPdf = async () => {
+    if (filtered.length === 0) {
+      Alert.alert('Aucun mouvement', 'La liste est vide, rien à exporter.');
+      return;
+    }
+    try {
+      const html = buildMouvementsListHtml({
+        marketeurNom: 'Marketeur',
+        filterLabel:  FILTER_LABELS[filterType] ?? 'Filtre appliqué',
+        lignes: filtered.map(m => ({
+          date:             m.date,
+          reference:        m.reference,
+          type:             m.type,
+          produit:          m.produit,
+          produit_sigle:    m.produit_sigle,
+          quantite_ambiant: (m as any).quantite_ambiant ?? 0,
+        })),
+        generatedAt: dayjs().format('DD/MM/YYYY à HH:mm'),
+      });
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Exporter les mouvements',
+        UTI: 'com.adobe.pdf',
+      });
+    } catch {
+      Alert.alert('Erreur', 'Impossible de générer le PDF.');
+    }
+  };
+
   const dayLabel = (key: string) => {
     const today = new Date().toISOString().slice(0, 10);
     const yest  = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
@@ -126,9 +168,14 @@ export function MouvementsScreen() {
               <Text style={styles.headerCountLabel}>opérations</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.addBtn}>
-            <Ionicons name="add" size={18} color={Colors.white} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={styles.addBtn} onPress={handleExportPdf}>
+              <Ionicons name="document-outline" size={18} color={Colors.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.addBtn}>
+              <Ionicons name="add" size={18} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Recherche */}
@@ -236,10 +283,9 @@ function MvtCard({ mvt, onPress }: { mvt: MouvementListItem; onPress: () => void
   const meta = TypeMeta[mvt.type] ?? {
     label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·',
   };
-  const date = new Date(mvt.date ?? '');
-  const time = isNaN(date.getTime())
-    ? ''
-    : date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+  const d       = mvt.date ? dayjs(mvt.date) : null;
+  const hasTime = !!mvt.date?.includes('T');
+  const time    = (d?.isValid() && hasTime) ? d.format('HH:mm') : '';
 
   return (
     <TouchableOpacity style={styles.mvtCard} onPress={onPress} activeOpacity={0.7}>

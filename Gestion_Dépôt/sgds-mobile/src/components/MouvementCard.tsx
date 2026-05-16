@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import dayjs from 'dayjs';
 import { Colors, Radius, TypeMeta } from '../constants/colors';
 import { MouvementListItem } from '../api/mouvements';
 
@@ -19,10 +20,9 @@ export function MouvementCard({ mouvement, onPress }: Props) {
   const meta  = TypeMeta[mouvement.type] ?? {
     label: mouvement.type, color: Colors.slate, soft: Colors.cloud, glyph: '·',
   };
-  const date  = new Date(mouvement.date ?? '');
-  const time  = isNaN(date.getTime())
-    ? ''
-    : date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+  const d       = mouvement.date ? dayjs(mouvement.date) : null;
+  const hasTime = !!mouvement.date?.includes('T');
+  const time    = (d?.isValid() && hasTime) ? d.format('HH:mm') : '';
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>

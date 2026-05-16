@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import dayjs from 'dayjs';
 
 import { mouvementsApi, MouvementDetail } from '../../api/mouvements';
 import { Colors, Radius, Spacing, TypeMeta } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { getErrorMessage } from '../../utils/format';
+import { buildMouvementPdf } from '../../utils/pdfTemplate';
 import type { MouvementsStackParams } from '../../navigation/AppNavigator';
 
 type Route = RouteProp<MouvementsStackParams, 'MouvementDetail'>;
@@ -42,14 +46,46 @@ export function MouvementDetailScreen() {
   if (error)   return <ErrorMessage message={error} />;
   if (!mvt)    return null;
 
-  const meta     = TypeMeta[mvt.type] ?? { label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·' };
-  const date     = new Date(mvt.date ?? '');
-  const dateStr  = isNaN(date.getTime())
-    ? mvt.date ?? ''
-    : date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const time     = isNaN(date.getTime())
-    ? ''
-    : date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+  const meta    = TypeMeta[mvt.type] ?? { label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·' };
+  const d       = mvt.date ? dayjs(mvt.date) : null;
+  const dateStr = d?.isValid() ? d.format('DD/MM/YYYY') : (mvt.date ?? '—');
+  const hasTime = !!mvt.date?.includes('T');
+  const time    = (d?.isValid() && hasTime) ? d.format('HH:mm') : '';
+
+  const handleExportPdf = async () => {
+    try {
+      const html = buildMouvementPdf({
+        reference:             mvt.reference,
+        date:                  mvt.date ?? '',
+        type:                  mvt.type,
+        produit:               mvt.produit,
+        produit_sigle:         mvt.produit_sigle,
+        regime:                mvt.regime,
+        quantite_ambiant:      mvt.quantite_ambiant,
+        quantite_15:           mvt.quantite_15,
+        provenance:            mvt.provenance,
+        bl_expediteur:         mvt.bl_expediteur,
+        bl_client:             mvt.bl_client,
+        camion_immatriculation: mvt.camion_immatriculation,
+        chauffeur_nom:         mvt.chauffeur_nom,
+        destination:           (mvt as any).destination,
+        numero_permis_sortie:  mvt.numero_permis_sortie,
+        mode_reglement:        mvt.mode_reglement,
+        cession_destinataire:  mvt.cession_destinataire,
+        cession_motif:         mvt.cession_motif,
+        observation:           mvt.observation,
+        generatedAt:           dayjs().format('DD/MM/YYYY à HH:mm'),
+      });
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Fiche — ${mvt.reference}`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch {
+      Alert.alert('Erreur', 'Impossible de générer le PDF.');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -69,7 +105,7 @@ export function MouvementDetailScreen() {
               <Ionicons name="chevron-back" size={18} color={Colors.white} />
             </TouchableOpacity>
             <View style={styles.navActions}>
-              <TouchableOpacity style={styles.navBtn}>
+              <TouchableOpacity style={styles.navBtn} onPress={handleExportPdf}>
                 <Ionicons name="download-outline" size={16} color={Colors.white} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.navBtn}>

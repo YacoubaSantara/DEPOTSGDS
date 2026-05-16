@@ -1,22 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../../context/AuthContext';
+import { STORAGE_KEYS } from '../../api/client';
 import { Colors, Radius, Spacing, FontSize } from '../../constants/colors';
 import { getErrorMessage } from '../../utils/format';
 
 export function LoginScreen() {
-  const { login } = useAuth();
+  const { login, loginWithBiometric } = useAuth();
   const [username, setUsername]         = useState('');
   const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]           = useState(false);
+  const [bioLoading, setBioLoading]     = useState(false);
   const [error, setError]               = useState<string | null>(null);
+  const [bioEnabled, setBioEnabled]     = useState(false);
+  const [bioLabel, setBioLabel]         = useState('Biométrie');
+  const [bioIcon, setBioIcon]           = useState<'finger-print' | 'scan-outline'>('finger-print');
+
+  // Vérifie si la biométrie est activée et disponible
+  useEffect(() => {
+    (async () => {
+      const stored   = await SecureStore.getItemAsync(STORAGE_KEYS.BIOMETRIC_ENABLED);
+      const hasHw    = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      const hasCreds = await SecureStore.getItemAsync(STORAGE_KEYS.BIOMETRIC_CREDENTIALS);
+
+      if (stored === 'true' && hasHw && enrolled && hasCreds) {
+        const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          setBioLabel('Face ID');
+          setBioIcon('scan-outline');
+        } else {
+          setBioLabel('Empreinte digitale');
+          setBioIcon('finger-print');
+        }
+        setBioEnabled(true);
+        // Auto-prompt biométrique au chargement
+        setTimeout(() => handleBiometricLogin(), 800);
+      }
+    })();
+  }, []);
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -27,6 +58,25 @@ export function LoginScreen() {
     setLoading(true);
     try {
       await login({ username: username.trim(), password });
+      // Propose d'activer la biométrie si non activée et si supportée
+      const hasHw    = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      const stored   = await SecureStore.getItemAsync(STORAGE_KEYS.BIOMETRIC_ENABLED);
+      if (hasHw && enrolled && stored !== 'true') {
+        Alert.alert(
+          'Connexion biométrique',
+          'Voulez-vous activer la connexion rapide par biométrie (empreinte/Face ID) pour les prochaines connexions ?',
+          [
+            { text: 'Plus tard', style: 'cancel' },
+            {
+              text: 'Activer',
+              onPress: async () => {
+                await SecureStore.setItemAsync(STORAGE_KEYS.BIOMETRIC_ENABLED, 'true');
+              },
+            },
+          ],
+        );
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -34,13 +84,21 @@ export function LoginScreen() {
     }
   };
 
+  const handleBiometricLogin = async () => {
+    if (bioLoading) return;
+    setBioLoading(true);
+    setError(null);
+    try {
+      await loginWithBiometric();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setBioLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/*
-       * KeyboardAvoidingView + ScrollView global :
-       * quand le clavier apparaît, la page entière défile
-       * vers le haut → les champs restent toujours visibles.
-       */}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -59,11 +117,9 @@ export function LoginScreen() {
             start={{ x: 0.2, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            {/* blobs décoratifs */}
             <View style={styles.blob1} />
             <View style={styles.blob2} />
 
-            {/* Logo */}
             <View style={styles.logoRow}>
               <LinearGradient
                 colors={[Colors.orange, Colors.orangeDeep]}
@@ -79,7 +135,6 @@ export function LoginScreen() {
               </View>
             </View>
 
-            {/* Tagline */}
             <View style={styles.taglineBlock}>
               <Text style={styles.taglineGreet}>Bienvenue</Text>
               <Text style={styles.taglineTitle}>
@@ -166,19 +221,27 @@ export function LoginScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Biométrie */}
-            <View style={styles.bioRow}>
-              <View style={styles.bioIcon}>
-                <Ionicons name="finger-print" size={18} color={Colors.navy} />
-              </View>
-              <View style={styles.bioTexts}>
-                <Text style={styles.bioTitle}>Connexion biométrique</Text>
-                <Text style={styles.bioSub}>Touch ID disponible sur cet appareil</Text>
-              </View>
-              <View style={styles.toggle}>
-                <View style={styles.toggleThumb} />
-              </View>
-            </View>
+            {/* Biométrie — visible uniquement si activée */}
+            {bioEnabled && (
+              <TouchableOpacity
+                style={styles.bioRow}
+                onPress={handleBiometricLogin}
+                disabled={bioLoading}
+                activeOpacity={0.8}
+              >
+                <View style={styles.bioIcon}>
+                  {bioLoading
+                    ? <ActivityIndicator size="small" color={Colors.navy} />
+                    : <Ionicons name={bioIcon} size={20} color={Colors.navy} />
+                  }
+                </View>
+                <View style={styles.bioTexts}>
+                  <Text style={styles.bioTitle}>Se connecter avec {bioLabel}</Text>
+                  <Text style={styles.bioSub}>Touchez pour vous authentifier</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.silver} />
+              </TouchableOpacity>
+            )}
 
             <Text style={styles.footer}>© SANKE · SGDS Mobile · v2.0.0</Text>
           </View>
@@ -229,11 +292,8 @@ const styles = StyleSheet.create({
   flex:          { flex: 1 },
   scrollContent: { flexGrow: 1 },
 
-  // Hero — hauteur réduite pour laisser la place au formulaire
   hero: {
-    paddingTop: 28,
-    paddingHorizontal: 28,
-    paddingBottom: 48,
+    paddingTop: 28, paddingHorizontal: 28, paddingBottom: 48,
     overflow: 'hidden',
   },
   blob1: {
@@ -246,9 +306,7 @@ const styles = StyleSheet.create({
     width: 200, height: 200, borderRadius: 100,
     backgroundColor: Colors.navySoft + '55',
   },
-  logoRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 32,
-  },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 32 },
   logoBadge: {
     width: 38, height: 38, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
@@ -262,20 +320,13 @@ const styles = StyleSheet.create({
   taglineTitle: { color: Colors.white, fontSize: 26, fontWeight: '800', lineHeight: 30, letterSpacing: -0.5 },
   taglineSub:   { color: Colors.white + 'a6', fontSize: 12, marginTop: 8, lineHeight: 18, maxWidth: 280 },
 
-  // Card — View (pas ScrollView), prend le reste de l'espace
   card: {
-    flex: 1,
-    marginTop: -24,
+    flex: 1, marginTop: -24,
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 24, paddingBottom: 40,
     shadowColor: Colors.ink,
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 4,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
@@ -288,13 +339,10 @@ const styles = StyleSheet.create({
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.redSoft,
-    borderRadius: Radius.sm,
-    padding: Spacing.sm,
-    marginTop: 14,
+    borderRadius: Radius.sm, padding: Spacing.sm, marginTop: 14,
   },
   errorText: { flex: 1, fontSize: FontSize.sm, color: Colors.red },
 
-  // Champs
   fieldLabel: {
     fontSize: 11, color: Colors.slate, fontWeight: '600',
     marginBottom: 6, letterSpacing: 0.2,
@@ -304,63 +352,39 @@ const styles = StyleSheet.create({
     height: 50, paddingHorizontal: 12,
     backgroundColor: Colors.cloud,
     borderRadius: Radius.md,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderWidth: 1.5, borderColor: 'transparent',
   },
-  fieldRowFocused: {
-    backgroundColor: Colors.white,
-    borderColor: Colors.navy,
-  },
-  fieldInput: {
-    flex: 1, fontSize: 15, fontWeight: '500',
-    color: Colors.ink,
-    paddingVertical: 0,
-  },
+  fieldRowFocused: { backgroundColor: Colors.white, borderColor: Colors.navy },
+  fieldInput: { flex: 1, fontSize: 15, fontWeight: '500', color: Colors.ink, paddingVertical: 0 },
   eyeBtn: { padding: 6 },
 
-  // Mot de passe oublié
   forgotRow: { alignItems: 'flex-end', marginTop: 10 },
   forgotText: { color: Colors.navy, fontSize: 12, fontWeight: '600' },
 
-  // Bouton
   loginBtnWrap: { marginTop: 20, borderRadius: Radius.md, overflow: 'hidden' },
   loginBtn: {
     height: 52, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 8,
     shadowColor: Colors.navy,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.30, shadowRadius: 12, elevation: 6,
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.30, shadowRadius: 12, elevation: 6,
   },
   loginBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15, letterSpacing: 0.2 },
 
-  // Biométrie
   bioRow: {
-    marginTop: 18, padding: 12,
+    marginTop: 14, padding: 12,
     backgroundColor: Colors.cloud, borderRadius: 12,
     flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderColor: Colors.navy + '20',
   },
   bioIcon: {
-    width: 32, height: 32, borderRadius: 10,
+    width: 36, height: 36, borderRadius: 10,
     backgroundColor: Colors.white,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: Colors.navy, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
   },
   bioTexts: { flex: 1 },
-  bioTitle: { fontSize: 12, fontWeight: '700', color: Colors.ink },
-  bioSub:   { fontSize: 10, color: Colors.slate },
-  toggle: {
-    width: 38, height: 22, borderRadius: 11,
-    backgroundColor: Colors.navy,
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-    alignItems: 'flex-end',
-  },
-  toggleThumb: {
-    width: 18, height: 18, borderRadius: 9,
-    backgroundColor: Colors.white,
-  },
+  bioTitle: { fontSize: 13, fontWeight: '700', color: Colors.ink },
+  bioSub:   { fontSize: 10, color: Colors.slate, marginTop: 1 },
 
-  footer: {
-    textAlign: 'center', fontSize: 10,
-    color: Colors.silver, marginTop: 18,
-  },
+  footer: { textAlign: 'center', fontSize: 10, color: Colors.silver, marginTop: 18 },
 });

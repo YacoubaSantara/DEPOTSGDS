@@ -40,8 +40,10 @@ import { RecapMouvementsScreen }  from '../screens/Etats/RecapMouvementsScreen';
 import { StockOuvertureScreen }   from '../screens/Etats/StockOuvertureScreen';
 import { FraisPassageScreen }     from '../screens/Etats/FraisPassageScreen';
 import { CoulageScreen }          from '../screens/Etats/CoulageScreen';
-import { ProfilScreen }           from '../screens/Profil/ProfilScreen';
-import { NotificationsScreen }   from '../screens/Notifications/NotificationsScreen';
+import { ProfilScreen }                   from '../screens/Profil/ProfilScreen';
+import { ConditionsUtilisationScreen }    from '../screens/Profil/ConditionsUtilisationScreen';
+import { SecurityScreen }                from '../screens/Profil/SecurityScreen';
+import { NotificationsScreen }           from '../screens/Notifications/NotificationsScreen';
 import { notificationsApi }      from '../api/notifications';
 
 // ── Types navigation ──────────────────────────────────────────────
@@ -64,6 +66,12 @@ export type EtatsStackParams = {
   Coulage:          undefined;
 };
 
+export type ProfilStackParams = {
+  ProfilMain:             undefined;
+  ConditionsUtilisation:  undefined;
+  Securite:               undefined;
+};
+
 export type TabParams = {
   Dashboard:     undefined;
   Mouvements:    undefined;
@@ -74,10 +82,11 @@ export type TabParams = {
 
 // ── Stacks / Tabs ─────────────────────────────────────────────────
 
-const AuthStack  = createNativeStackNavigator<AuthStackParams>();
-const Tab        = createBottomTabNavigator<TabParams>();
-const MvtStack   = createNativeStackNavigator<MouvementsStackParams>();
-const EtatsStack = createNativeStackNavigator<EtatsStackParams>();
+const AuthStack   = createNativeStackNavigator<AuthStackParams>();
+const Tab         = createBottomTabNavigator<TabParams>();
+const MvtStack    = createNativeStackNavigator<MouvementsStackParams>();
+const EtatsStack  = createNativeStackNavigator<EtatsStackParams>();
+const ProfilStack = createNativeStackNavigator<ProfilStackParams>();
 
 // ── Hook badge notifications ──────────────────────────────────────
 
@@ -109,6 +118,16 @@ function MouvementsStack() {
       <MvtStack.Screen name="MouvementsList"  component={MouvementsScreen} />
       <MvtStack.Screen name="MouvementDetail" component={MouvementDetailScreen} />
     </MvtStack.Navigator>
+  );
+}
+
+function ProfilNavigator() {
+  return (
+    <ProfilStack.Navigator screenOptions={{ headerShown: false }}>
+      <ProfilStack.Screen name="ProfilMain"            component={ProfilScreen} />
+      <ProfilStack.Screen name="ConditionsUtilisation" component={ConditionsUtilisationScreen} />
+      <ProfilStack.Screen name="Securite"             component={SecurityScreen} />
+    </ProfilStack.Navigator>
   );
 }
 
@@ -183,7 +202,7 @@ function AppTabs() {
           tabBarBadgeStyle: { backgroundColor: Colors.red, color: Colors.white, fontSize: 10 },
         }}
       />
-      <Tab.Screen name="Profil"     component={ProfilScreen}     options={{ title: 'Profil' }} />
+      <Tab.Screen name="Profil"     component={ProfilNavigator}  options={{ title: 'Profil' }} />
     </Tab.Navigator>
   );
 }

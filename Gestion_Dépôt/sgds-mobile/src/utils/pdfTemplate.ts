@@ -355,3 +355,229 @@ export function buildRecapHtml(p: RecapPdfParams): string {
 </body>
 </html>`;
 }
+
+// ── Fiche Mouvement PDF ───────────────────────────────────────────
+
+function fmtTime(d: string): string {
+  if (!d || !d.includes('T')) return '—';
+  return d.slice(11, 16);
+}
+
+export interface MouvementPdfParams {
+  reference: string;
+  date: string;
+  type: string;
+  produit: string;
+  produit_sigle?: string | null;
+  regime?: string | null;
+  quantite_ambiant: number | string;
+  quantite_15?: number | string | null;
+  provenance?: string | null;
+  bl_expediteur?: string | null;
+  bl_client?: string | null;
+  camion_immatriculation?: string | null;
+  chauffeur_nom?: string | null;
+  destination?: string | null;
+  numero_permis_sortie?: string | null;
+  mode_reglement?: string | null;
+  cession_destinataire?: string | null;
+  cession_motif?: string | null;
+  observation?: string | null;
+  generatedAt: string;
+  marketeurNom?: string;
+}
+
+export function buildMouvementPdf(p: MouvementPdfParams): string {
+  const color = TYPE_COLORS[p.type] ?? '#6B7589';
+  const label = TYPE_LABELS[p.type] ?? p.type;
+  const sigle = p.produit_sigle ?? '';
+  const date  = fmtDate(p.date);
+  const time  = fmtTime(p.date);
+
+  const infoRow = (key: string, val: string | null | undefined, accent?: string) =>
+    val ? `
+    <tr>
+      <td style="padding:8px 10px;font-size:10px;color:#6B7589;font-weight:600;white-space:nowrap;border-bottom:1px solid #EFF2F7">${key}</td>
+      <td style="padding:8px 10px;font-size:11px;color:${accent ?? '#0B1220'};font-weight:700;border-bottom:1px solid #EFF2F7;text-align:right">${val}</td>
+    </tr>` : '';
+
+  const logistics = (() => {
+    if (p.type === 'ENTREE') return `
+      <div class="section-title" style="margin-top:0">Logistique</div>
+      <table style="width:100%">
+        ${infoRow('Provenance', p.provenance)}
+        ${infoRow('BL Expéditeur', p.bl_expediteur)}
+        ${infoRow('BL Client', p.bl_client)}
+        ${infoRow('Camion', p.camion_immatriculation)}
+        ${infoRow('Chauffeur', p.chauffeur_nom)}
+      </table>`;
+    if (p.type === 'SORTIE') return `
+      <div class="section-title" style="margin-top:0">Logistique</div>
+      <table style="width:100%">
+        ${infoRow('Destination', p.destination)}
+        ${infoRow('N° Permis', p.numero_permis_sortie)}
+        ${infoRow('Mode règlement', p.mode_reglement)}
+        ${infoRow('Camion', p.camion_immatriculation)}
+        ${infoRow('Chauffeur', p.chauffeur_nom)}
+      </table>`;
+    if (p.type === 'CESSION') return `
+      <div class="section-title" style="margin-top:0">Cession</div>
+      <table style="width:100%">
+        ${infoRow('Destinataire', p.cession_destinataire)}
+        ${infoRow('Motif', p.cession_motif)}
+      </table>`;
+    return '';
+  })();
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+${BASE_CSS}
+.info-section {
+  background: #FFFFFF;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  border: 1px solid #EFF2F7;
+  overflow: hidden;
+}
+.vol-row {
+  display: table;
+  width: 100%;
+  margin-bottom: 14px;
+  border-spacing: 8px 0;
+}
+.vol-cell {
+  display: table-cell;
+  width: 50%;
+  background: #F7F8FB;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  vertical-align: top;
+  border: 1px solid #EFF2F7;
+}
+</style>
+</head>
+<body>
+  <div class="page-header" style="background:${color}">
+    <div class="ph-right">
+      <div class="badge" style="background:rgba(255,255,255,0.25);color:#FFF">${label.toUpperCase()}</div><br/>
+      <strong style="font-size:13px">${p.reference}</strong>
+    </div>
+    <div class="ph-title">FICHE DE MOUVEMENT</div>
+    <div class="ph-sub">Système de Gestion des Dépôts Pétroliers</div>
+    <div class="ph-sub" style="margin-top:6px">${date} à ${time}</div>
+  </div>
+
+  <div class="vol-row">
+    <div class="vol-cell">
+      <div class="sum-label">Volume Ambiant</div>
+      <div class="sum-value" style="color:${color}">${fmtN(p.quantite_ambiant)}</div>
+      <div class="sum-unit">litres</div>
+    </div>
+    <div class="vol-cell">
+      <div class="sum-label">Volume 15°C</div>
+      <div class="sum-value" style="color:${color}">${fmtN(p.quantite_15)}</div>
+      <div class="sum-unit">litres</div>
+    </div>
+  </div>
+
+  <div class="section-title">Informations générales</div>
+  <div class="info-section">
+    <table style="width:100%">
+      ${infoRow('Produit', sigle ? `[${sigle}] ${p.produit}` : p.produit)}
+      ${infoRow('Régime', p.regime)}
+      ${infoRow('Référence', p.reference)}
+    </table>
+  </div>
+
+  ${logistics ? `<div class="info-section">${logistics}</div>` : ''}
+
+  ${p.observation ? `
+  <div class="section-title">Observation</div>
+  <div class="info-section">
+    <div style="padding:10px 12px;font-size:11px;color:#3A4150">${p.observation}</div>
+  </div>` : ''}
+
+  <div class="footer">
+    Rapport généré le ${p.generatedAt} &nbsp;·&nbsp;
+    SGDS Mobile v2.0${p.marketeurNom ? ' &nbsp;·&nbsp; ' + p.marketeurNom : ''}
+  </div>
+</body>
+</html>`;
+}
+
+// ── Liste des Mouvements PDF ──────────────────────────────────────
+
+export interface MouvementsListPdfParams {
+  marketeurNom: string;
+  filterLabel: string;
+  lignes: Array<{
+    date: string;
+    reference: string;
+    type: string;
+    produit: string;
+    produit_sigle?: string | null;
+    quantite_ambiant: number;
+  }>;
+  generatedAt: string;
+}
+
+export function buildMouvementsListHtml(p: MouvementsListPdfParams): string {
+  const rows = p.lignes.map((l, i) => {
+    const color = TYPE_COLORS[l.type] ?? '#6B7589';
+    const label = TYPE_LABELS[l.type] ?? l.type;
+    return `
+    <tr${i % 2 === 1 ? ' class="alt"' : ''}>
+      <td>${fmtDate(l.date)}</td>
+      <td>${l.reference || '—'}</td>
+      <td style="color:${color};font-weight:700">${label}</td>
+      <td>
+        ${l.produit_sigle
+          ? `<span style="background:#0E2A47;color:#FFF;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700">${l.produit_sigle}</span> `
+          : ''}${l.produit}
+      </td>
+      <td class="r" style="font-weight:700;color:${color}">${fmtN(l.quantite_ambiant)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>${BASE_CSS}</style>
+</head>
+<body>
+  <div class="page-header">
+    <div class="ph-right">
+      <div class="badge">${p.lignes.length} opération(s)</div><br/>
+      <strong>${p.marketeurNom}</strong>
+    </div>
+    <div class="ph-title">LISTE DES MOUVEMENTS</div>
+    <div class="ph-sub">Système de Gestion des Dépôts Pétroliers</div>
+    <div class="ph-sub" style="margin-top:8px">${p.filterLabel}</div>
+  </div>
+
+  <div class="section-title">Détail — ${p.lignes.length} mouvement(s)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Référence</th>
+        <th>Type</th>
+        <th>Produit</th>
+        <th class="r">Volume (L amb.)</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="footer">
+    Rapport généré le ${p.generatedAt} &nbsp;·&nbsp;
+    SGDS Mobile v2.0 &nbsp;·&nbsp; ${p.marketeurNom}
+  </div>
+</body>
+</html>`;
+}

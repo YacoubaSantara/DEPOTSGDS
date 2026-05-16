@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.sanke.sgdsmobile"
+      "bundleIdentifier": "com.sanke.sgdsmobile",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "L'application SGDS utilise Face ID pour sécuriser et accélérer votre connexion."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +29,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-local-authentication"
     ]
   }
 }
