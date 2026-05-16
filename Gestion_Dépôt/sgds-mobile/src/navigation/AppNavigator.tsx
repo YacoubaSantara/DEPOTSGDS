@@ -19,7 +19,7 @@
  *        │    └── Coulage
  *        └── Profil
  */
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -41,6 +41,8 @@ import { StockOuvertureScreen }   from '../screens/Etats/StockOuvertureScreen';
 import { FraisPassageScreen }     from '../screens/Etats/FraisPassageScreen';
 import { CoulageScreen }          from '../screens/Etats/CoulageScreen';
 import { ProfilScreen }           from '../screens/Profil/ProfilScreen';
+import { NotificationsScreen }   from '../screens/Notifications/NotificationsScreen';
+import { notificationsApi }      from '../api/notifications';
 
 // ── Types navigation ──────────────────────────────────────────────
 
@@ -63,10 +65,11 @@ export type EtatsStackParams = {
 };
 
 export type TabParams = {
-  Dashboard:  undefined;
-  Mouvements: undefined;
-  Etats:      undefined;
-  Profil:     undefined;
+  Dashboard:     undefined;
+  Mouvements:    undefined;
+  Etats:         undefined;
+  Notifications: undefined;
+  Profil:        undefined;
 };
 
 // ── Stacks / Tabs ─────────────────────────────────────────────────
@@ -75,6 +78,30 @@ const AuthStack  = createNativeStackNavigator<AuthStackParams>();
 const Tab        = createBottomTabNavigator<TabParams>();
 const MvtStack   = createNativeStackNavigator<MouvementsStackParams>();
 const EtatsStack = createNativeStackNavigator<EtatsStackParams>();
+
+// ── Hook badge notifications ──────────────────────────────────────
+
+function useNotifCount() {
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await notificationsApi.getAll();
+      setCount(res.data.count_non_lues);
+    } catch {
+      // silencieux — hors ligne ou non-marketeur
+    }
+  }, []);
+
+  // useEffect (pas useFocusEffect) car AppTabs n'est pas un screen
+  React.useEffect(() => {
+    refresh();
+    const timer = setInterval(refresh, 30_000); // rafraîchit toutes les 30s
+    return () => clearInterval(timer);
+  }, [refresh]);
+
+  return { count, refresh };
+}
 
 function MouvementsStack() {
   return (
@@ -99,6 +126,8 @@ function EtatsNavigator() {
 }
 
 function AppTabs() {
+  const { count: notifCount } = useNotifCount();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -125,10 +154,11 @@ function AppTabs() {
         },
         tabBarIcon: ({ focused, color, size }) => {
           const icons: Record<string, [string, string]> = {
-            Dashboard:  ['grid',             'grid-outline'],
-            Mouvements: ['swap-horizontal',  'swap-horizontal-outline'],
-            Etats:      ['bar-chart',        'bar-chart-outline'],
-            Profil:     ['person-circle',    'person-circle-outline'],
+            Dashboard:     ['grid',             'grid-outline'],
+            Mouvements:    ['swap-horizontal',  'swap-horizontal-outline'],
+            Etats:         ['bar-chart',        'bar-chart-outline'],
+            Notifications: ['notifications',    'notifications-outline'],
+            Profil:        ['person-circle',    'person-circle-outline'],
           };
           const [active, inactive] = icons[route.name] ?? ['ellipse', 'ellipse-outline'];
           return (
@@ -144,6 +174,15 @@ function AppTabs() {
       <Tab.Screen name="Dashboard"  component={DashboardScreen}  options={{ title: 'Accueil' }} />
       <Tab.Screen name="Mouvements" component={MouvementsStack}  options={{ title: 'Mouvements' }} />
       <Tab.Screen name="Etats"      component={EtatsNavigator}   options={{ title: 'États' }} />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          title: 'Notifs',
+          tabBarBadge: notifCount > 0 ? notifCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: Colors.red, color: Colors.white, fontSize: 10 },
+        }}
+      />
       <Tab.Screen name="Profil"     component={ProfilScreen}     options={{ title: 'Profil' }} />
     </Tab.Navigator>
   );

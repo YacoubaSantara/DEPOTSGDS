@@ -1592,3 +1592,53 @@ body, html {
   background: var(--err-soft);
   color: #f08070;
 }
+
+/* ═══ NOTIFICATIONS CLOCHE ═══ */
+.notif-wrap { position: relative; }
+.notif-bell { position: relative; background: none; border: none; cursor: pointer;
+  color: var(--ink-2); padding: 6px; border-radius: 8px; display: flex;
+  align-items: center; transition: background .15s; }
+.notif-bell:hover { background: var(--surface-2); }
+.notif-badge { position: absolute; top: 2px; right: 2px; background: #ef4444;
+  color: #fff; font-size: .6rem; font-weight: 800; border-radius: 99px;
+  min-width: 16px; height: 16px; display: flex; align-items: center;
+  justify-content: center; padding: 0 3px; line-height: 1; }
+.notif-panel { display: none; position: absolute; top: calc(100% + 10px); right: 0;
+  width: 340px; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  z-index: 9999; overflow: hidden; }
+.notif-panel.open { display: block; }
+.notif-panel-header { display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.notif-panel-title { font-size: .8rem; font-weight: 700; color: var(--ink); }
+.notif-count-chip { background: #ef4444; color: #fff; font-size: .65rem;
+  font-weight: 800; border-radius: 99px; padding: 1px 6px; margin-left: 4px; }
+.notif-tout-lire { background: none; border: none; font-size: .72rem; font-weight: 600;
+  color: var(--accent); cursor: pointer; padding: 0; }
+.notif-list { max-height: 380px; overflow-y: auto; }
+.notif-item { display: flex; gap: 10px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); text-decoration: none;
+  transition: background .15s; color: inherit; }
+.notif-item:hover { background: var(--surface-2); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item-icon { width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; font-weight: 800; }
+.notif-item-body { flex: 1; min-width: 0; }
+.notif-item-titre { font-size: .78rem; font-weight: 700; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif-item-msg { font-size: .72rem; color: var(--ink-2); margin-top: 2px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.notif-item-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+.notif-item-date { font-size: .65rem; color: var(--muted); }
+.notif-item-link { font-size: .65rem; font-weight: 600; color: var(--accent); }
+.notif-empty { padding: 24px 16px; text-align: center; font-size: .8rem; color: var(--muted); }
+
+.notif-type-entree .notif-item-icon        { background: var(--ok-soft); color: var(--ok); }
+.notif-type-sortie .notif-item-icon        { background: var(--warn-soft); color: var(--warn); }
+.notif-type-cession_emise .notif-item-icon { background: var(--info-soft); color: var(--info); }
+.notif-type-cession_recue .notif-item-icon { background: var(--info-soft); color: var(--info); }
+.notif-type-acquittement .notif-item-icon  { background: #ede9fe; color: #7c3aed; }
+
+[data-theme="dark"] .notif-panel { box-shadow: 0 8px 32px rgba(0,0,0,.5); }
+[data-theme="dark"] .notif-type-acquittement .notif-item-icon { background: #2e1b5e; color: #c4b5fd; }

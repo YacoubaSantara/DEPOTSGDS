@@ -122,3 +122,88 @@ def on_mouvement_saved(sender, instance, **kwargs):
     }
     if cuves:
         _recalculer_cuves(cuves)
+
+
+# ── Notifications Marketeur ──────────────────────────────────
+
+@receiver(post_save, sender=Mouvement)
+def on_mouvement_created_notif(sender, instance, created, **kwargs):
+    """Crée les notifications marketeur uniquement à la création d'un mouvement."""
+    if not created:
+        return
+
+    from SGDS.models import Notification
+
+    m = instance
+    type_mv = m.type_mouvement
+
+    if type_mv == 'ENTREE':
+        Notification.objects.create(
+            marketeur=m.marketeur,
+            type_notif='ENTREE',
+            mouvement=m,
+            titre=f"Entrée — {m.produit} — N° {m.numero_enregistrement}",
+            message=(
+                f"Vous avez une entrée enregistrée à la date du {m.date_mouvement:%d/%m/%Y}, "
+                f"en provenance de {m.provenance or 'N/A'} (dépôt chargeur), "
+                f"chargement le {m.date_chargement.strftime('%d/%m/%Y') if m.date_chargement else 'N/A'}, "
+                f"régime : {m.get_regime_douanier_display()}. "
+                f"Volume reçu : {m.volume_15c_recu or '—'} L @15°C. "
+                f"N° BL chargeur : {m.bl_expediteur or '—'}."
+            ),
+        )
+
+    elif type_mv == 'SORTIE':
+        Notification.objects.create(
+            marketeur=m.marketeur,
+            type_notif='SORTIE',
+            mouvement=m,
+            titre=f"Sortie — {m.produit} — N° {m.numero_enregistrement}",
+            message=(
+                f"Une sortie a été enregistrée le {m.date_mouvement:%d/%m/%Y} "
+                f"à destination de {m.destination or 'N/A'}. "
+                f"Volume sorti : {m.volume_15c_sortie or '—'} L @15°C. "
+                f"Régime : {m.get_regime_douanier_display()}."
+            ),
+        )
+
+    elif type_mv == 'CESSION':
+        Notification.objects.create(
+            marketeur=m.marketeur,
+            type_notif='CESSION_EMISE',
+            mouvement=m,
+            titre=f"Cession émise — {m.produit} — N° {m.numero_enregistrement}",
+            message=(
+                f"Une cession de {m.cession_volume_15c or '—'} L @15°C de {m.produit} "
+                f"a été émise le {m.date_mouvement:%d/%m/%Y} "
+                f"vers {m.cession_marketeur_destinataire}."
+            ),
+        )
+        if m.cession_marketeur_destinataire:
+            Notification.objects.create(
+                marketeur=m.cession_marketeur_destinataire,
+                type_notif='CESSION_RECUE',
+                mouvement=m,
+                titre=f"Cession reçue — {m.produit} — N° {m.numero_enregistrement}",
+                message=(
+                    f"Vous avez reçu une cession de {m.cession_volume_15c or '—'} L @15°C "
+                    f"de {m.produit} le {m.date_mouvement:%d/%m/%Y}, "
+                    f"en provenance de {m.marketeur}. "
+                    f"Motif : {m.cession_motif or 'Non précisé'}."
+                ),
+            )
+
+    elif type_mv == 'ACQUITTEMENT':
+        Notification.objects.create(
+            marketeur=m.marketeur,
+            type_notif='ACQUITTEMENT',
+            mouvement=m,
+            titre=f"Acquittement — {m.produit} — N° {m.numero_enregistrement}",
+            message=(
+                f"Un acquittement douanier de {m.acquittement_volume_15c or '—'} L @15°C "
+                f"de {m.produit} a été effectué le {m.date_mouvement:%d/%m/%Y}. "
+                f"Réf. déclaration : {m.acquittement_reference_declaration or 'N/A'}. "
+                f"Date déclaration : "
+                f"{m.acquittement_date_declaration.strftime('%d/%m/%Y') if m.acquittement_date_declaration else 'N/A'}."
+            ),
+        )

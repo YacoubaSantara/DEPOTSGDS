@@ -267,3 +267,29 @@ def client_mouvements(request):
         'REGIME_CHOICES': Mouvement.REGIME_CHOICES,
     }
     return render(request, 'Espace_Marketeur/mouvements.html', ctx)
+
+
+# ─────────────────────────────────────────────────────────────
+#  NOTIFICATIONS
+# ─────────────────────────────────────────────────────────────
+
+@marketeur_required
+def notif_marquer_lue(request, notif_id):
+    from SGDS.models import Notification
+    from django.urls import reverse
+    mkt = request.user.marketeur
+    notif = Notification.objects.filter(pk=notif_id, marketeur=mkt).select_related('mouvement').first()
+    if notif:
+        notif.lue = True
+        notif.save(update_fields=['lue'])
+        if notif.mouvement_id:
+            return redirect(reverse('mouvement_detail', kwargs={'pk': notif.mouvement_id}))
+    return redirect(request.META.get('HTTP_REFERER', 'client_dashboard'))
+
+
+@marketeur_required
+def notif_tout_marquer_lu(request):
+    from SGDS.models import Notification
+    mkt = request.user.marketeur
+    Notification.objects.filter(marketeur=mkt, lue=False).update(lue=True)
+    return redirect(request.META.get('HTTP_REFERER', 'client_dashboard'))

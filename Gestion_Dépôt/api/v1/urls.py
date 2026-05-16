@@ -32,14 +32,15 @@ Préfixe : /api/v1/
 """
 from django.urls import path
 
-from api.v1.auth.views       import LoginView, LogoutView, TokenRefreshAPIView
-from api.v1.dashboard.views  import DashboardView
-from api.v1.mouvements.views import MouvementListView, MouvementDetailView
-from api.v1.etats.views      import (
+from api.v1.auth.views          import LoginView, LogoutView, TokenRefreshAPIView
+from api.v1.dashboard.views     import DashboardView
+from api.v1.mouvements.views    import MouvementListView, MouvementDetailView
+from api.v1.etats.views         import (
     StockGlobalView, RecapView, ProduitsView, PeriodesView,
     StockOuvertureFermetureView, FraisPassageView, CoulageView,
 )
-from api.v1.profil.views     import ProfilView, ChangePasswordView
+from api.v1.profil.views        import ProfilView, ChangePasswordView
+from api.v1.notifications.views import NotificationsView
 
 urlpatterns = [
     # ── Auth ──────────────────────────────────────────────────
@@ -66,4 +67,7 @@ urlpatterns = [
     # ── Profil ────────────────────────────────────────────────
     path('profil/',           ProfilView.as_view(),        name='api_profil'),
     path('profil/password/',  ChangePasswordView.as_view(), name='api_change_password'),
+
+    # ── Notifications ─────────────────────────────────────────
+    path('notifications/',    NotificationsView.as_view(), name='api_notifications'),
 ]

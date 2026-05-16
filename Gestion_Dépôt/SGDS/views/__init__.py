@@ -1,5 +1,8 @@
 # ── Espace Marketeur ────────────────────────────────────────────
-from .client import client_dashboard, client_mouvements  # noqa: F401
+from .client import (  # noqa: F401
+    client_dashboard, client_mouvements,
+    notif_marquer_lue, notif_tout_marquer_lu,
+)
 
 # ── États ────────────────────────────────────────────────────────
 from .etat import (  # noqa: F401

@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-c((avpia_b!_uy5go!=ntpc-ca0sg97h&8ard5jj=9r&*$fe^+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.1.103', '192.168.1.100', '0.0.0.0','192.168.1.23']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.1.102', '192.168.1.100', '0.0.0.0','192.168.1.23']
 
 
 # Application definition
@@ -89,6 +89,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'accounts.context_processors.current_periode',
+                'SGDS.context_processors.notifications_marketeur',
             ],
         },
     },

@@ -5,9 +5,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { dashboardApi, DashboardData, DernierMouvement } from '../../api/dashboard';
+import { notificationsApi } from '../../api/notifications';
+import type { TabParams } from '../../navigation/AppNavigator';
 import { useAuth } from '../../context/AuthContext';
 import { Colors, FontSize, Spacing, Radius, TypeMeta } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -30,10 +33,13 @@ function fmtCompact(n: number): string {
 
 export function DashboardScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation<BottomTabNavigationProp<TabParams, 'Dashboard'>>();
+
   const [data, setData]             = useState<DashboardData | null>(null);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const [notifCount, setNotifCount] = useState(0);
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -49,7 +55,19 @@ export function DashboardScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  const fetchNotifCount = useCallback(async () => {
+    try {
+      const res = await notificationsApi.getAll();
+      setNotifCount(res.data.count_non_lues);
+    } catch {
+      // silencieux
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    fetchData();
+    fetchNotifCount();
+  }, [fetchData, fetchNotifCount]));
 
   if (loading) return <LoadingSpinner fullScreen message="Chargement..." />;
   if (error)   return <ErrorMessage message={error} onRetry={() => fetchData()} />;
@@ -102,9 +120,18 @@ export function DashboardScreen() {
               <TouchableOpacity style={styles.iconBtn}>
                 <Ionicons name="search" size={18} color={Colors.white} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconBtn}>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => navigation.navigate('Notifications')}
+              >
                 <Ionicons name="notifications-outline" size={18} color={Colors.white} />
-                <View style={styles.notifDot} />
+                {notifCount > 0 && (
+                  <View style={styles.notifBadge}>
+                    <Text style={styles.notifBadgeText}>
+                      {notifCount > 9 ? '9+' : notifCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -410,11 +437,19 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     position: 'relative',
   },
-  notifDot: {
-    position: 'absolute', top: 8, right: 8,
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: Colors.orange,
-    borderWidth: 2, borderColor: Colors.navy,
+  notifBadge: {
+    position: 'absolute', top: 5, right: 5,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: Colors.red,
+    borderWidth: 2, borderColor: Colors.navyDeep,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  notifBadgeText: {
+    color: Colors.white,
+    fontSize: 9,
+    fontWeight: '800',
+    lineHeight: 12,
   },
   depotPill: {
     marginTop: 18,

@@ -1881,3 +1881,33 @@ class Societe(models.Model):
         """Force pk=1 — singleton strict."""
         self.pk = 1
         super().save(*args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────
+#  NOTIFICATION MARKETEUR
+# ─────────────────────────────────────────────────────────────
+
+class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('ENTREE',        'Entrée'),
+        ('SORTIE',        'Sortie'),
+        ('CESSION_EMISE', 'Cession émise'),
+        ('CESSION_RECUE', 'Cession reçue'),
+        ('ACQUITTEMENT',  'Acquittement'),
+    ]
+    marketeur     = models.ForeignKey('Marketeur', on_delete=models.CASCADE, related_name='notifications')
+    type_notif    = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    titre         = models.CharField(max_length=200)
+    message       = models.TextField()
+    mouvement     = models.ForeignKey('Mouvement', on_delete=models.CASCADE,
+                                      related_name='notifications', null=True, blank=True)
+    lue           = models.BooleanField(default=False)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_creation']
+        verbose_name = 'Notification'
+        verbose_name_plural = 'Notifications'
+
+    def __str__(self):
+        return f"[{self.type_notif}] {self.marketeur} — {self.titre}"

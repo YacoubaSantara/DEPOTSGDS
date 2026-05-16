@@ -130,6 +130,10 @@ urlpatterns = [
     path('mouvements/<int:pk>/modifier/',      views.mouvement_modifier,       name='mouvement_modifier'),
     path('mouvements/<int:pk>/supprimer/',     views.mouvement_supprimer,      name='mouvement_supprimer'),
 
+    # Notifications marketeur
+    path('espace/notifications/<int:notif_id>/lue/', views.notif_marquer_lue,    name='notif_marquer_lue'),
+    path('espace/notifications/tout-lire/',          views.notif_tout_marquer_lu, name='notif_tout_marquer_lu'),
+
     # Periodes comptables
     path('periodes/',         views.ListePeriodesView.as_view(),  name='periode_liste'),
     path('periodes/ouvrir/',  views.OuvrirPeriodeView.as_view(),  name='periode_ouvrir'),
