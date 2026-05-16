@@ -269,6 +269,54 @@ def client_mouvements(request):
     return render(request, 'Espace_Marketeur/mouvements.html', ctx)
 
 
+@marketeur_required
+def client_mouvements_pdf(request):
+    """Télécharge la liste des mouvements du marketeur en PDF (max 500 lignes)."""
+    from django.utils import timezone
+    from SGDS.models import Mouvement
+    from SGDS.services.export_pdf import render_to_pdf
+
+    mkt = request.user.marketeur
+    qs = (
+        Mouvement.objects
+        .filter(marketeur=mkt)
+        .select_related('produit', 'camion', 'chauffeur', 'cession_marketeur_destinataire')
+        .order_by('-date_mouvement', '-date_saisie')
+    )
+
+    type_filtre    = request.GET.get('type', '').strip()
+    produit_filtre = request.GET.get('produit', '').strip()
+    regime_filtre  = request.GET.get('regime', '').strip()
+    date_debut     = request.GET.get('date_debut', '').strip()
+    date_fin       = request.GET.get('date_fin', '').strip()
+
+    if type_filtre:    qs = qs.filter(type_mouvement=type_filtre)
+    if produit_filtre: qs = qs.filter(produit_id=produit_filtre)
+    if regime_filtre:  qs = qs.filter(regime_douanier=regime_filtre)
+    if date_debut:     qs = qs.filter(date_mouvement__gte=date_debut)
+    if date_fin:       qs = qs.filter(date_mouvement__lte=date_fin)
+
+    nb_total   = qs.count()
+    mouvements = list(qs[:500])
+    sigle      = mkt.sigle or mkt.raison_sociale
+    today      = timezone.now().strftime('%Y%m%d')
+
+    return render_to_pdf(
+        'Espace_Marketeur/mouvements_pdf.html',
+        {
+            'mkt':          mkt,
+            'mouvements':   mouvements,
+            'nb_total':     nb_total,
+            'generated_at': timezone.now().strftime('%d/%m/%Y à %H:%M'),
+            'filtres': {
+                'type': type_filtre, 'produit': produit_filtre,
+                'regime': regime_filtre, 'date_debut': date_debut, 'date_fin': date_fin,
+            },
+        },
+        filename=f"Mouvements_{sigle}_{today}.pdf",
+    )
+
+
 # ─────────────────────────────────────────────────────────────
 #  NOTIFICATIONS
 # ─────────────────────────────────────────────────────────────

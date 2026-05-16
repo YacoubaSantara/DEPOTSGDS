@@ -1,6 +1,6 @@
 # ── Espace Marketeur ────────────────────────────────────────────
 from .client import (  # noqa: F401
-    client_dashboard, client_mouvements,
+    client_dashboard, client_mouvements, client_mouvements_pdf,
     notif_marquer_lue, notif_tout_marquer_lu,
 )
 
@@ -1128,6 +1128,86 @@ def mouvement_supprimer(request, pk):
         messages.success(request, "Mouvement supprimé.")
         return redirect('mouvement_liste')
     return render(request, 'mouvements/confirmer_suppression.html', {'mouvement': mouvement})
+
+
+# ─────────────────────────────────────────────────────────────
+#  EXPORT PDF — MOUVEMENTS
+# ─────────────────────────────────────────────────────────────
+
+@login_required
+def mouvement_detail_pdf(request, pk):
+    """Télécharge la fiche détaillée d'un mouvement en PDF."""
+    from django.utils import timezone
+    from SGDS.services.export_pdf import render_to_pdf
+
+    mouvement = get_object_or_404(
+        Mouvement.objects.select_related(
+            'marketeur', 'produit', 'camion', 'camion__marketeur',
+            'chauffeur', 'cession_marketeur_destinataire',
+        ).prefetch_related('lignes__cuve__produit'),
+        pk=pk,
+    )
+    filename = f"MVT_{mouvement.numero_enregistrement}.pdf"
+    return render_to_pdf(
+        'mouvements/detail_pdf.html',
+        {
+            'mouvement':    mouvement,
+            'generated_at': timezone.now().strftime('%d/%m/%Y à %H:%M'),
+        },
+        filename=filename,
+    )
+
+
+@login_required
+def mouvements_liste_pdf(request):
+    """Télécharge la liste filtrée des mouvements en PDF (max 500 lignes)."""
+    from django.utils import timezone
+    from SGDS.services.export_pdf import render_to_pdf
+
+    qs = Mouvement.objects.select_related(
+        'produit', 'marketeur', 'camion', 'cession_marketeur_destinataire',
+    ).order_by('-date_mouvement', '-date_saisie')
+
+    type_m     = request.GET.get('type', '').strip()
+    regime     = request.GET.get('regime', '').strip()
+    mkt_pk     = request.GET.get('marketeur', '').strip()
+    produit_pk = request.GET.get('produit', '').strip()
+    date_debut = request.GET.get('date_debut', '').strip()
+    date_fin   = request.GET.get('date_fin', '').strip()
+    q          = request.GET.get('q', '').strip()
+
+    if type_m:      qs = qs.filter(type_mouvement=type_m)
+    if regime:      qs = qs.filter(regime_douanier=regime)
+    if mkt_pk:      qs = qs.filter(marketeur_id=mkt_pk)
+    if produit_pk:  qs = qs.filter(produit_id=produit_pk)
+    if date_debut:  qs = qs.filter(date_mouvement__gte=date_debut)
+    if date_fin:    qs = qs.filter(date_mouvement__lte=date_fin)
+    if q:
+        qs = qs.filter(
+            Q(numero_enregistrement__icontains=q) |
+            Q(camion__immatriculation__icontains=q) |
+            Q(bl_expediteur__icontains=q) |
+            Q(marketeur__raison_sociale__icontains=q)
+        )
+
+    nb_total   = qs.count()
+    mouvements = list(qs[:500])
+    today      = timezone.now().strftime('%Y%m%d')
+
+    return render_to_pdf(
+        'mouvements/liste_pdf.html',
+        {
+            'mouvements':   mouvements,
+            'nb_total':     nb_total,
+            'generated_at': timezone.now().strftime('%d/%m/%Y à %H:%M'),
+            'filtres': {
+                'type': type_m, 'regime': regime, 'marketeur': mkt_pk,
+                'produit': produit_pk, 'date_debut': date_debut,
+                'date_fin': date_fin, 'q': q,
+            },
+        },
+        filename=f"Mouvements_{today}.pdf",
+    )
 
 
 @login_required

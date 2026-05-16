@@ -8,14 +8,18 @@
     <h1 class="ph-title">Mouvements pétroliers</h1>
     <div class="ph-sub">Entrées, sorties, cessions et acquittements</div>
   </div>
-  {% if not request.user.is_marketeur_role %}
   <div class="ph-actions">
+    <a href="{% url 'mouvements_liste_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-ghost" title="Exporter en PDF (filtres actuels)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      Export PDF
+    </a>
+    {% if not request.user.is_marketeur_role %}
     <a href="{% url 'mouvement_creer' %}" class="btn btn-accent">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nouveau mouvement
     </a>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 
 <div class="card">

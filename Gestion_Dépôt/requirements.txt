@@ -3,3 +3,6 @@
 djangorestframework==3.17.1
 djangorestframework-simplejwt==5.5.0
 django-cors-headers==4.7.0
+
+# Export PDF (fiche mouvement + listes)
+xhtml2pdf

@@ -16,6 +16,10 @@
     <div class="ph-sub">{{ mkt.raison_sociale }} — tous les mouvements de produits</div>
   </div>
   <div class="ph-actions">
+    <a href="{% url 'client_mouvements_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-ghost" title="Exporter en PDF (filtres actuels)">
+      <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      Export PDF
+    </a>
     <a href="{% url 'client_dashboard' %}" class="btn btn-ghost">
       <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><polyline points="15 18 9 12 15 6"/></svg>
       Retour

@@ -124,11 +124,16 @@ urlpatterns = [
 
     # Mouvements
     path('mouvements/',                        views.mouvement_liste,          name='mouvement_liste'),
+    path('mouvements/export-pdf/',             views.mouvements_liste_pdf,     name='mouvements_liste_pdf'),
     path('mouvements/nouveau/',                views.mouvement_creer,          name='mouvement_creer'),
     path('mouvements/calcul-preview/',         views.mouvement_calcul_preview, name='mouvement_calcul_preview'),
     path('mouvements/<int:pk>/',               views.mouvement_detail,         name='mouvement_detail'),
+    path('mouvements/<int:pk>/pdf/',           views.mouvement_detail_pdf,     name='mouvement_detail_pdf'),
     path('mouvements/<int:pk>/modifier/',      views.mouvement_modifier,       name='mouvement_modifier'),
     path('mouvements/<int:pk>/supprimer/',     views.mouvement_supprimer,      name='mouvement_supprimer'),
+
+    # Espace marketeur — export mouvements PDF
+    path('mon-espace/mouvements/export-pdf/', views.client_mouvements_pdf,    name='client_mouvements_pdf'),
 
     # Notifications marketeur
     path('espace/notifications/<int:notif_id>/lue/', views.notif_marquer_lue,    name='notif_marquer_lue'),

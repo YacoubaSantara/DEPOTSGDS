@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Mouvements pétroliers</title>
+<style>
+@page {
+  size: A4 landscape;
+  margin: 1.2cm 1.2cm 1.8cm 1.2cm;
+  @frame footer {
+    -pdf-frame-content: footerContent;
+    bottom: 0.6cm;
+    left: 1.2cm;
+    right: 1.2cm;
+    height: 0.7cm;
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 8pt; color: #1e293b; }
+
+.doc-header { background: #0E2A47; padding: 10px 14px; margin-bottom: 10px; }
+.logo-text { color: #fff; font-size: 14pt; font-weight: 900; }
+.logo-sub  { color: rgba(255,255,255,0.6); font-size: 7pt; }
+.header-right { text-align: right; color: #fff; }
+.header-title { font-size: 11pt; font-weight: 700; }
+.header-meta  { font-size: 7pt; color: rgba(255,255,255,0.65); margin-top: 2px; }
+
+.filter-bar {
+  background: #f1f5f9; border: 1px solid #e2e8f0;
+  padding: 5px 10px; margin-bottom: 8px; font-size: 7.5pt; color: #475569;
+}
+
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th {
+  background: #1e3a5f; color: #fff; font-size: 7pt; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 5px 6px; text-align: left; white-space: nowrap;
+}
+.tbl th.tar { text-align: right; }
+.tbl td { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; font-size: 8pt; vertical-align: middle; }
+.tbl tr:nth-child(even) td { background: #f8fafc; }
+.tbl td.num { font-family: monospace; text-align: right; }
+.tbl td.mono { font-family: monospace; font-size: 7.5pt; }
+
+/* Badges type */
+.bdg { display:inline; padding:1px 6px; border-radius:3px; font-size:7pt; font-weight:700; }
+.entree { background:#dcfce7; color:#166534; }
+.sortie { background:#ffedd5; color:#9a3412; }
+.cession { background:#dbeafe; color:#1e40af; }
+.acquit { background:#f3e8ff; color:#7e22ce; }
+.bdg-ok   { background:#dcfce7; color:#166534; }
+.bdg-warn { background:#fef9c3; color:#854d0e; }
+
+.totaux { margin-top: 8px; background:#f8fafc; border:1px solid #e2e8f0; padding:6px 10px; }
+.totaux td { font-size:8pt; padding:2px 12px; }
+
+#footerContent { border-top: 1px solid #e2e8f0; padding-top: 2px; }
+#footerContent td { font-size: 7pt; color: #94a3b8; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ════════════════════════════════════════════ -->
+<div class="doc-header">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td style="vertical-align:middle">
+        <div class="logo-text">SGDS</div>
+        <div class="logo-sub">Système de Gestion des Dépôts pétroliers</div>
+      </td>
+      <td style="vertical-align:middle" class="header-right">
+        <div class="header-title">Mouvements pétroliers</div>
+        <div class="header-meta">{{ nb_total }} mouvement{{ nb_total|pluralize }} — Généré le {{ generated_at }}</div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══ FILTRES ACTIFS ════════════════════════════════════ -->
+{% if filtres.type or filtres.regime or filtres.marketeur or filtres.produit or filtres.date_debut or filtres.date_fin or filtres.q %}
+<div class="filter-bar">
+  <strong>Filtres :</strong>
+  {% if filtres.type %}Type : {{ filtres.type }}&nbsp;·&nbsp;{% endif %}
+  {% if filtres.regime %}Régime : {{ filtres.regime }}&nbsp;·&nbsp;{% endif %}
+  {% if filtres.date_debut %}Du {{ filtres.date_debut }}{% endif %}
+  {% if filtres.date_fin %} au {{ filtres.date_fin }}{% endif %}
+  {% if filtres.q %}&nbsp;·&nbsp;Recherche : «&nbsp;{{ filtres.q }}&nbsp;»{% endif %}
+</div>
+{% endif %}
+
+<!-- ══ TABLEAU ═══════════════════════════════════════════ -->
+<table class="tbl" cellpadding="0" cellspacing="0">
+  <thead>
+    <tr>
+      <th>N° Enregistrement</th>
+      <th>Date</th>
+      <th>Type</th>
+      <th>Régime</th>
+      <th>Marketeur</th>
+      <th>Produit</th>
+      <th>Camion</th>
+      <th class="tar">Vol. amb. (L)</th>
+      <th class="tar">Vol. @15°C (L)</th>
+      <th>Info complémentaire</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for mvt in mouvements %}
+    <tr>
+      <td class="mono" style="font-weight:700">{{ mvt.numero_enregistrement|default:"—" }}</td>
+      <td class="mono" style="white-space:nowrap">{{ mvt.date_mouvement|date:"d/m/Y" }}</td>
+      <td>
+        {% if mvt.type_mouvement == 'ENTREE' %}<span class="bdg entree">Entrée</span>
+        {% elif mvt.type_mouvement == 'SORTIE' %}<span class="bdg sortie">Sortie</span>
+        {% elif mvt.type_mouvement == 'CESSION' %}<span class="bdg cession">Cession</span>
+        {% elif mvt.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg acquit">Acquit.</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if mvt.regime_douanier == 'ACQUITTE' %}<span class="bdg bdg-ok">Acquitté</span>
+        {% else %}<span class="bdg bdg-warn">S. douane</span>{% endif %}
+      </td>
+      <td style="font-size:7.5pt">{{ mvt.marketeur.sigle|default:mvt.marketeur.raison_sociale }}</td>
+      <td style="font-weight:600;font-size:7.5pt">{{ mvt.produit.nom }}</td>
+      <td class="mono" style="font-size:7pt;color:#64748b">{{ mvt.camion.immatriculation|default:"—" }}</td>
+      <td class="num">{% with v=mvt.volume_ambiant_principal %}{% if v %}{{ v|floatformat:0 }}{% else %}—{% endif %}{% endwith %}</td>
+      <td class="num" style="font-weight:700">{% with v=mvt.volume_principal %}{% if v %}{{ v|floatformat:0 }}{% else %}—{% endif %}{% endwith %}</td>
+      <td style="font-size:7pt;color:#64748b">
+        {% if mvt.type_mouvement == 'ENTREE' %}{% if mvt.provenance %}{{ mvt.provenance }}{% endif %}{% if mvt.bl_client %} — BL:{{ mvt.bl_client }}{% endif %}
+        {% elif mvt.type_mouvement == 'SORTIE' %}{% if mvt.destination %}{{ mvt.destination }}{% endif %}
+        {% elif mvt.type_mouvement == 'CESSION' %}{% if mvt.cession_marketeur_destinataire %}→ {{ mvt.cession_marketeur_destinataire.sigle|default:mvt.cession_marketeur_destinataire.raison_sociale }}{% endif %}
+        {% elif mvt.type_mouvement == 'ACQUITTEMENT' %}{% if mvt.acquittement_reference_declaration %}Réf:{{ mvt.acquittement_reference_declaration }}{% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8">Aucun mouvement enregistré.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- ══ NOTE PAGINATION ════════════════════════════════════ -->
+{% if nb_total > mouvements|length %}
+<div style="margin-top:6px;font-size:7.5pt;color:#64748b;font-style:italic">
+  Affichage des {{ mouvements|length }} premiers mouvements sur {{ nb_total }} au total.
+</div>
+{% endif %}
+
+<!-- ══ FOOTER ════════════════════════════════════════════ -->
+<div id="footerContent">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td>SGDS — Système de Gestion des Dépôts pétroliers</td>
+      <td style="text-align:center">Généré le {{ generated_at }}</td>
+      <td style="text-align:right">Page <pdf:pagenumber> / <pdf:pagecount></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>
