@@ -229,71 +229,15 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
   }
 }
 </style>
+{% include 'partials/_print_css.html' %}
 {% endblock %}
 
 {% block content %}
 
-<div class="print-header">
-  {# Bandeau société #}
-  <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
-    <tr>
-      {% if societe.logo %}
-      <td style="width:60px;vertical-align:middle;padding-right:10px">
-        <img src="{{ societe.logo.url }}" style="max-height:50px;max-width:55px;object-fit:contain">
-      </td>
-      {% endif %}
-      <td style="vertical-align:middle">
-        <div style="font-size:14pt;font-weight:700;color:var(--ink);font-family:Arial,sans-serif">{{ societe.raison_sociale|default:"SGDS SANKE" }}</div>
-        <div style="font-size:8pt;color:#64748b;margin-top:2px">
-          {{ societe.nom_depot|default:"Dépôt Pétrolier" }}
-          {% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}
-          {% if societe.telephone %} · Tél : {{ societe.telephone }}{% endif %}
-        </div>
-      </td>
-      <td style="text-align:right;vertical-align:top;font-size:7.5pt;color:#64748b;white-space:nowrap">
-        Imprimé le : <strong id="print-date"></strong><br>
-        Par : <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
-      </td>
-    </tr>
-  </table>
+{% with titre_print="ÉTAT GLOBAL DE STOCK" %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
 
-  {# Trait séparateur #}
-  <div style="border-top:3px solid var(--ink);margin:5px 0 8px"></div>
-
-  {# Titre de l'état #}
-  <div style="text-align:center;margin-bottom:8px">
-    <div style="font-size:13pt;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em;font-family:Arial,sans-serif">ÉTAT GLOBAL DE STOCK</div>
-    <div style="font-size:9pt;color:#475569;margin-top:2px">
-      Produit : <strong>{{ produit_sel.nom|default:"—" }}</strong>
-      {% if marketeur_sel %} &nbsp;·&nbsp; Marketeur : <strong>{{ marketeur_sel.raison_sociale }}</strong>{% else %} &nbsp;·&nbsp; Tous les marketeurs{% endif %}
-      {% if date_debut or date_fin %}
-        &nbsp;·&nbsp; Période : <strong>{{ date_debut|default:"début" }} → {{ date_fin|default:"aujourd'hui" }}</strong>
-      {% endif %}
-    </div>
-  </div>
-
-  {# Grille de métadonnées #}
-  {% if stock %}
-  <div class="print-meta-grid">
-    <div class="print-meta-item">
-      <span class="print-meta-label">Report initial</span>
-      <span class="print-meta-val">{{ stock.report_amb|floatformat:0|intcomma }} L</span>
-    </div>
-    <div class="print-meta-item">
-      <span class="print-meta-label">Total Entrées</span>
-      <span class="print-meta-val" style="color:#15803d">{{ stock.cumul_entrees_amb|floatformat:0|intcomma }} L</span>
-    </div>
-    <div class="print-meta-item">
-      <span class="print-meta-label">Total Sorties</span>
-      <span class="print-meta-val" style="color:#b91c1c">{{ stock.cumul_sorties_amb|floatformat:0|intcomma }} L</span>
-    </div>
-    <div class="print-meta-item">
-      <span class="print-meta-label">Solde Global</span>
-      <span class="print-meta-val" style="color:var(--ink)">{{ stock.stock_final_amb|floatformat:0|intcomma }} L</span>
-    </div>
-  </div>
-  {% endif %}
-</div>
 <div class="page-header">
   <div>
     <h1 class="page-title">Stock Global Tout Marketeur</h1>
@@ -532,32 +476,5 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 {% endif %}
 {% endif %}
 
-<script>
-/* Injecter la date/heure dans l'en-tête impression */
-document.addEventListener('DOMContentLoaded', function () {
-  var el = document.getElementById('print-date');
-  if (el) {
-    var now = new Date();
-    el.textContent = now.toLocaleDateString('fr-FR', {
-      day: '2-digit', month: '2-digit', year: 'numeric'
-    }) + ' à ' + now.toLocaleTimeString('fr-FR', {
-      hour: '2-digit', minute: '2-digit'
-    });
-  }
-});
-
-function lancerImpression() {
-  /* Mise à jour de la date juste avant d'imprimer */
-  var el = document.getElementById('print-date');
-  if (el) {
-    var now = new Date();
-    el.textContent = now.toLocaleDateString('fr-FR', {
-      day: '2-digit', month: '2-digit', year: 'numeric'
-    }) + ' à ' + now.toLocaleTimeString('fr-FR', {
-      hour: '2-digit', minute: '2-digit'
-    });
-  }
-  window.print();
-}
-</script>
+{% include 'partials/_print_footer.html' with reference_doc="ETAT-STK-GLOB" sig1="Le Gestionnaire" sig2="Le Douanier" sig3="Le Directeur" %}
 {% endblock %}

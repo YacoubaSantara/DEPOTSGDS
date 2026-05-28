@@ -10,6 +10,7 @@
 {% endblock %}
 
 {% block extra_head %}
+{% include 'partials/_print_css.html' %}
 <style>
 /* ── Filtres ── */
 .filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
@@ -131,6 +132,11 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
 {% endblock %}
 
 {% block content %}
+
+{% with titre_print="MA CARTE DE STOCK" sous_titre_print=mkt.raison_sociale %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Carte de Stock</h1>
@@ -371,4 +377,6 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
 </div>
 {% endif %}
 {% endif %}
+
+{% include 'partials/_print_footer.html' with reference_doc="MKT-CARTE" sig1="Le Marketeur" sig2="Le Gestionnaire" %}
 {% endblock %}

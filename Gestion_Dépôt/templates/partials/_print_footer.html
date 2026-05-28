@@ -1,0 +1,17 @@
+
+<div class="print-footer">
+  <div class="pf-block">
+    <span class="pf-label">Référence document</span>
+    <span class="pf-ref">{{ reference_doc|default:"—" }}</span>
+    <span class="tiny">SGDS · Émis automatiquement</span>
+  </div>
+  <div class="pf-sigs">
+    {% if sig1 %}<div class="pf-sig-block"><div class="pf-sig">{{ sig1 }}</div></div>{% endif %}
+    {% if sig2 %}<div class="pf-sig-block"><div class="pf-sig">{{ sig2 }}</div></div>{% endif %}
+    {% if sig3 %}<div class="pf-sig-block"><div class="pf-sig">{{ sig3 }}</div></div>{% endif %}
+  </div>
+  <div class="pf-block" style="text-align:right">
+    <span class="pf-label">{{ societe.raison_sociale|default:"SGDS SANKE" }}</span>
+    <span class="pf-page">Page <strong>01</strong> / <strong>01</strong></span>
+  </div>
+</div>

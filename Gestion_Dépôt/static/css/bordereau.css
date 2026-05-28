@@ -1,0 +1,200 @@
+/* ─────────────────────────────────────────────────────────────────────
+   SGDS — Bordereaux de mouvement (Entrée · Sortie · Cession · Acquittement)
+   Format A4 portrait · print + écran
+   À placer dans : static/css/bordereau.css
+   Charger UNIQUEMENT sur les templates bordereau_* (pas dans base.html).
+   ───────────────────────────────────────────────────────────────────── */
+
+:root{
+  --bg:#eeece4;--paper:#ffffff;--paper-2:#fbfaf6;
+  --border:#e7e3d8;--border-2:#cfc9b8;
+  --ink:#1a1814;--ink-2:#3a3631;--muted:#7a7468;
+  --accent:#b8541a;--accent-soft:#fef0e3;
+  --ok:#3f7d3a;--ok-soft:#e8f1e3;
+  --warn:#a86b00;--warn-soft:#fcf2dd;
+  --err:#a8331c;--err-soft:#fbe5dd;
+  --info:#2a5b8a;--info-soft:#e3edf5;
+  --violet:#7a4ba8;--violet-soft:#f4ecf8;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:10pt;line-height:1.45;-webkit-font-smoothing:antialiased}
+body{padding:28px 0;display:flex;flex-direction:column;align-items:center;gap:24px}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+
+/* ─── Feuille A4 ─── */
+.sheet{width:210mm;min-height:297mm;background:var(--paper);box-shadow:0 1px 0 rgba(0,0,0,.04),0 18px 50px rgba(20,18,15,.10),0 4px 14px rgba(20,18,15,.05);padding:14mm 14mm 12mm;position:relative;color:var(--ink);overflow:hidden}
+.sheet.compact{padding:12mm 12mm 10mm}
+
+/* ─── En-tête ─── */
+.hdr{display:grid;grid-template-columns:1fr auto;gap:12mm;padding-bottom:6mm;border-bottom:2px solid var(--ink)}
+.brand{display:flex;align-items:flex-start;gap:10px}
+.logo{width:42px;height:42px;flex:none;background:var(--ink);color:#f7f6f2;border-radius:7px;display:grid;place-items:center;font-family:'JetBrains Mono',monospace;font-weight:700;letter-spacing:.02em;font-size:11pt;position:relative}
+.logo::after{content:"";position:absolute;inset:auto -6px -6px auto;width:14px;height:14px;background:var(--accent);border-radius:3px}
+.logo.blue::after{background:var(--info)}
+.logo.violet::after{background:var(--violet)}
+.logo.blue::after{background:var(--info)}
+.logo.violet::after{background:var(--violet)}
+.brand-meta .co{font-weight:700;font-size:11pt;letter-spacing:-.005em;line-height:1.1}
+.brand-meta .sub{font-size:8.5pt;color:var(--muted);line-height:1.35}
+.brand-meta .sub b{color:var(--ink-2);font-weight:600}
+
+.hdr-right{text-align:right;display:flex;flex-direction:column;gap:4px;min-width:78mm}
+.doc-kind{display:inline-flex;align-self:flex-end;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:7.5pt;font-weight:600;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border-radius:3px;border:1px solid;color:var(--accent);background:var(--accent-soft);border-color:#f3d5b8}
+.doc-kind .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.doc-kind.ENTREE{color:var(--ok);background:var(--ok-soft);border-color:#bcd6b3}
+.doc-kind.SORTIE{color:var(--accent);background:var(--accent-soft);border-color:#f3d5b8}
+.doc-kind.CESSION{color:var(--info);background:var(--info-soft);border-color:#b6cbdf}
+.doc-kind.ACQUITTEMENT{color:var(--violet);background:var(--violet-soft);border-color:#d3c0e0}
+.doc-title{font-size:16pt;font-weight:700;letter-spacing:-.015em;line-height:1.1;color:var(--ink)}
+.doc-num{font-family:'JetBrains Mono',monospace;font-size:11pt;font-weight:600;color:var(--ink-2);letter-spacing:.02em}
+.doc-period{font-size:8.5pt;color:var(--muted);margin-top:2px}
+
+/* ─── Bandeau identification ─── */
+.id-strip{margin-top:4mm;display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--border-2);background:var(--paper-2);border-radius:4px;overflow:hidden}
+.id-cell{padding:7px 9px;border-right:1px solid var(--border)}
+.id-cell:last-child{border-right:0}
+.id-cell .lbl{font-size:7pt;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.id-cell .val{font-size:10pt;font-weight:600;color:var(--ink);line-height:1.2}
+.id-cell .val.mono{font-family:'JetBrains Mono',monospace;font-size:9.5pt}
+.id-cell .val.sm{font-size:8.5pt;font-weight:600}
+
+/* ─── Sections ─── */
+.section{margin-top:5mm}
+.section-h{display:flex;align-items:center;justify-content:space-between;padding-bottom:3px;margin-bottom:6px;border-bottom:1px solid var(--ink)}
+.section-h h3{font-size:9pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.section-h .marker{font-family:'JetBrains Mono',monospace;font-size:7.5pt;color:var(--muted);letter-spacing:.1em}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 18px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px}
+
+.kv{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kv .k{font-size:7pt;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kv .v{font-size:10pt;font-weight:600;color:var(--ink);line-height:1.25;word-break:break-word}
+.kv .v.mono{font-family:'JetBrains Mono',monospace;font-size:9.5pt}
+.kv .v.accent{color:var(--accent)}
+.kv .v.info{color:var(--info)}
+.kv .v.violet{color:var(--violet)}
+.kv .v.ok{color:var(--ok)}
+.kv .v.warn{color:var(--warn)}
+.kv .v.err{color:var(--err)}
+.kv .v.lg{font-size:11pt}
+.kv .v.xl{font-size:13pt;letter-spacing:-.01em}
+
+/* ─── Parties (cession : Cédant → Cessionnaire) ─── */
+.parties{display:grid;grid-template-columns:1fr 50px 1fr;gap:0;align-items:stretch;border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+.party{padding:11px 13px;background:var(--paper)}
+.party.cedant{background:var(--paper-2);border-right:1px solid var(--border-2)}
+.party-role{font-family:'JetBrains Mono',monospace;font-size:7.5pt;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--info);margin-bottom:4px}
+.party.cedant .party-role{color:var(--accent)}
+.party-name{font-size:11pt;font-weight:700;color:var(--ink);line-height:1.15;margin-bottom:6px}
+.party-rows{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.party-arrow{display:grid;place-items:center;background:var(--ink);color:#f7f6f2}
+.party-arrow svg{width:18px;height:18px}
+
+/* ─── Encart « liq » (calculs API · imputation comptable · liquidation taxes) ─── */
+.liq{border:1px solid var(--ink);border-radius:4px;overflow:hidden;margin-top:4px}
+.liq-h{background:var(--ink);color:#f7f6f2;padding:5px 10px;display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:7.5pt;letter-spacing:.12em;text-transform:uppercase}
+.liq-h .tag{padding:1px 6px;border-radius:2px;font-size:7pt;font-weight:700;color:#fff;background:var(--accent)}
+.liq-h .tag.info{background:var(--info)}
+.liq-h .tag.violet{background:var(--violet)}
+.liq-b{padding:9px 12px;background:var(--paper-2)}
+
+.liq table{width:100%;border-collapse:collapse;font-size:9.5pt}
+.liq th,.liq td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.liq th{background:var(--paper-2);font-size:7.5pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left}
+.liq td.num{font-family:'JetBrains Mono',monospace;text-align:right;font-variant-numeric:tabular-nums}
+.liq td.tax{font-weight:600}
+.liq tr.total td{background:var(--ink);color:#f7f6f2;font-weight:700;font-size:11pt;border-bottom:0}
+.liq tr.total td.num{font-size:13pt}
+.liq tr:last-child td{border-bottom:0}
+.liq tr.sub td{font-size:8.5pt;color:var(--muted);background:var(--paper-2)}
+.liq tr.sub td.num{font-weight:600;color:var(--ink-2)}
+
+/* ─── Récap volumes ─── */
+.recap{margin-top:5mm;display:grid;grid-template-columns:1fr 1fr 1fr auto;border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+.recap-cell{padding:9px 12px;border-right:1px solid var(--border-2);background:var(--paper)}
+.recap-cell:last-child{border-right:0;background:var(--ink);color:#f7f6f2}
+.recap-cell .lbl{font-size:7pt;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.recap-cell:last-child .lbl{color:#cfc9b8}
+.recap-cell .val{font-family:'JetBrains Mono',monospace;font-size:13pt;font-weight:700;letter-spacing:-.01em}
+.recap-cell .sub{font-size:8pt;color:var(--muted);margin-top:1px}
+.recap-cell:last-child .sub{color:#a8a092}
+
+/* ─── Signatures ─── */
+.sigs{margin-top:6mm;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sig{border:1px solid var(--border-2);border-radius:4px;padding:8px 10px;min-height:30mm;display:flex;flex-direction:column;justify-content:space-between;background:var(--paper)}
+.sheet.compact .sig{min-height:22mm}
+.sig .role{font-size:7.5pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.sig.info .role{color:var(--info)}
+.sig.violet .role{color:var(--violet)}
+.sig .name{font-size:9.5pt;font-weight:600;color:var(--ink);margin-top:1px}
+.sig .box{flex:1;margin:6px 0;border-bottom:1px dashed var(--border-2)}
+.sig .footline{display:flex;justify-content:space-between;font-size:7.5pt;color:var(--muted);font-family:'JetBrains Mono',monospace}
+
+/* ─── Tampon ─── */
+.stamp{position:absolute;right:18mm;bottom:36mm;width:55mm;height:55mm;border:2.5px solid;border-radius:50%;display:grid;place-items:center;transform:rotate(-9deg);opacity:.85;pointer-events:none;color:var(--accent);border-color:var(--accent)}
+.stamp::before{content:"";position:absolute;inset:5px;border:1px solid;border-radius:50%;border-color:currentColor}
+.stamp.accent{border-color:var(--accent);color:var(--accent)}
+.stamp.info{border-color:var(--info);color:var(--info)}
+.stamp.violet{border-color:var(--violet);color:var(--violet)}
+.stamp.ok{border-color:var(--ok);color:var(--ok)}
+.stamp.warn{border-color:var(--warn);color:var(--warn)}
+.stamp .inner{text-align:center;padding:6px;line-height:1.05}
+.stamp .inner .big{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13pt;letter-spacing:.06em;text-transform:uppercase}
+.stamp .inner .sm{font-size:7.5pt;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
+.stamp .inner .dt{font-family:'JetBrains Mono',monospace;font-size:7.5pt;margin-top:6px;letter-spacing:.05em}
+
+/* ─── Footer ─── */
+.ftr{margin-top:6mm;padding-top:6px;border-top:1px solid var(--border-2);display:flex;justify-content:space-between;align-items:flex-end;gap:12px;font-size:7.5pt;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.05em}
+.ftr .legal{max-width:120mm;line-height:1.4;font-family:'Inter',sans-serif;letter-spacing:0;color:var(--muted)}
+
+/* ─── Code-barres décoratif ─── */
+.barcode{display:flex;align-items:flex-end;gap:1px;height:30px;justify-content:flex-end}
+.barcode i{display:block;width:2px;background:var(--ink)}
+.barcode i.h{height:30px}
+.barcode i.m{height:24px}
+.barcode i.l{height:18px}
+.barcode-cap{font-family:'JetBrains Mono',monospace;font-size:7.5pt;letter-spacing:.18em;color:var(--ink);margin-top:2px;text-align:right}
+
+/* ─── Badges + pills ─── */
+.bdg{display:inline-flex;align-items:center;gap:4px;font-size:8pt;font-weight:600;padding:1px 6px;border-radius:3px;border:1px solid currentColor}
+.bdg.ok{color:var(--ok);background:var(--ok-soft);border-color:#bcd6b3}
+.bdg.warn{color:var(--warn);background:var(--warn-soft);border-color:#e9d3a1}
+.bdg.err{color:var(--err);background:var(--err-soft);border-color:#e5b5a8}
+.bdg.info{color:var(--info);background:var(--info-soft);border-color:#b6cbdf}
+
+.type-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:3px;font-family:'JetBrains Mono',monospace;font-size:7.5pt;font-weight:700;letter-spacing:.1em}
+.type-pill.ENTREE{background:var(--ok-soft);color:var(--ok);border:1px solid #bcd6b3}
+.type-pill.SORTIE{background:var(--accent-soft);color:var(--accent);border:1px solid #f3d5b8}
+.type-pill.CESSION{background:var(--info-soft);color:var(--info);border:1px solid #b6cbdf}
+.type-pill.ACQUITTEMENT{background:var(--violet-soft);color:var(--violet);border:1px solid #d3c0e0}
+
+/* ─── Régime arrow (acquittement) ─── */
+.regime-arrow{display:inline-flex;align-items:center;gap:5px;font-size:9pt;font-weight:600}
+.regime-arrow .from{color:var(--warn)}
+.regime-arrow .to{color:var(--ok)}
+.regime-arrow svg{width:11px;height:11px;color:var(--muted)}
+
+/* ─── Mode N&B (option ?bw=1) ─── */
+body.bw .sheet{filter:grayscale(1) contrast(1.05)}
+body.bw .stamp{border-color:#1a1814;color:#1a1814}
+body.bw .stamp::before{border-color:#1a1814}
+
+/* ─── Toolbar écran (cachée à l'impression) ─── */
+.toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);border:1px solid var(--border);border-radius:10px;padding:6px;display:flex;align-items:center;gap:4px;box-shadow:0 6px 18px rgba(0,0,0,.08);z-index:50;font-size:9pt}
+.toolbar button,.toolbar a{appearance:none;border:0;background:transparent;color:var(--ink-2);font:inherit;padding:6px 11px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-weight:500;text-decoration:none}
+.toolbar button:hover,.toolbar a:hover{background:var(--paper-2)}
+.toolbar button.primary{background:var(--ink);color:#f7f6f2}
+.toolbar button.primary:hover{background:#0d0c0a}
+.toolbar .sep{width:1px;height:18px;background:var(--border);margin:0 2px}
+
+/* ─── Impression ─── */
+@page{size:A4;margin:0}
+@media print{
+  body{background:#fff;padding:0;display:block}
+  .sheet{box-shadow:none;width:210mm;min-height:297mm;page-break-after:always;margin:0}
+  .sheet:last-of-type{page-break-after:auto}
+  .toolbar{display:none!important}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}

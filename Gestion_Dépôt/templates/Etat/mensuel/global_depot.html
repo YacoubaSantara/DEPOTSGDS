@@ -105,41 +105,14 @@ tr:last-child td{border-bottom:none}
   }
 }
 </style>
+{% include 'partials/_print_css.html' %}
 {% endblock %}
 
 {% block content %}
 
-<div class="print-header">
-  <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
-    <tr>
-      {% if societe.logo %}
-      <td style="width:60px;vertical-align:middle;padding-right:10px">
-        <img src="{{ societe.logo.url }}" style="max-height:50px;max-width:55px;object-fit:contain">
-      </td>
-      {% endif %}
-      <td style="vertical-align:middle">
-        <div style="font-size:14pt;font-weight:700;color:var(--ink)">{{ societe.raison_sociale|default:"SGDS SANKE" }}</div>
-        <div style="font-size:8pt;color:#64748b;margin-top:2px">
-          {{ societe.nom_depot|default:"Dépôt Pétrolier" }}
-          {% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}
-          {% if societe.telephone %} · Tél : {{ societe.telephone }}{% endif %}
-        </div>
-      </td>
-      <td style="text-align:right;vertical-align:top;font-size:7.5pt;color:#64748b;white-space:nowrap">
-        Imprimé le : <strong id="print-date"></strong><br>
-        Par : <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
-      </td>
-    </tr>
-  </table>
-  <div style="border-top:3px solid var(--ink);margin:5px 0 8px"></div>
-  <div style="text-align:center;margin-bottom:8px">
-    <div style="font-size:13pt;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.05em">ÉTAT GLOBAL MENSUEL — DÉPÔT</div>
-    <div style="font-size:9pt;color:#475569;margin-top:2px">
-      Période : <strong>{% if periode %}{{ periode }}{% else %}—{% endif %}</strong>
-      {% if marketeur_sel %} &nbsp;·&nbsp; Marketeur : <strong>{{ marketeur_sel.raison_sociale }}</strong>{% else %} &nbsp;·&nbsp; Tous les marketeurs{% endif %}
-    </div>
-  </div>
-</div>
+{% with titre_print="ÉTAT GLOBAL MENSUEL — DÉPÔT" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
 
 
 <div class="page-header">
@@ -304,23 +277,5 @@ tr:last-child td{border-bottom:none}
 {% endwith %}
 {% endif %}
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var el = document.getElementById('print-date');
-  if (el) {
-    var now = new Date();
-    el.textContent = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
-      + ' à ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
-  }
-});
-function lancerImpression() {
-  var el = document.getElementById('print-date');
-  if (el) {
-    var now = new Date();
-    el.textContent = now.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'})
-      + ' à ' + now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
-  }
-  window.print();
-}
-</script>
+{% include 'partials/_print_footer.html' with reference_doc="ETAT-GLOB-DEP" sig1="Le Gestionnaire" sig2="Le Douanier" sig3="Le Directeur" %}
 {% endblock %}

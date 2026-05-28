@@ -12,6 +12,7 @@
 {% endblock %}
 
 {% block extra_head %}
+{% include 'partials/_print_css.html' %}
 <style>
 /* ── Layout ── */
 .etat-layout{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
@@ -135,6 +136,11 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
 {% endblock %}
 
 {% block content %}
+
+{% with titre_print="CARTE DE STOCK" sous_titre_print=mkt.raison_sociale %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Carte de Stock</h1>
@@ -146,7 +152,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Imprimer
     </button>
-    <a href="{% url 'etat_carte_stock_export' mkt.pk %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
+    <a href="{% url 'etat_carte_stock_export' marketeur_uuid=mkt.uuid marketeur_slug=mkt.slug %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
        class="btn-export-main">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter Excel
@@ -163,7 +169,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
     <ul class="mkt-list">
       {% for m in tous_marketeurs %}
       <li>
-        <a href="{% url 'etat_carte_stock' m.pk %}{% if produit_sel %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}{% endif %}"
+        <a href="{% url 'etat_carte_stock' marketeur_uuid=m.uuid marketeur_slug=m.slug %}{% if produit_sel %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}{% endif %}"
            class="{% if m.pk == mkt.pk %}active{% endif %}">
           {{ m.sigle|default:m.raison_sociale }}
         </a>
@@ -207,7 +213,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
           </div>
           <div style="display:flex;gap:8px;align-items:flex-end">
             <button type="submit" class="btn-filter">Afficher</button>
-            <a href="{% url 'etat_carte_stock' mkt.pk %}" class="btn-reset">Réinitialiser</a>
+            <a href="{% url 'etat_carte_stock' marketeur_uuid=mkt.uuid marketeur_slug=mkt.slug %}" class="btn-reset">Réinitialiser</a>
           </div>
         </div>
       </form>
@@ -394,4 +400,6 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
     {% endif %}
   </main>
 </div>
+
+{% include 'partials/_print_footer.html' with reference_doc="MKT-CARTE" sig1="Le Gestionnaire" sig2="Le Marketeur" %}
 {% endblock %}

@@ -125,4 +125,6 @@ tr.total-row td{background:#e8f0fe;font-weight:700;border-top:2px solid var(--na
 <p style="font-size:.75rem;color:var(--muted);margin-top:8px">ℹ Utilisez <strong>↓ Excel</strong> pour la vue complète avec toutes les colonnes par produit.</p>
 {% endwith %}
 {% endif %}
+
+{% include 'partials/_print_footer.html' with reference_doc="MKT-COUL-REP" sig1="Le Marketeur" sig2="Le Gestionnaire" %}
 {% endblock %}

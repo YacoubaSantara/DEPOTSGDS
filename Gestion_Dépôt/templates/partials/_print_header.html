@@ -1,58 +1,51 @@
 
 <div class="print-header">
-  {# Bandeau société #}
-  <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
-    <tr>
+  <div class="ph-band">
+    <div class="ph-logo">
       {% if societe.logo %}
-      <td style="width:60px;vertical-align:middle;padding-right:10px">
-        <img src="{{ societe.logo.url }}" style="max-height:50px;max-width:55px;object-fit:contain" alt="">
-      </td>
+        <img src="{{ societe.logo.url }}" alt="" style="max-width:100%;max-height:100%;object-fit:contain">
+      {% else %}
+        <div class="ph-logo-text">SGDS<small>SANKE</small></div>
       {% endif %}
-      <td style="vertical-align:middle">
-        <div style="font-size:14pt;font-weight:700;color:#1e3a5f;font-family:Arial,sans-serif">
-          {{ societe.raison_sociale|default:"SGDS SANKE" }}
-        </div>
-        <div style="font-size:8pt;color:#64748b;margin-top:2px">
-          {{ societe.nom_depot|default:"Dépôt Pétrolier" }}
-          {% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}
-          {% if societe.telephone %} · Tél&nbsp;: {{ societe.telephone }}{% endif %}
-        </div>
-      </td>
-      <td style="text-align:right;vertical-align:top;font-size:7.5pt;color:#64748b;white-space:nowrap;padding-left:12px">
-        Imprimé le : <strong id="print-date-val"></strong><br>
-        Par : <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>
-      </td>
-    </tr>
-  </table>
-
-  {# Séparateur #}
-  <div style="border-top:3px solid #1e3a5f;margin:5px 0 8px"></div>
-
-  {# Titre de l'état #}
-  <div style="text-align:center;margin-bottom:{% if meta_print %}6px{% else %}10px{% endif %}">
-    <div style="font-size:13pt;font-weight:700;color:#1e3a5f;text-transform:uppercase;letter-spacing:.05em;font-family:Arial,sans-serif">
-      {{ titre_print }}
     </div>
+    <div class="ph-co">
+      <div class="ph-co-name">{{ societe.raison_sociale|default:"SGDS SANKE" }}</div>
+      <div class="ph-co-sub">
+        <strong>{{ societe.nom_depot|default:"Dépôt Pétrolier" }}</strong>{% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}{% if societe.ville %}, {{ societe.ville }}{% endif %}
+      </div>
+      <div class="ph-co-sub">
+        {% if societe.telephone %}Tél&nbsp;: {{ societe.telephone }}{% endif %}{% if societe.rccm %} · {{ societe.rccm }}{% endif %}{% if societe.nif %} · {{ societe.nif }}{% endif %}
+      </div>
+    </div>
+    <div class="ph-meta">
+      Imprimé le&nbsp;: <strong id="print-date-val"></strong><br>
+      Par&nbsp;: <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>{% if request.user.matricule %} <span class="ph-meta-mat">({{ request.user.matricule }})</span>{% endif %}<br>
+      Document&nbsp;: <strong>Officiel · usage interne</strong>
+    </div>
+  </div>
+
+  <div class="ph-rule"></div>
+
+  <div class="ph-title-wrap">
+    <div class="ph-title">{{ titre_print }}</div>
     {% if sous_titre_print %}
-    <div style="font-size:9pt;color:#475569;margin-top:3px">{{ sous_titre_print }}</div>
+      <div class="ph-subtitle">{{ sous_titre_print|safe }}</div>
     {% endif %}
   </div>
 
-  {# Grille de méta-données (optionnelle) #}
   {% if meta_print %}
-  <div style="display:grid;grid-template-columns:repeat({{ meta_print|length }},1fr);border:1.5px solid #1e3a5f;border-radius:3px;overflow:hidden;margin-bottom:10px">
+  <div class="meta-band" style="grid-template-columns:repeat({{ meta_print|length }},1fr)">
     {% for item in meta_print %}
-    <div style="padding:5px 9px;{% if not forloop.last %}border-right:1px solid #c0cad8;{% endif %}">
-      <span style="font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-size:6.5pt;display:block;margin-bottom:1px">{{ item.label }}</span>
-      <span style="font-weight:700;color:#1e3a5f;font-size:8.5pt{% if item.color %};color:{{ item.color }}{% endif %}">{{ item.valeur }}</span>
+    <div class="meta-cell{% if item.dark %} dark{% endif %}">
+      <span class="meta-label">{{ item.label }}</span>
+      <span class="meta-val{% if item.color %} {{ item.color }}{% endif %}">{{ item.valeur }}</span>
     </div>
     {% endfor %}
   </div>
   {% endif %}
 
-  {# Pied de page société #}
   {% if societe.pied_de_page %}
-  <div style="font-size:7pt;color:#94a3b8;text-align:center;border-top:1px solid #e2e8f0;padding-top:3px;margin-top:4px">
+  <div class="tiny" style="text-align:center;border-top:1px solid #e2e8f0;padding-top:3px;margin-top:4px">
     {{ societe.pied_de_page }}
   </div>
   {% endif %}

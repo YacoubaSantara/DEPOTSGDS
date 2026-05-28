@@ -9,7 +9,15 @@
   <span class="breadcrumb-current">Mes mouvements</span>
 {% endblock %}
 
+{% block extra_head %}
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
 {% block content %}
+
+{% with titre_print="MES MOUVEMENTS" sous_titre_print=mkt.raison_sociale %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
 <div class="ph">
   <div>
     <h1 class="ph-title">Mes mouvements</h1>
@@ -181,4 +189,5 @@
   {% endif %}
 </div>
 
+{% include 'partials/_print_footer.html' with reference_doc="MKT-MVT" sig1="Le Marketeur" sig2="Le Gestionnaire" %}
 {% endblock %}

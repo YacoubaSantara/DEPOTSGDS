@@ -150,4 +150,6 @@ tr:last-child td{border-bottom:none}
 </div>
 <p style="margin-top:10px;font-size:.75rem;color:var(--muted)" class="no-print">Cliquez sur une ligne pour ouvrir le rapport de jaugeage.</p>
 {% endif %}
+
+{% include 'partials/_print_footer.html' with reference_doc="RJJ-MENS" sig1="Le Jaugeur" sig2="Le Gestionnaire" sig3="Le Douanier" %}
 {% endblock %}
