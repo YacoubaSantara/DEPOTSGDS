@@ -19,7 +19,7 @@ def resoudre_stocks_ouverture(periode, *, forcer_recalcul=False) -> dict:
     Retourne un dict avec stocks_produit, stocks_cuve, jaugeage_source, message.
     """
     from SGDS.models import (
-        JaugeageJour, StockOuverture, StockOuvertureCuve
+        JaugeageJour, StockOuverture, StockOuvertureCuve, InventaireInitialMarketeur
     )
 
     resultat = {
@@ -32,10 +32,8 @@ def resoudre_stocks_ouverture(periode, *, forcer_recalcul=False) -> dict:
     # 1. Période précédente
     periode_prec = periode.periode_precedente()
     if periode_prec is None:
-        resultat['message'] = (
-            f"Aucune période précédente pour {periode} — stocks d'ouverture à saisir manuellement."
-        )
-        return resultat
+        # Première période : utiliser la somme des inventaires initiaux par produit
+        return _resoudre_depuis_inventaire_initial(periode, forcer_recalcul, resultat)
 
     # 2. Dernier jaugeage du mois précédent
     dernier_j = (
@@ -122,5 +120,79 @@ def resoudre_stocks_ouverture(periode, *, forcer_recalcul=False) -> dict:
     resultat['message'] = (
         f"Stocks d'ouverture calculés depuis le jaugeage du {dernier_j.date_jaugeage} "
         f"({len(mesures)} mesures, {len(agregats_produit)} produits)."
+    )
+    return resultat
+
+
+# ─────────────────────────────────────────────────────────────
+#  CAS PREMIÈRE PÉRIODE : fallback sur inventaires initiaux
+# ─────────────────────────────────────────────────────────────
+
+def _resoudre_depuis_inventaire_initial(periode, forcer_recalcul, resultat) -> dict:
+    """
+    Quand il n'existe aucune période précédente (déploiement initial),
+    agrège les InventaireInitialMarketeur par produit dont la date_inventaire
+    est antérieure ou égale à la fin de la période, et crée/met à jour les StockOuverture.
+
+    On accepte aussi les inventaires saisis avant le début de la période
+    (ex: balance reprise d'un ancien système ou inventaire physique fait
+    quelques jours avant l'ouverture officielle).
+    """
+    from SGDS.models import StockOuverture, InventaireInitialMarketeur
+
+    # Filtre souple : on prend tous les inventaires dont la date est <= fin de période.
+    # Cela couvre les inventaires saisis avant le début de la période (ancien système,
+    # pré-déploiement) et ceux saisis en cours de période.
+    inventaires = InventaireInitialMarketeur.objects.filter(
+        date_inventaire__lte=periode.date_fin,
+    ).select_related('produit')
+
+    if not inventaires.exists():
+        resultat['message'] = (
+            f"Aucune période précédente pour {periode} et aucun inventaire initial "
+            f"trouvé — stocks d'ouverture à saisir manuellement."
+        )
+        return resultat
+
+    # Signaler les inventaires dont la date est antérieure au début de la période
+    nb_avant_periode = inventaires.filter(
+        date_inventaire__lt=periode.date_debut,
+    ).count()
+    avertissement = (
+        f" ⚠ {nb_avant_periode} inventaire(s) saisi(s) avant le début de la période "
+        f"({periode.date_debut}) ont été inclus."
+        if nb_avant_periode else ""
+    )
+
+    # Agréger par produit (somme de tous les marketeurs)
+    agregats = {}  # {produit: {'volume_ambiant': Decimal, 'volume_15c': Decimal}}
+    for inv in inventaires:
+        produit = inv.produit
+        if produit not in agregats:
+            agregats[produit] = {'volume_ambiant': Decimal('0'), 'volume_15c': Decimal('0')}
+        agregats[produit]['volume_ambiant'] += Decimal(str(inv.volume_ambiant))
+        agregats[produit]['volume_15c']     += Decimal(str(inv.volume_15c))
+
+    for produit, vals in agregats.items():
+        existing_so = StockOuverture.objects.filter(periode=periode, produit=produit).first()
+        if existing_so and not existing_so.calcul_auto and not forcer_recalcul:
+            resultat['stocks_produit'].append(existing_so)
+            continue
+
+        so, _ = StockOuverture.objects.update_or_create(
+            periode=periode,
+            produit=produit,
+            defaults={
+                'volume_ambiant': vals['volume_ambiant'],
+                'volume_15c': vals['volume_15c'],
+                'calcul_auto': True,
+            },
+        )
+        resultat['stocks_produit'].append(so)
+
+    nb_mkt = inventaires.values('marketeur').distinct().count()
+    resultat['message'] = (
+        f"Stocks d'ouverture de la première période calculés depuis les inventaires initiaux "
+        f"({nb_mkt} marketeur(s), {len(agregats)} produit(s)).{avertissement}"
     )
     return resultat

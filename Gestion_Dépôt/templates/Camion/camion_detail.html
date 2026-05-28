@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block title %}{{ camion.immatriculation }}{% endblock %}
 {% block nav_camion %}active{% endblock %}
 
@@ -9,118 +9,367 @@
 {% endblock %}
 
 {% block content %}
-<!-- Hero -->
+
+<!-- Hero enrichi -->
 <div class="hero" style="margin-bottom:20px">
   <div class="hero-row">
-    <div>
-      <div class="hero-eyebrow">{{ camion.get_type_produit_display }}</div>
-      <div class="hero-title">{{ camion.immatriculation }}</div>
-      <div class="hero-meta">
+    <!-- Colonne principale -->
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="hero-eyebrow" style="margin-bottom:0">{{ camion.get_type_produit_display }}</span>
+        {% if camion.statut == 'EN_SERVICE' %}
+          <span class="bdg ok" style="font-size:10px;padding:2px 8px">{{ camion.get_statut_display }}</span>
+        {% elif camion.statut == 'EN_MAINTENANCE' %}
+          <span class="bdg warn" style="font-size:10px;padding:2px 8px">{{ camion.get_statut_display }}</span>
+        {% elif camion.statut == 'HORS_SERVICE' %}
+          <span class="bdg err" style="font-size:10px;padding:2px 8px">{{ camion.get_statut_display }}</span>
+        {% endif %}
+      </div>
+      <div class="hero-title" style="font-family:'JetBrains Mono',monospace;letter-spacing:.03em">{{ camion.immatriculation }}</div>
+      <div style="font-size:12.5px;color:rgba(255,255,255,.55);margin:5px 0 18px">
         {{ camion.marque }}{% if camion.modele %} {{ camion.modele }}{% endif %}{% if camion.annee_fabrication %} · {{ camion.annee_fabrication }}{% endif %}
-        &nbsp;·&nbsp; {{ camion.capacite_totale|floatformat:0 }} L · {{ camion.nombre_compartiments }} compartiment{% if camion.nombre_compartiments > 1 %}s{% endif %}
-        {% if camion.marketeur %} &nbsp;·&nbsp; <a href="{% url 'marketeur_detail' camion.marketeur.pk %}" style="color:inherit;text-decoration:underline">{{ camion.marketeur.raison_sociale }}</a>{% endif %}
+        {% if camion.marketeur %}&nbsp;·&nbsp;<a href="{% url 'marketeur_detail' uuid=camion.marketeur.uuid slug=camion.marketeur.slug %}" style="color:rgba(255,255,255,.7);text-decoration:underline">{{ camion.marketeur.raison_sociale }}</a>{% endif %}
+      </div>
+      <!-- Métriques clés -->
+      <div style="display:flex;align-items:stretch;gap:0;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;overflow:hidden;width:fit-content">
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.07em;font-weight:600">Capacité totale</span>
+          <span style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-.01em;color:#fff">{{ camion.capacite_totale|floatformat:0 }} L</span>
+        </div>
+        <div style="width:1px;background:rgba(255,255,255,.1)"></div>
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.07em;font-weight:600">Compartiments</span>
+          <span style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#fff">{{ camion.nombre_compartiments }}</span>
+        </div>
+        {% if camion.kilometrage %}
+        <div style="width:1px;background:rgba(255,255,255,.1)"></div>
+        <div style="padding:10px 20px;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.07em;font-weight:600">Kilométrage</span>
+          <span style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#fff">{{ camion.kilometrage|floatformat:0 }} km</span>
+        </div>
+        {% endif %}
       </div>
     </div>
-    <div class="hero-actions">
-      <a href="{% url 'camion_list' %}" class="hero-btn">← Retour</a>
-      <a href="{% url 'camion_update' camion.pk %}" class="hero-btn primary">Modifier</a>
+    <!-- Colonne droite : icône + actions -->
+    <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:16px;flex-shrink:0">
+      <div style="width:68px;height:68px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;display:flex;align-items:center;justify-content:center">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="rgba(184,84,26,.85)" stroke-width="1.5">
+          <rect x="1" y="3" width="15" height="13" rx="1"/>
+          <path d="M16 8h4l3 5v3h-7V8z"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/>
+          <circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+      </div>
+      <div class="hero-actions">
+        <a href="{% url 'camion_list' %}" class="hero-btn">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="13" height="13"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          Retour
+        </a>
+        <a href="{% url 'camion_update' uuid=camion.uuid slug=camion.slug %}" class="hero-btn primary">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Modifier
+        </a>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Detail grid -->
+<!-- Grille de détails -->
 <div class="grid-2">
 
   <!-- Identification -->
   <div class="card">
-    <div class="card-h"><div class="card-h-title">Identification</div></div>
-    <div class="card-b">
-      <div style="display:flex;flex-direction:column;gap:0">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Immatriculation</span><span style="font-size:.85rem;font-weight:500;font-family:inherit;letter-spacing:.04em">{{ camion.immatriculation }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Marque</span><span style="font-size:.85rem;font-weight:500">{{ camion.marque }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Modèle</span><span style="font-size:.85rem;font-weight:500">{{ camion.modele|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Année</span><span style="font-size:.85rem;font-weight:500">{{ camion.annee_fabrication|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Couleur</span><span style="font-size:.85rem;font-weight:500">{{ camion.couleur|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">N° Châssis</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ camion.numero_serie_chassis|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">N° Moteur</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ camion.numero_serie_moteur|default:"—" }}</span></div>
+    <div class="card-h">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        </div>
+        <div class="card-h-title">Identification</div>
+      </div>
+    </div>
+    <div class="card-b" style="padding:14px 16px">
+      <div class="dg-2" style="gap:10px 16px">
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Immatriculation</div>
+          <div class="detail-value num" style="font-size:13px;letter-spacing:.03em">{{ camion.immatriculation }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Marque</div>
+          <div class="detail-value">{{ camion.marque }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Modèle</div>
+          <div class="detail-value {% if not camion.modele %}tiret{% endif %}">{{ camion.modele|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Année de fabrication</div>
+          <div class="detail-value {% if not camion.annee_fabrication %}tiret{% endif %}">{{ camion.annee_fabrication|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Couleur</div>
+          <div class="detail-value {% if not camion.couleur %}tiret{% endif %}">{{ camion.couleur|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">N° Châssis</div>
+          <div class="detail-value num" style="font-size:12px">{{ camion.numero_serie_chassis|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0;grid-column:1/-1">
+          <div class="detail-label">N° Moteur</div>
+          <div class="detail-value num" style="font-size:12px">{{ camion.numero_serie_moteur|default:"—" }}</div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Citerne -->
   <div class="card">
-    <div class="card-h"><div class="card-h-title">Citerne</div></div>
-    <div class="card-b">
-      <div style="display:flex;flex-direction:column;gap:0">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Type de produit</span><span style="font-size:.85rem;font-weight:500">{{ camion.get_type_produit_display }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Capacité totale</span><span style="font-size:.85rem;font-weight:500">{{ camion.capacite_totale|floatformat:0 }} litres</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Compartiments</span><span style="font-size:.85rem;font-weight:500">{{ camion.nombre_compartiments }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Mise en circulation</span><span style="font-size:.85rem;font-weight:500">{{ camion.date_mise_en_circulation|date:"d/m/Y"|default:"—" }}</span></div>
+    <div class="card-h">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--info-soft);border:1px solid rgba(42,91,138,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+        <div class="card-h-title">Citerne</div>
+      </div>
+    </div>
+    <div class="card-b" style="padding:14px 16px">
+      <div class="dg-2" style="gap:10px 16px">
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Type de produit</div>
+          <div class="detail-value">
+            {% if camion.type_produit == 'ESSENCE' %}<span class="bdg" style="background:#fbe8e3;color:#c14a1f">{{ camion.get_type_produit_display }}</span>
+            {% elif camion.type_produit == 'GASOIL' %}<span class="bdg ok">{{ camion.get_type_produit_display }}</span>
+            {% elif camion.type_produit == 'PETROLE' %}<span class="bdg info">{{ camion.get_type_produit_display }}</span>
+            {% elif camion.type_produit == 'JET_A1' %}<span class="bdg" style="background:#f0e8f5;color:#7a4ba8">{{ camion.get_type_produit_display }}</span>
+            {% else %}<span class="bdg muted">{{ camion.get_type_produit_display }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Capacité totale</div>
+          <div class="detail-value num" style="font-size:15px;font-weight:700;color:var(--ink)">{{ camion.capacite_totale|floatformat:0 }} L</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Nombre de compartiments</div>
+          <div class="detail-value num">{{ camion.nombre_compartiments }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Mise en circulation</div>
+          <div class="detail-value {% if not camion.date_mise_en_circulation %}tiret{% endif %}">{{ camion.date_mise_en_circulation|date:"d/m/Y"|default:"—" }}</div>
+        </div>
         {% if camion.carte_grise %}
-        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Carte grise</span><a href="{{ camion.carte_grise.url }}" target="_blank" style="font-size:.85rem;color:var(--navy)">Télécharger</a></div>
+        <div class="detail-field" style="margin-bottom:0;grid-column:1/-1">
+          <div class="detail-label">Carte grise</div>
+          <div class="detail-value" style="padding:0">
+            <a href="{{ camion.carte_grise.url }}" target="_blank"
+               style="display:flex;align-items:center;gap:7px;padding:8px 11px;color:var(--info);font-weight:600;font-size:12px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Télécharger le document
+            </a>
+          </div>
+        </div>
         {% endif %}
       </div>
     </div>
   </div>
 
+  <!-- Compartiments -->
+  <div class="card">
+    <div class="card-h" style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--accent-soft);border:1px solid rgba(184,84,26,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="16" y2="21"/></svg>
+        </div>
+        <div class="card-h-title">Capacité par compartiment</div>
+      </div>
+      {% with comps=camion.compartiments.all %}
+      {% if comps %}
+      <span style="font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums">
+        {{ comps|length }} compartiment{% if comps|length > 1 %}s{% endif %}
+      </span>
+      {% endif %}
+      {% endwith %}
+    </div>
+    <div class="card-b">
+      {% with comps=camion.compartiments.all %}
+      {% if comps %}
+        <!-- Barre de visualisation -->
+        <div style="display:flex;gap:3px;height:10px;border-radius:5px;overflow:hidden;margin-bottom:16px;background:var(--surface-2);border:1px solid var(--border)">
+          {% for c in comps %}
+          <div style="flex:{{ c.capacite }};background:var(--accent);opacity:{% cycle '1' '0.7' '0.45' '0.75' '0.55' '0.85' '0.6' %};border-radius:2px;transition:opacity .2s"
+               title="C{{ c.numero }} — {{ c.capacite|floatformat:0 }} L"></div>
+          {% endfor %}
+        </div>
+        <!-- Tableau des compartiments -->
+        <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+          <div style="display:grid;grid-template-columns:48px 1fr auto auto;background:var(--surface-2);padding:6px 12px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;gap:8px;border-bottom:1px solid var(--border)">
+            <span>Comp.</span><span>Capacité</span><span style="text-align:right">Part</span><span style="text-align:right">% du total</span>
+          </div>
+          {% for c in comps %}
+          <div style="display:grid;grid-template-columns:48px 1fr auto auto;padding:8px 12px;gap:8px;border-bottom:{% if not forloop.last %}1px solid var(--border){% else %}none{% endif %};align-items:center">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:var(--accent);border-radius:6px;font-size:11px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace">{{ c.numero }}</span>
+            <div>
+              <span style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace">{{ c.capacite|floatformat:0 }} L</span>
+            </div>
+            <!-- mini barre -->
+            <div style="width:80px">
+              {% if camion.capacite_totale %}
+              <div style="height:5px;background:var(--surface-2);border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+                <div style="height:100%;background:var(--accent);border-radius:3px;width:{% widthratio c.capacite camion.capacite_totale 100 %}%"></div>
+              </div>
+              {% endif %}
+            </div>
+            <span style="font-size:11.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace">
+              {% if camion.capacite_totale %}{% widthratio c.capacite camion.capacite_totale 100 %} %{% else %}—{% endif %}
+            </span>
+          </div>
+          {% endfor %}
+          <!-- Total -->
+          <div style="display:grid;grid-template-columns:48px 1fr auto auto;padding:8px 12px;gap:8px;background:var(--surface-2);border-top:2px solid var(--border);align-items:center">
+            <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Total</span>
+            <span style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace;color:var(--ink)">{{ camion.capacite_totale|floatformat:0 }} L</span>
+            <span></span>
+            <span style="font-size:11.5px;font-weight:700;text-align:right;color:var(--ink)">100 %</span>
+          </div>
+        </div>
+      {% else %}
+        <div style="text-align:center;padding:28px 16px;color:var(--muted)">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-2)" stroke-width="1.5" style="margin:0 auto 10px;display:block"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="16" y2="21"/></svg>
+          <div style="font-size:13px;margin-bottom:6px">Aucun compartiment renseigné</div>
+          <a href="{% url 'camion_update' uuid=camion.uuid slug=camion.slug %}" class="btn btn-ghost btn-sm">Modifier le camion</a>
+        </div>
+      {% endif %}
+      {% endwith %}
+    </div>
+  </div>
+
   <!-- Assurance -->
   <div class="card">
-    <div class="card-h"><div class="card-h-title">Assurance</div></div>
-    <div class="card-b">
-      <div style="display:flex;flex-direction:column;gap:0">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Compagnie</span><span style="font-size:.85rem;font-weight:500">{{ camion.compagnie_assurance|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">N° Police</span><span style="font-size:.85rem;font-weight:500;font-family:inherit">{{ camion.numero_police_assurance|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Expiration</span><span style="font-size:.85rem;font-weight:500">{% if camion.date_expiration_assurance %}{{ camion.date_expiration_assurance|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+    <div class="card-h">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--ok-soft);border:1px solid rgba(63,125,58,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="card-h-title">Assurance</div>
+      </div>
+      {% if camion.date_expiration_assurance %}
+      <span class="bdg muted" style="font-size:10px">
+        Exp. {{ camion.date_expiration_assurance|date:"d/m/Y" }}
+      </span>
+      {% endif %}
+    </div>
+    <div class="card-b" style="padding:14px 16px">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Compagnie</div>
+          <div class="detail-value {% if not camion.compagnie_assurance %}tiret{% endif %}">{{ camion.compagnie_assurance|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">N° Police</div>
+          <div class="detail-value num" style="font-size:12px">{{ camion.numero_police_assurance|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Date d'expiration</div>
+          <div class="detail-value {% if not camion.date_expiration_assurance %}tiret{% endif %}">
+            {% if camion.date_expiration_assurance %}{{ camion.date_expiration_assurance|date:"d/m/Y" }}{% else %}—{% endif %}
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Technique -->
+  <!-- Technique & Entretien -->
   <div class="card">
-    <div class="card-h"><div class="card-h-title">Technique & Entretien</div></div>
-    <div class="card-b">
-      <div style="display:flex;flex-direction:column;gap:0">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Kilométrage</span><span style="font-size:.85rem;font-weight:500">{% if camion.kilometrage %}{{ camion.kilometrage|floatformat:0 }} km{% else %}—{% endif %}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:.78rem;color:var(--muted)">Dernière révision</span><span style="font-size:.85rem;font-weight:500">{{ camion.date_derniere_revision|date:"d/m/Y"|default:"—" }}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:.78rem;color:var(--muted)">Prochaine révision</span><span style="font-size:.85rem;font-weight:500">{{ camion.date_prochaine_revision|date:"d/m/Y"|default:"—" }}</span></div>
+    <div class="card-h">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--warn-soft);border:1px solid rgba(168,107,0,.2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <div class="card-h-title">Technique &amp; Entretien</div>
+      </div>
+    </div>
+    <div class="card-b" style="padding:14px 16px">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Kilométrage</div>
+          <div class="detail-value num">{% if camion.kilometrage %}{{ camion.kilometrage|floatformat:0 }} km{% else %}—{% endif %}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Dernière révision</div>
+          <div class="detail-value {% if not camion.date_derniere_revision %}tiret{% endif %}">{{ camion.date_derniere_revision|date:"d/m/Y"|default:"—" }}</div>
+        </div>
+        <div class="detail-field" style="margin-bottom:0">
+          <div class="detail-label">Prochaine révision</div>
+          <div class="detail-value {% if not camion.date_prochaine_revision %}tiret{% endif %}">{{ camion.date_prochaine_revision|date:"d/m/Y"|default:"—" }}</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Chauffeurs liés -->
+  <!-- Chauffeurs assignés -->
   <div class="card">
-    <div class="card-h"><div class="card-h-title">Chauffeurs assignés</div></div>
-    <div class="card-b">
+    <div class="card-h" style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="card-h-title">Chauffeurs assignés</div>
+      </div>
+      {% with count=camion.chauffeurs.count %}
+      {% if count > 0 %}
+      <span style="font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--muted)">{{ count }}</span>
+      {% endif %}
+      {% endwith %}
+    </div>
+    <div class="card-b" style="padding:0">
       {% for chf in camion.chauffeurs.all %}
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-        <a href="{% url 'chauffeur_detail' chf.pk %}" style="font-size:.85rem;font-weight:600;color:var(--navy)">{{ chf.nom_complet }}</a>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="color:#fff;font-size:11px;font-weight:700">{{ chf.nom_complet|slice:":1"|upper }}</span>
+          </div>
+          <a href="{% url 'chauffeur_detail' uuid=chf.uuid slug=chf.slug %}" style="font-size:.85rem;font-weight:600;color:var(--ink)">{{ chf.nom_complet }}</a>
+        </div>
         {% if chf.statut == 'ACTIF' %}<span class="bdg ok">{{ chf.get_statut_display }}</span>
         {% elif chf.statut == 'SUSPENDU' %}<span class="bdg warn">{{ chf.get_statut_display }}</span>
-        {% else %}<span class="bdg">{{ chf.get_statut_display }}</span>{% endif %}
+        {% else %}<span class="bdg muted">{{ chf.get_statut_display }}</span>{% endif %}
       </div>
       {% empty %}
-      <p style="color:var(--muted);font-size:.85rem;text-align:center;padding:12px 0">Aucun chauffeur assigné</p>
+      <div style="text-align:center;padding:28px 16px;color:var(--muted)">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--muted-2)" stroke-width="1.5" style="margin:0 auto 8px;display:block"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div style="font-size:13px">Aucun chauffeur assigné</div>
+      </div>
       {% endfor %}
     </div>
   </div>
 
   {% if camion.notes %}
   <!-- Notes -->
-  <div class="card">
-    <div class="card-h"><div class="card-h-title">Notes</div></div>
+  <div class="card" style="grid-column:1/-1">
+    <div class="card-h">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:28px;height:28px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div class="card-h-title">Notes &amp; Observations</div>
+      </div>
+    </div>
     <div class="card-b">
-      <p style="font-size:.85rem;color:var(--text);line-height:1.6;white-space:pre-line">{{ camion.notes }}</p>
+      <p style="font-size:.85rem;color:var(--text);line-height:1.7;white-space:pre-line">{{ camion.notes }}</p>
     </div>
   </div>
   {% endif %}
 
 </div>
 
-<div style="display:flex;align-items:center;justify-content:space-between;margin-top:24px;flex-wrap:wrap;gap:12px">
-  <a href="{% url 'camion_delete' camion.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce camion</a>
-  <span style="font-size:.75rem;color:var(--muted)">
-    Enregistré le {{ camion.date_enregistrement|date:"d/m/Y à H:i" }} &nbsp;·&nbsp;
-    Modifié le {{ camion.date_modification|date:"d/m/Y à H:i" }}
-  </span>
+<!-- Footer -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;flex-wrap:wrap;gap:12px;padding:14px 0;border-top:1px solid var(--border)">
+  <a href="{% url 'camion_delete' uuid=camion.uuid slug=camion.slug %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err);border-color:transparent;gap:5px">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    Supprimer ce camion
+  </a>
+  <div style="display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--muted)">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Créé le {{ camion.date_enregistrement|date:"d/m/Y" }} · Modifié le {{ camion.date_modification|date:"d/m/Y à H:i" }}
+  </div>
 </div>
+
 {% endblock %}

@@ -5,7 +5,7 @@
 {% block breadcrumb %}
 <a href="{% url 'famille_list' %}">Familles</a>
 <span class="breadcrumb-sep">/</span>
-<a href="{% url 'famille_detail' famille.pk %}">{{ famille.nom }}</a>
+<a href="{% url 'famille_detail' uuid=famille.uuid slug=famille.slug %}">{{ famille.nom }}</a>
 <span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">Supprimer</span>
 {% endblock %}
@@ -29,7 +29,7 @@
     <div class="alert alert-error" style="margin-top:12px">Cette action est irréversible.</div>
     <form method="post" style="display:flex;gap:8px;margin-top:16px">
       {% csrf_token %}
-      <a href="{% url 'famille_detail' famille.pk %}" class="btn">Annuler</a>
+      <a href="{% url 'famille_detail' uuid=famille.uuid slug=famille.slug %}" class="btn">Annuler</a>
       <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
     </form>
   </div>

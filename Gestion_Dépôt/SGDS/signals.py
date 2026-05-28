@@ -2,7 +2,7 @@
 Signaux Django pour mise à jour automatique des stocks cuves/produits.
 Chargés via SgdsConfig.ready() dans apps.py.
 """
-from django.db.models.signals import post_save, post_delete, m2m_changed
+from django.db.models.signals import post_save, post_delete, pre_save, m2m_changed
 from django.dispatch import receiver
 
 from SGDS.models import JaugeageJour, MesureCuve, Mouvement, LigneMouvement, InventaireInitialMarketeur
@@ -207,3 +207,95 @@ def on_mouvement_created_notif(sender, instance, created, **kwargs):
                 f"{m.acquittement_date_declaration.strftime('%d/%m/%Y') if m.acquittement_date_declaration else 'N/A'}."
             ),
         )
+
+
+# ── Notifications États Mensuels ─────────────────────────────
+
+@receiver(pre_save, sender='SGDS.PeriodeComptable')
+def on_periode_pre_save(sender, instance, **kwargs):
+    """Mémorise l'ancien statut pour détecter le passage à CLOTUREE."""
+    if instance.pk:
+        try:
+            from SGDS.models import PeriodeComptable
+            old = PeriodeComptable.objects.filter(pk=instance.pk).values('statut').first()
+            instance._statut_precedent = old['statut'] if old else None
+        except Exception:
+            instance._statut_precedent = None
+    else:
+        instance._statut_precedent = None
+
+
+@receiver(post_save, sender='SGDS.PeriodeComptable')
+def on_periode_cloturee_notif(sender, instance, created, **kwargs):
+    """
+    Quand une PériodeComptable passe à CLOTUREE, crée une notification
+    ETAT_MENSUEL_DISPONIBLE pour chaque marketeur actif ayant eu des mouvements
+    sur cette période.
+    """
+    if created:
+        return
+    statut_prec = getattr(instance, '_statut_precedent', None)
+    if statut_prec == 'CLOTUREE' or instance.statut != 'CLOTUREE':
+        return
+
+    try:
+        from SGDS.models import Notification, Marketeur, Mouvement
+
+        date_debut = instance.date_debut
+        date_fin = instance.date_fin
+
+        marketeur_ids = (
+            Mouvement.objects
+            .filter(date_mouvement__gte=date_debut, date_mouvement__lte=date_fin)
+            .values_list('marketeur_id', flat=True)
+            .distinct()
+        )
+        marketeurs = Marketeur.objects.filter(pk__in=marketeur_ids, statut='ACTIF')
+
+        lien = (
+            f"/mon-espace/mensuel/stock-a/?mois={instance.mois}&annee={instance.annee}"
+        )
+        titre = f"États mensuels disponibles — {instance.mois:02d}/{instance.annee}"
+        message = (
+            f"Les états mensuels pour la période {instance.libelle} sont maintenant "
+            f"disponibles : stock mensuel, répartition du coulage et frais de passage."
+        )
+
+        for mkt in marketeurs:
+            Notification.objects.create(
+                marketeur=mkt,
+                type_notif='ETAT_MENSUEL_DISPONIBLE',
+                titre=titre,
+                message=message,
+                lien=lien,
+            )
+
+        # Email optionnel si backend SMTP configuré
+        _envoyer_email_etats_mensuels(marketeurs, instance, titre, message)
+
+    except Exception:
+        pass
+
+
+def _envoyer_email_etats_mensuels(marketeurs, periode, sujet_notif, message_notif):
+    """Envoi email si EMAIL_BACKEND n'est pas le backend fictif (dummy)."""
+    from django.conf import settings as _settings
+    backend = getattr(_settings, 'EMAIL_BACKEND', '')
+    if 'dummy' in backend.lower() or 'console' in backend.lower():
+        return
+    if not getattr(_settings, 'EMAIL_HOST', ''):
+        return
+    try:
+        from django.core.mail import send_mail
+        for mkt in marketeurs:
+            email = mkt.email or mkt.email_representant
+            if not email:
+                continue
+            sujet = f"[SGDS] États mensuels {periode.mois:02d}/{periode.annee} disponibles"
+            corps = (
+                f"{message_notif}\n\n"
+                f"Connectez-vous à l'application SGDS pour consulter vos états.\n"
+            )
+            send_mail(sujet, corps, _settings.DEFAULT_FROM_EMAIL, [email], fail_silently=True)
+    except Exception:
+        pass

@@ -95,23 +95,23 @@
     {% endif %}
 
     {# Bouton Imprimer #}
-    <a href="{% url 'jaugeage_rapport' jaugeage.pk %}" class="btn-hero btn-hero-retour" target="_blank">
+    <a href="{% url 'jaugeage_rapport' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn-hero btn-hero-retour" target="_blank">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
       Imprimer / PDF
     </a>
 
     {% if not request.user.is_marketeur_role %}
       {% if not jaugeage.est_valide %}
-        <a href="{% url 'jaugeage_saisie' jaugeage.pk %}" class="btn-hero btn-hero-modifier">
+        <a href="{% url 'jaugeage_saisie' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn-hero btn-hero-modifier">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Modifier les mesures
         </a>
-        <a href="{% url 'jaugeage_update' jaugeage.pk %}" class="btn-hero btn-hero-retour">
+        <a href="{% url 'jaugeage_update' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn-hero btn-hero-retour">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Modifier en-tête
         </a>
         {% if request.user.is_staff %}
-        <form method="post" action="{% url 'jaugeage_valider' jaugeage.pk %}" id="form-valider" style="margin:0">
+        <form method="post" action="{% url 'jaugeage_valider' uuid=jaugeage.uuid slug=jaugeage.slug %}" id="form-valider" style="margin:0">
           {% csrf_token %}
           <button type="button" class="btn-hero" style="background:rgba(22,163,74,.25);color:#86efac;border:1px solid rgba(22,163,74,.4)"
             onclick="ouvrirModaleValider()">
@@ -121,12 +121,12 @@
         </form>
         {% endif %}
       {% else %}
-        <a href="{% url 'jaugeage_saisie' jaugeage.pk %}" class="btn-hero btn-hero-retour">
+        <a href="{% url 'jaugeage_saisie' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn-hero btn-hero-retour">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           Voir les mesures
         </a>
         {% if request.user.is_staff %}
-        <form method="post" action="{% url 'jaugeage_devalider' jaugeage.pk %}" id="form-devalider" style="margin:0">
+        <form method="post" action="{% url 'jaugeage_devalider' uuid=jaugeage.uuid slug=jaugeage.slug %}" id="form-devalider" style="margin:0">
           {% csrf_token %}
           <button type="button" class="btn-hero" style="background:rgba(245,158,11,.18);color:#fde68a;border:1px solid rgba(245,158,11,.35)"
             onclick="ouvrirModaleDevalider()">
@@ -265,7 +265,7 @@
     Retour à la liste
   </a>
   {% if not request.user.is_marketeur_role %}
-  <a href="{% url 'jaugeage_delete' jaugeage.pk %}" class="btn btn-danger">
+  <a href="{% url 'jaugeage_delete' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn btn-danger">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
     Supprimer ce jaugeage
   </a>

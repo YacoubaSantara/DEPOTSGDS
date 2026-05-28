@@ -25,7 +25,7 @@
     </div>
     <div class="hero-actions">
       <a href="{% url 'famille_list' %}" class="hero-btn">← Retour</a>
-      <a href="{% url 'famille_update' famille.pk %}" class="hero-btn primary">Modifier</a>
+      <a href="{% url 'famille_update' uuid=famille.uuid slug=famille.slug %}" class="hero-btn primary">Modifier</a>
     </div>
   </div>
 </div>
@@ -59,7 +59,7 @@
       {% if produits %}
       <div style="display:flex;flex-direction:column;gap:10px">
         {% for prod in produits %}
-        <a href="{% url 'produit_detail' prod.pk %}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);transition:border-color .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+        <a href="{% url 'produit_detail' uuid=prod.uuid slug=prod.slug %}" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);transition:border-color .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
           <div>
             <div style="font-weight:700;color:var(--text);font-size:.9rem">{{ prod.nom }}</div>
             <div style="font-size:.73rem;color:var(--muted);margin-top:2px">{{ prod.code }} · {{ prod.get_unite_mesure_display }}</div>
@@ -84,6 +84,6 @@
 </div>
 
 <div style="margin-top:20px">
-  <a href="{% url 'famille_delete' famille.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer cette famille</a>
+  <a href="{% url 'famille_delete' uuid=famille.uuid slug=famille.slug %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer cette famille</a>
 </div>
 {% endblock %}

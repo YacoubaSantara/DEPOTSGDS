@@ -7,126 +7,473 @@
 <span class="breadcrumb-current">Marketeurs</span>
 {% endblock %}
 
+{% block extra_head %}
+<style>
+/* ── KPI grid enrichie ── */
+.mkt-kpi-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;
+}
+.mkt-kpi{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:16px 18px;display:flex;align-items:flex-start;gap:13px;
+  position:relative;overflow:hidden;transition:box-shadow .2s,transform .2s;
+}
+.mkt-kpi:hover{box-shadow:var(--shadow);transform:translateY(-1px);}
+.mkt-kpi::after{
+  content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+}
+.mkt-kpi.k-total::after{background:var(--ink);}
+.mkt-kpi.k-actif::after{background:var(--ok);}
+.mkt-kpi.k-suspendu::after{background:var(--warn);}
+.mkt-kpi.k-black::after{background:var(--err);}
+.mkt-kpi-icon{
+  width:42px;height:42px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.k-total  .mkt-kpi-icon{background:#f0ede6;}
+.k-actif  .mkt-kpi-icon{background:var(--ok-soft);}
+.k-suspendu .mkt-kpi-icon{background:var(--warn-soft);}
+.k-black  .mkt-kpi-icon{background:var(--err-soft);}
+.mkt-kpi-body{flex:1;min-width:0;}
+.mkt-kpi-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:5px;}
+.mkt-kpi-val{font-size:1.9rem;font-weight:700;line-height:1;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+.k-total  .mkt-kpi-val{color:var(--ink);}
+.k-actif  .mkt-kpi-val{color:var(--ok);}
+.k-suspendu .mkt-kpi-val{color:var(--warn);}
+.k-black  .mkt-kpi-val{color:var(--err);}
+.mkt-kpi-sub{font-size:11.5px;color:var(--muted);}
+
+/* ── Wrapper filtre + tableau ── */
+.mkt-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;
+}
+
+/* ── Barre de filtres ── */
+.mkt-filterbar{
+  padding:13px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  background:var(--surface-2);
+}
+.mkt-search-wrap{position:relative;flex:1;min-width:200px;}
+.mkt-search-wrap svg{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;stroke:var(--muted);fill:none;pointer-events:none;
+}
+.mkt-search-input{
+  height:34px;width:100%;padding:0 10px 0 34px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  background:var(--surface);font-size:12.5px;
+  transition:border-color .15s,box-shadow .15s;
+}
+.mkt-search-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,84,26,.08);}
+.mkt-select{
+  height:34px;padding:0 28px 0 10px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  background:var(--surface);font-size:12.5px;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a7468' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 9px center;
+  cursor:pointer;transition:border-color .15s;
+}
+.mkt-select:focus{outline:none;border-color:var(--accent);}
+.filter-chip{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 7px 3px 9px;
+  background:var(--accent-soft);color:var(--accent-ink);border:1px solid #f0cdb8;
+  border-radius:20px;font-size:11.5px;font-weight:600;
+}
+.chip-x{
+  width:15px;height:15px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(184,84,26,.12);color:var(--accent-ink);
+  text-decoration:none;transition:background .12s;flex-shrink:0;
+}
+.chip-x:hover{background:rgba(184,84,26,.28);}
+.filter-count{font-size:11.5px;color:var(--muted);white-space:nowrap;margin-left:auto;}
+.filter-count strong{color:var(--ink);}
+
+/* ── Tableau ── */
+.tbl-mkt{width:100%;border-collapse:collapse;}
+.tbl-mkt thead tr{background:var(--surface-2);border-bottom:2px solid var(--border);}
+.tbl-mkt th{
+  padding:10px 14px;text-align:left;
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+  white-space:nowrap;
+}
+.tbl-mkt th.tar{text-align:right;}
+.tbl-mkt tbody tr{
+  border-bottom:1px solid var(--border);cursor:pointer;
+  transition:background .1s;
+}
+.tbl-mkt tbody tr:last-child{border-bottom:none;}
+.tbl-mkt tbody tr:hover{background:#faf9f5;}
+.tbl-mkt td{padding:12px 14px;font-size:13px;vertical-align:middle;}
+
+/* Indicateur statut sur bord gauche */
+.tbl-mkt tbody tr.row-actif  {box-shadow:inset 3px 0 0 var(--ok);}
+.tbl-mkt tbody tr.row-suspendu{box-shadow:inset 3px 0 0 var(--warn);}
+.tbl-mkt tbody tr.row-black  {box-shadow:inset 3px 0 0 var(--err);}
+.tbl-mkt tbody tr.row-inactif{box-shadow:inset 3px 0 0 var(--border-2);}
+
+/* Avatar */
+.soc-logo{width:38px;height:38px;border-radius:9px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+.soc-init{
+  width:38px;height:38px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11.5px;font-weight:700;color:var(--accent-ink);
+  background:var(--accent-soft);border:1px solid #f0cdb8;letter-spacing:.03em;
+}
+.soc-name{font-weight:600;font-size:13px;color:var(--ink);line-height:1.25;}
+.soc-sigle{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* Statut badge enrichi */
+.stat-bdg{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:20px;
+  font-size:11px;font-weight:600;white-space:nowrap;
+}
+.stat-bdg::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8;}
+.stat-bdg.s-ok   {background:var(--ok-soft);color:var(--ok);}
+.stat-bdg.s-warn {background:var(--warn-soft);color:var(--warn);}
+.stat-bdg.s-err  {background:var(--err-soft);color:var(--err);}
+.stat-bdg.s-muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--border);}
+
+/* Actions dropdown */
+.am{position:relative;display:inline-block;}
+.am-btn{
+  width:30px;height:30px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--muted);border:1.5px solid transparent;
+  transition:all .12s;cursor:pointer;background:transparent;
+}
+.am-btn:hover{background:var(--surface-2);border-color:var(--border);color:var(--ink);}
+.am-drop{
+  position:absolute;right:0;top:34px;z-index:300;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);box-shadow:0 8px 28px rgba(0,0,0,.12);
+  min-width:165px;padding:5px;display:none;
+}
+.am-drop.open{display:block;animation:amIn .14s ease;}
+@keyframes amIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.am-item{
+  display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:var(--radius);
+  font-size:12.5px;color:var(--ink-2);cursor:pointer;transition:background .1s;
+  text-decoration:none;
+}
+.am-item svg{width:13px;height:13px;stroke:var(--muted);fill:none;flex-shrink:0;}
+.am-item:hover{background:var(--surface-2);}
+.am-item:hover svg{stroke:var(--ink);}
+.am-item.danger{color:var(--err);}
+.am-item.danger svg{stroke:var(--err);opacity:.85;}
+.am-item.danger:hover{background:var(--err-soft);}
+.am-sep{height:1px;background:var(--border);margin:4px 0;}
+
+/* État vide */
+.mkt-empty{padding:60px 24px;text-align:center;}
+.mkt-empty-icon{
+  width:64px;height:64px;border-radius:16px;
+  background:var(--surface-2);border:2px dashed var(--border-2);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;
+}
+.mkt-empty-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:6px;}
+.mkt-empty-sub{font-size:13px;color:var(--muted);margin-bottom:22px;}
+
+/* ── Pagination ── */
+.mkt-pgn{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;gap:12px;flex-wrap:wrap;
+  border-top:1px solid var(--border);background:var(--surface-2);
+}
+.mkt-pgn-info{font-size:11.5px;color:var(--muted);white-space:nowrap;}
+.mkt-pgn-info strong{color:var(--ink);}
+.mkt-pgn-nav{display:flex;align-items:center;gap:3px;}
+
+/* Bouton numéro de page */
+.ppb{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:32px;height:30px;padding:0 8px;
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface);color:var(--ink-2);
+  font-size:12.5px;font-weight:500;
+  text-decoration:none;cursor:pointer;
+  transition:background .1s,border-color .1s,color .1s;
+  white-space:nowrap;
+}
+.ppb:hover{background:var(--accent-soft);border-color:#f0cdb8;color:var(--accent-ink);}
+.ppb.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;cursor:default;pointer-events:none;}
+.ppb.disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
+.ppb.nav{gap:6px;padding:0 11px;}
+.ppb.nav svg{width:13px;height:13px;stroke:currentColor;fill:none;flex-shrink:0;}
+.pgn-dots{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:28px;height:30px;font-size:13px;color:var(--muted);letter-spacing:.1em;
+}
+
+/* Responsive */
+@media(max-width:960px){.mkt-kpi-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:600px){
+  .mkt-kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .mkt-search-wrap{min-width:100%;}
+  .tbl-mkt th:nth-child(2),.tbl-mkt td:nth-child(2),
+  .tbl-mkt th:nth-child(5),.tbl-mkt td:nth-child(5){display:none;}
+}
+</style>
+{% endblock %}
+
 {% block content %}
+
+<!-- En-tête de page -->
 <div class="ph">
   <div>
     <h1 class="ph-title">Marketeurs</h1>
-    <p class="ph-sub">Gestion des sociétés partenaires</p>
+    <p class="ph-sub">Gestion des sociétés partenaires et distributeurs</p>
   </div>
   <div class="ph-actions">
     <a href="{% url 'marketeur_create' %}" class="btn btn-accent">
-      <svg viewBox="0 0 24 24" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nouveau Marketeur
     </a>
   </div>
 </div>
 
-<!-- KPI strip -->
-<div class="kpi-strip" style="margin-bottom:24px">
-  <div class="kpi">
-    <div class="kpi-label">Total marketeurs</div>
-    <div class="kpi-val mono">{{ total }}</div>
+<!-- KPI Grid -->
+<div class="mkt-kpi-grid">
+  <div class="mkt-kpi k-total">
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24" stroke="var(--ink-2)" stroke-width="1.8" fill="none" width="20" height="20"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+    </div>
+    <div class="mkt-kpi-body">
+      <div class="mkt-kpi-label">Total</div>
+      <div class="mkt-kpi-val">{{ total }}</div>
+      <div class="mkt-kpi-sub">Sociétés enregistrées</div>
+    </div>
   </div>
-  <div class="kpi">
-    <div class="kpi-label">Actifs</div>
-    <div class="kpi-val mono">{{ nb_actif }}</div>
+  <div class="mkt-kpi k-actif">
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24" stroke="var(--ok)" stroke-width="1.8" fill="none" width="20" height="20"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div class="mkt-kpi-body">
+      <div class="mkt-kpi-label">Actifs</div>
+      <div class="mkt-kpi-val">{{ nb_actif }}</div>
+      <div class="mkt-kpi-sub">En activité</div>
+    </div>
   </div>
-  <div class="kpi">
-    <div class="kpi-label">Suspendus</div>
-    <div class="kpi-val mono">{{ nb_suspendu }}</div>
+  <div class="mkt-kpi k-suspendu">
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24" stroke="var(--warn)" stroke-width="1.8" fill="none" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+    </div>
+    <div class="mkt-kpi-body">
+      <div class="mkt-kpi-label">Suspendus</div>
+      <div class="mkt-kpi-val">{{ nb_suspendu }}</div>
+      <div class="mkt-kpi-sub">Temporairement bloqués</div>
+    </div>
   </div>
-  <div class="kpi">
-    <div class="kpi-label">Blacklistés</div>
-    <div class="kpi-val mono">{{ nb_black }}</div>
+  <div class="mkt-kpi k-black">
+    <div class="mkt-kpi-icon">
+      <svg viewBox="0 0 24 24" stroke="var(--err)" stroke-width="1.8" fill="none" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    </div>
+    <div class="mkt-kpi-body">
+      <div class="mkt-kpi-label">Blacklistés</div>
+      <div class="mkt-kpi-val">{{ nb_black }}</div>
+      <div class="mkt-kpi-sub">Accès révoqué</div>
+    </div>
   </div>
 </div>
 
-<!-- Filtres + Table -->
-<div class="card">
-  <form method="get">
-  <div class="filter-bar">
-    <div style="position:relative;flex:1;min-width:200px">
-      <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);fill:none;pointer-events:none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input class="search-input" type="text" name="q" value="{{ q }}" placeholder="Rechercher par nom, sigle, ville…"/>
+<!-- Panel : filtres + tableau -->
+<div class="mkt-panel">
+
+  <!-- Barre de filtres -->
+  <form method="get" id="filter-form">
+    <div class="mkt-filterbar">
+
+      <div class="mkt-search-wrap">
+        <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="mkt-search-input" type="text" name="q" id="search-q"
+               value="{{ q }}" placeholder="Rechercher par nom, sigle, ville…" autocomplete="off"/>
+      </div>
+
+      <select class="mkt-select" name="statut" onchange="this.form.submit()">
+        <option value="">Tous les statuts</option>
+        <option value="ACTIF"     {% if statut == 'ACTIF'     %}selected{% endif %}>Actif</option>
+        <option value="INACTIF"   {% if statut == 'INACTIF'   %}selected{% endif %}>Inactif</option>
+        <option value="SUSPENDU"  {% if statut == 'SUSPENDU'  %}selected{% endif %}>Suspendu</option>
+        <option value="BLACKLIST" {% if statut == 'BLACKLIST' %}selected{% endif %}>Blacklisté</option>
+      </select>
+
+      <select class="mkt-select" name="ville" onchange="this.form.submit()">
+        <option value="">Toutes les villes</option>
+        {% for v in villes %}
+          <option value="{{ v }}" {% if ville == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+
+      <button type="submit" class="btn btn-accent btn-sm">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="13" height="13"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Filtrer
+      </button>
+
+      {% if q %}
+        <span class="filter-chip">"{{ q }}"
+          <a class="chip-x" href="?{% if statut %}statut={{ statut }}&{% endif %}{% if ville %}ville={{ ville }}{% endif %}" title="Retirer">
+            <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" fill="none" width="8" height="8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </a>
+        </span>
+      {% endif %}
+      {% if statut %}
+        <span class="filter-chip">{{ statut|lower|capfirst }}
+          <a class="chip-x" href="?{% if q %}q={{ q }}&{% endif %}{% if ville %}ville={{ ville }}{% endif %}" title="Retirer">
+            <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" fill="none" width="8" height="8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </a>
+        </span>
+      {% endif %}
+      {% if ville %}
+        <span class="filter-chip">{{ ville }}
+          <a class="chip-x" href="?{% if q %}q={{ q }}&{% endif %}{% if statut %}statut={{ statut }}{% endif %}" title="Retirer">
+            <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" fill="none" width="8" height="8"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </a>
+        </span>
+      {% endif %}
+      {% if q or statut or ville %}
+        <a href="{% url 'marketeur_list' %}" class="btn btn-ghost btn-sm">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="12" height="12"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          Tout effacer
+        </a>
+      {% endif %}
+
+      <span class="filter-count"><strong>{{ count }}</strong> résultat{% if count != 1 %}s{% endif %}</span>
     </div>
-    <select class="select" name="statut" onchange="this.form.submit()">
-      <option value="">Tous les statuts</option>
-      <option value="ACTIF"     {% if statut == 'ACTIF'     %}selected{% endif %}>Actif</option>
-      <option value="INACTIF"   {% if statut == 'INACTIF'   %}selected{% endif %}>Inactif</option>
-      <option value="SUSPENDU"  {% if statut == 'SUSPENDU'  %}selected{% endif %}>Suspendu</option>
-      <option value="BLACKLIST" {% if statut == 'BLACKLIST' %}selected{% endif %}>Blacklisté</option>
-    </select>
-    <select class="select" name="ville" onchange="this.form.submit()">
-      <option value="">Toutes les villes</option>
-      {% for v in villes %}
-        <option value="{{ v }}" {% if ville == v %}selected{% endif %}>{{ v }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="btn btn-accent btn-sm">
-      <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      Rechercher
-    </button>
-    {% if q or statut or ville %}
-      <a href="{% url 'marketeur_list' %}" class="btn btn-ghost btn-sm">Réinitialiser</a>
-    {% endif %}
-    <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;margin-left:auto">{{ count }} résultat{% if count != 1 %}s{% endif %}</span>
-  </div>
   </form>
-  <table class="tbl">
+
+  <!-- Tableau -->
+  {% if marketeurs %}
+  <table class="tbl-mkt">
     <thead>
       <tr>
         <th>Société</th>
-        <th>Forme</th>
+        <th>Forme juridique</th>
         <th>Ville</th>
         <th>Téléphone</th>
         <th>Email</th>
         <th>Statut</th>
-        <th class="tar">Actions</th>
+        <th class="tar" style="padding-right:18px">Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for mkt in marketeurs %}
-      <tr class="clickable" onclick="window.location='{% url 'marketeur_detail' mkt.pk %}'">
+      <tr class="{% if mkt.statut == 'ACTIF' %}row-actif{% elif mkt.statut == 'SUSPENDU' %}row-suspendu{% elif mkt.statut == 'BLACKLIST' %}row-black{% else %}row-inactif{% endif %}"
+          onclick="window.location='{% url 'marketeur_detail' uuid=mkt.uuid slug=mkt.slug %}'">
+
         <td>
-          <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:11px">
             {% if mkt.logo %}
-              <img style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0" src="{{ mkt.logo.url }}" alt="{{ mkt.raison_sociale }}"/>
+              <img class="soc-logo" src="{{ mkt.logo.url }}" alt="{{ mkt.raison_sociale }}"/>
             {% else %}
-              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;color:#fff;background:var(--navy);flex-shrink:0">{{ mkt.raison_sociale|slice:":2"|upper }}</div>
+              <div class="soc-init">{{ mkt.raison_sociale|slice:":2"|upper }}</div>
             {% endif %}
             <div>
-              <div style="font-weight:600">{{ mkt.raison_sociale }}</div>
-              <div style="font-size:.72rem;color:var(--muted)">{{ mkt.sigle|default:"—" }}</div>
+              <div class="soc-name">{{ mkt.raison_sociale }}</div>
+              {% if mkt.sigle %}<div class="soc-sigle">{{ mkt.sigle }}</div>{% endif %}
             </div>
           </div>
         </td>
-        <td>{{ mkt.forme_juridique }}</td>
-        <td>{{ mkt.ville }}</td>
-        <td class="mono">{{ mkt.telephone }}</td>
-        <td>{{ mkt.email|default:"—" }}</td>
+
+        <td style="color:var(--muted);font-size:12.5px">{{ mkt.get_forme_juridique_display }}</td>
+
         <td>
-          {% if mkt.statut == 'ACTIF' %}<span class="bdg ok">{{ mkt.get_statut_display }}</span>
-          {% elif mkt.statut == 'SUSPENDU' %}<span class="bdg warn">{{ mkt.get_statut_display }}</span>
-          {% elif mkt.statut == 'BLACKLIST' %}<span class="bdg err">{{ mkt.get_statut_display }}</span>
-          {% else %}<span class="bdg info">{{ mkt.get_statut_display }}</span>{% endif %}
-        </td>
-        <td class="tar" onclick="event.stopPropagation()">
-          <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
-            <a href="{% url 'marketeur_detail' mkt.pk %}" class="btn btn-sm btn-ghost">Voir</a>
-            <a href="{% url 'marketeur_update' mkt.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
-            <a href="{% url 'marketeur_delete' mkt.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+          <div style="display:flex;align-items:center;gap:5px;font-size:12.5px">
+            <svg viewBox="0 0 24 24" stroke="var(--muted-2)" stroke-width="1.8" fill="none" width="12" height="12"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            {{ mkt.ville }}
           </div>
         </td>
-      </tr>
-      {% empty %}
-      <tr class="tbl-empty">
-        <td colspan="7">
-          Aucun marketeur trouvé.
-          {% if q or statut or ville %}Modifiez vos filtres ou <a href="{% url 'marketeur_list' %}">réinitialisez</a>.{% else %}Commencez par <a href="{% url 'marketeur_create' %}">ajouter un marketeur</a>.{% endif %}
+
+        <td onclick="event.stopPropagation()">
+          <a href="tel:{{ mkt.telephone }}" class="mono" style="color:var(--accent);font-size:12px">{{ mkt.telephone }}</a>
+        </td>
+
+        <td onclick="event.stopPropagation()" style="font-size:12px;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          {% if mkt.email %}
+            <a href="mailto:{{ mkt.email }}" style="color:var(--muted)">{{ mkt.email }}</a>
+          {% else %}—{% endif %}
+        </td>
+
+        <td>
+          {% if mkt.statut == 'ACTIF' %}<span class="stat-bdg s-ok">Actif</span>
+          {% elif mkt.statut == 'SUSPENDU' %}<span class="stat-bdg s-warn">Suspendu</span>
+          {% elif mkt.statut == 'BLACKLIST' %}<span class="stat-bdg s-err">Blacklisté</span>
+          {% else %}<span class="stat-bdg s-muted">Inactif</span>{% endif %}
+        </td>
+
+        <td class="tar" onclick="event.stopPropagation()">
+          <div class="am" id="am-{{ mkt.uuid }}">
+            <button type="button" class="am-btn" onclick="amToggle('{{ mkt.uuid }}')" title="Actions">
+              <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" fill="none" width="15" height="15">
+                <circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/>
+              </svg>
+            </button>
+            <div class="am-drop" id="amd-{{ mkt.uuid }}">
+              <a href="{% url 'marketeur_detail' uuid=mkt.uuid slug=mkt.slug %}" class="am-item">
+                <svg viewBox="0 0 24 24" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Voir le détail
+              </a>
+              <a href="{% url 'marketeur_update' uuid=mkt.uuid slug=mkt.slug %}" class="am-item">
+                <svg viewBox="0 0 24 24" stroke-width="2" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Modifier
+              </a>
+              <div class="am-sep"></div>
+              <a href="{% url 'marketeur_delete' uuid=mkt.uuid slug=mkt.slug %}" class="am-item danger">
+                <svg viewBox="0 0 24 24" stroke-width="2" fill="none"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                Supprimer
+              </a>
+            </div>
+          </div>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-</div>
+  {% include 'partials/_pagination.html' with page_obj=marketeurs filtres=filtres %}
+
+  {% else %}
+  <!-- État vide -->
+  <div class="mkt-empty">
+    <div class="mkt-empty-icon">
+      <svg viewBox="0 0 24 24" stroke="var(--muted)" stroke-width="1.4" fill="none" width="28" height="28"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+    </div>
+    {% if q or statut or ville %}
+      <div class="mkt-empty-title">Aucun résultat</div>
+      <div class="mkt-empty-sub">Aucun marketeur ne correspond à vos critères de recherche.</div>
+      <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">Effacer les filtres</a>
+    {% else %}
+      <div class="mkt-empty-title">Aucun marketeur enregistré</div>
+      <div class="mkt-empty-sub">Commencez par ajouter votre première société partenaire.</div>
+      <a href="{% url 'marketeur_create' %}" class="btn btn-accent">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nouveau Marketeur
+      </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+
+</div><!-- /.mkt-panel -->
+
+<script>
+function amToggle(id){
+  const drop = document.getElementById('amd-'+id);
+  document.querySelectorAll('.am-drop').forEach(d=>{ if(d!==drop) d.classList.remove('open'); });
+  drop.classList.toggle('open');
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.am')) document.querySelectorAll('.am-drop').forEach(d=>d.classList.remove('open'));
+});
+// Recherche avec debounce
+let _st;
+document.getElementById('search-q').addEventListener('input',function(){
+  clearTimeout(_st);
+  _st = setTimeout(()=>document.getElementById('filter-form').submit(), 450);
+});
+</script>
+
 {% endblock %}

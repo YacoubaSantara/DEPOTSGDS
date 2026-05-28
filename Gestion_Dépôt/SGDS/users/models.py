@@ -5,24 +5,16 @@ from django.utils import timezone
 
 
 class RoleSysteme(models.TextChoices):
-    """
-    Codes des rôles SYSTÈME (constantes). Conservé pour compatibilité
-    avec le code applicatif qui teste role.code == 'SUPERADMIN', etc.
-    Les rôles dynamiques sont dans la table Role.
-    Note : LECTEUR a été supprimé (migration 0006) — utilisez MARKETEUR pour les clients.
-    """
+    """Codes des roles SYSTEME (constantes). Conserve pour compatibilite."""
     SUPERADMIN = 'SUPERADMIN', 'Super Administrateur'
-    CHEF_DEPOT = 'CHEF_DEPOT', 'Chef de Dépôt'
-    OPERATEUR  = 'OPERATEUR',  'Opérateur de Saisie'
+    CHEF_DEPOT = 'CHEF_DEPOT', 'Chef de Depot'
+    OPERATEUR  = 'OPERATEUR',  'Operateur de Saisie'
     COMPTABLE  = 'COMPTABLE',  'Comptable'
     MARKETEUR  = 'MARKETEUR',  'Marketeur (Client)'
 
 
 class Role(models.Model):
-    """
-    Rôle dynamique. Les 5 rôles système sont créés à la migration 0003
-    et marqués systeme=True (non supprimables, code immutable).
-    """
+    """Role dynamique. Les roles systeme sont crees a la migration 0003."""
     COULEUR_CHOICES = [
         ('red',    'Rouge'),
         ('orange', 'Orange'),
@@ -36,20 +28,20 @@ class Role(models.Model):
     ]
 
     nom = models.CharField(
-        max_length=100, unique=True, verbose_name="Nom du rôle",
-        help_text="Affiché dans l'interface (ex: 'Chef de Dépôt')",
+        max_length=100, unique=True, verbose_name="Nom du role",
+        help_text="Affiche dans l'interface (ex: 'Chef de Depot')",
     )
     code = models.CharField(
         max_length=50, unique=True, verbose_name="Code interne",
         help_text=(
             "Identifiant technique stable (ex: 'CHEF_DEPOT'). "
-            "Ne peut pas être modifié après création."
+            "Ne peut pas etre modifie apres creation."
         ),
     )
     description = models.TextField(blank=True, verbose_name="Description")
     systeme = models.BooleanField(
-        default=False, verbose_name="Rôle système",
-        help_text="Si coché, le rôle ne peut pas être supprimé.",
+        default=False, verbose_name="Role systeme",
+        help_text="Si coche, le role ne peut pas etre supprime.",
     )
     couleur = models.CharField(
         max_length=20, default='gray', choices=COULEUR_CHOICES,
@@ -59,6 +51,17 @@ class Role(models.Model):
         'auth.Permission', blank=True,
         related_name='roles_sgds', verbose_name="Permissions",
     )
+    # Hybride RBAC : lien vers le auth.Group Django natif correspondant.
+    # Synchronise automatiquement par signal - ne pas modifier manuellement.
+    django_group = models.OneToOneField(
+        'auth.Group',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='role_sgds',
+        verbose_name="Groupe Django natif",
+        help_text="Synchronise automatiquement. Ne pas modifier manuellement.",
+        editable=False,
+    )
     date_creation     = models.DateTimeField(auto_now_add=True)
     date_modification = models.DateTimeField(auto_now=True)
     cree_par = models.ForeignKey(
@@ -67,8 +70,8 @@ class Role(models.Model):
     )
 
     class Meta:
-        verbose_name        = "Rôle"
-        verbose_name_plural = "Rôles"
+        verbose_name        = "Role"
+        verbose_name_plural = "Roles"
         ordering            = ['-systeme', 'nom']
 
     def __str__(self):
@@ -87,7 +90,7 @@ class Role(models.Model):
             ancien = Role.objects.filter(pk=self.pk).values('code').first()
             if ancien and ancien['code'] != self.code:
                 raise ValueError(
-                    f"Le code du rôle ne peut pas être modifié "
+                    f"Le code du role ne peut pas etre modifie "
                     f"(ancien: {ancien['code']}, nouveau: {self.code})"
                 )
         super().save(*args, **kwargs)
@@ -95,21 +98,21 @@ class Role(models.Model):
     def delete(self, *args, **kwargs):
         if self.systeme:
             raise ValidationError(
-                f"Le rôle système '{self.nom}' ne peut pas être supprimé."
+                f"Le role systeme '{self.nom}' ne peut pas etre supprime."
             )
         if self.utilisateurs.exists():
             raise ValidationError(
                 f"Impossible de supprimer '{self.nom}' : "
-                f"{self.utilisateurs.count()} utilisateur(s) lui sont attribué(s)."
+                f"{self.utilisateurs.count()} utilisateur(s) lui sont attribue(s)."
             )
         super().delete(*args, **kwargs)
 
 
 class UserProfile(models.Model):
     """
-    Extension OneToOne du User Django (AUTH_USER_MODEL = accounts.UtilisateurSGDS).
-    Créé automatiquement via signal post_save sur User.
-    Porte le système RBAC dynamique (role FK → Role).
+    Extension OneToOne du User Django.
+    Cree automatiquement via signal post_save sur User.
+    Porte le systeme RBAC dynamique (role FK -> Role).
     """
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
@@ -117,9 +120,9 @@ class UserProfile(models.Model):
     )
     role = models.ForeignKey(
         'Role', on_delete=models.PROTECT,
-        related_name='utilisateurs', verbose_name="Rôle",
+        related_name='utilisateurs', verbose_name="Role",
         null=True, blank=True,
-        help_text="Rôle RBAC. Défaut : LECTEUR à la création.",
+        help_text="Role RBAC. Defaut : LECTEUR a la creation.",
     )
     telephone   = models.CharField(max_length=20, blank=True, null=True)
     poste       = models.CharField(max_length=100, blank=True, null=True,
@@ -138,16 +141,14 @@ class UserProfile(models.Model):
         ordering            = ['user__username']
 
     def __str__(self):
-        nom_role = self.role.nom if self.role else 'Sans rôle'
+        nom_role = self.role.nom if self.role else 'Sans role'
         return f"{self.user.get_full_name() or self.user.username} ({nom_role})"
 
-    # ── Helpers code ───────────────────────────────────────────────────────────
     def _has_perm_codename(self, codename):
         if not self.role or not self.actif:
             return False
         return self.role.permissions.filter(codename=codename).exists()
 
-    # ── Properties sémantiques (compatibles avec l'ancien code) ───────────────
     @property
     def est_superadmin(self):
         return bool(self.role and self.role.code == 'SUPERADMIN')
@@ -164,7 +165,6 @@ class UserProfile(models.Model):
     def est_comptable(self):
         return bool(self.role and self.role.code == 'COMPTABLE')
 
-    # ── Properties permissions (basées sur la table Role.permissions) ─────────
     @property
     def peut_ecrire(self):
         return any(self._has_perm_codename(c) for c in [
@@ -204,16 +204,16 @@ class UserProfile(models.Model):
 
 class AuditLog(models.Model):
     class Action(models.TextChoices):
-        CREATE       = 'CREATE',       'Création'
+        CREATE       = 'CREATE',       'Creation'
         UPDATE       = 'UPDATE',       'Modification'
         DELETE       = 'DELETE',       'Suppression'
         VIEW         = 'VIEW',         'Consultation'
         LOGIN        = 'LOGIN',        'Connexion'
-        LOGOUT       = 'LOGOUT',       'Déconnexion'
-        LOGIN_FAILED = 'LOGIN_FAILED', 'Connexion échouée'
+        LOGOUT       = 'LOGOUT',       'Deconnexion'
+        LOGIN_FAILED = 'LOGIN_FAILED', 'Connexion echouee'
         EXPORT       = 'EXPORT',       'Export'
         VALIDATE     = 'VALIDATE',     'Validation'
-        CLOSE        = 'CLOSE',        'Clôture'
+        CLOSE        = 'CLOSE',        'Cloture'
         OPEN         = 'OPEN',         'Ouverture'
 
     horodatage = models.DateTimeField(default=timezone.now, db_index=True)
@@ -223,7 +223,7 @@ class AuditLog(models.Model):
     )
     user_username_snapshot = models.CharField(
         max_length=150, blank=True,
-        help_text="Snapshot du username au cas où le user est supprimé",
+        help_text="Snapshot du username au cas ou le user est supprime",
     )
     action     = models.CharField(max_length=15, choices=Action.choices, db_index=True)
     objet_type = models.CharField(max_length=100, blank=True, db_index=True)
@@ -235,7 +235,7 @@ class AuditLog(models.Model):
     user_agent = models.CharField(max_length=300, blank=True)
     source     = models.CharField(
         max_length=10,
-        choices=[('WEB', 'Web'), ('ADMIN', 'Admin'), ('SYSTEM', 'Système')],
+        choices=[('WEB', 'Web'), ('ADMIN', 'Admin'), ('SYSTEM', 'Systeme')],
         default='WEB', db_index=True,
     )
     changements = models.JSONField(
@@ -244,7 +244,7 @@ class AuditLog(models.Model):
     )
 
     class Meta:
-        verbose_name        = "Entrée d'audit"
+        verbose_name        = "Entree d'audit"
         verbose_name_plural = "Journal d'audit"
         ordering            = ['-horodatage']
         indexes = [
@@ -254,5 +254,5 @@ class AuditLog(models.Model):
         ]
 
     def __str__(self):
-        who = self.user_username_snapshot or 'système'
+        who = self.user_username_snapshot or 'systeme'
         return f"{self.horodatage:%Y-%m-%d %H:%M} {who} {self.action} {self.objet_type}"

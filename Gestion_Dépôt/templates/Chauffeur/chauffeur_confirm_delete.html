@@ -5,7 +5,7 @@
 {% block breadcrumb %}
 <a href="{% url 'chauffeur_list' %}">Chauffeurs</a>
 <span class="breadcrumb-sep">/</span>
-<a href="{% url 'chauffeur_detail' chauffeur.pk %}">{{ chauffeur.nom_complet }}</a>
+<a href="{% url 'chauffeur_detail' uuid=chauffeur.uuid slug=chauffeur.slug %}">{{ chauffeur.nom_complet }}</a>
 <span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">Supprimer</span>
 {% endblock %}
@@ -24,7 +24,7 @@
     <div class="alert alert-error" style="margin-top:12px">Cette action est irréversible.</div>
     <form method="post" style="display:flex;gap:8px;margin-top:16px">
       {% csrf_token %}
-      <a href="{% url 'chauffeur_detail' chauffeur.pk %}" class="btn">Annuler</a>
+      <a href="{% url 'chauffeur_detail' uuid=chauffeur.uuid slug=chauffeur.slug %}" class="btn">Annuler</a>
       <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
     </form>
   </div>

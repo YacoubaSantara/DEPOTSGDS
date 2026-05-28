@@ -100,7 +100,7 @@
     <div></div>
     <div style="display:flex;gap:10px">
       {% if jaugeage %}
-      <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-ghost">Annuler</a>
+      <a href="{% url 'jaugeage_detail' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn btn-ghost">Annuler</a>
       {% else %}
       <a href="{% url 'jaugeage_list' %}" class="btn btn-ghost">Annuler</a>
       {% endif %}

@@ -5,30 +5,92 @@
 {% block breadcrumb %}
 <a href="{% url 'camion_list' %}">Camions</a>
 <span class="breadcrumb-sep">/</span>
-<a href="{% url 'camion_detail' camion.pk %}">{{ camion.immatriculation }}</a>
+<a href="{% url 'camion_detail' uuid=camion.uuid slug=camion.slug %}">{{ camion.immatriculation }}</a>
 <span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">Supprimer</span>
 {% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:520px">
-  <div class="card-h">
-    <div class="card-h-title" style="color:var(--err)">Confirmer la suppression</div>
-  </div>
-  <div class="card-b">
-    <p>Êtes-vous sûr de vouloir supprimer le camion <strong>{{ camion.immatriculation }}</strong> ?</p>
-    <p style="font-size:.85rem;color:var(--muted);margin-top:6px">{{ camion.marque }}{% if camion.modele %} {{ camion.modele }}{% endif %} · {{ camion.get_type_produit_display }} · {{ camion.capacite_totale|floatformat:0 }} L</p>
-    {% if camion.chauffeurs.exists %}
-    <div class="alert alert-warn" style="margin-top:12px">
-      {{ camion.chauffeurs.count }} chauffeur(s) sont assignés à ce camion. Leur lien sera retiré.
+<div style="max-width:480px">
+
+  <div class="card" style="overflow:hidden">
+
+    <!-- En-tête danger -->
+    <div style="padding:28px 24px 20px;text-align:center;border-bottom:1px solid var(--border)">
+      <div style="width:60px;height:60px;background:var(--err-soft);border:2px solid rgba(168,51,28,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--err)" stroke-width="1.8">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+        </svg>
+      </div>
+      <div style="font-size:17px;font-weight:700;color:var(--err);margin-bottom:6px">Confirmer la suppression</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.5">
+        Vous êtes sur le point de supprimer définitivement ce camion. Cette action est irréversible.
+      </div>
     </div>
-    {% endif %}
-    <div class="alert alert-error" style="margin-top:12px">Cette action est irréversible.</div>
-    <form method="post" style="display:flex;gap:8px;margin-top:16px">
-      {% csrf_token %}
-      <a href="{% url 'camion_detail' camion.pk %}" class="btn">Annuler</a>
-      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
-    </form>
+
+    <!-- Fiche du camion -->
+    <div style="padding:16px 20px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px">
+      <div style="width:44px;height:44px;background:var(--ink);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(184,84,26,.9)" stroke-width="1.8">
+          <rect x="1" y="3" width="15" height="13" rx="1"/>
+          <path d="M16 8h4l3 5v3h-7V8z"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/>
+          <circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:.04em;color:var(--ink)">{{ camion.immatriculation }}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">
+          {{ camion.marque }}{% if camion.modele %} {{ camion.modele }}{% endif %}
+          &nbsp;·&nbsp; {{ camion.get_type_produit_display }}
+          &nbsp;·&nbsp; <span class="mono">{{ camion.capacite_totale|floatformat:0 }} L</span>
+        </div>
+      </div>
+      {% if camion.statut == 'EN_SERVICE' %}<span class="bdg ok">{{ camion.get_statut_display }}</span>
+      {% elif camion.statut == 'EN_MAINTENANCE' %}<span class="bdg warn">{{ camion.get_statut_display }}</span>
+      {% elif camion.statut == 'HORS_SERVICE' %}<span class="bdg err">{{ camion.get_statut_display }}</span>
+      {% endif %}
+    </div>
+
+    <!-- Avertissements -->
+    <div style="padding:16px 20px;display:flex;flex-direction:column;gap:10px">
+      {% if camion.chauffeurs.exists %}
+      <div class="alert alert-warning" style="margin-bottom:0">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>
+          <strong>{{ camion.chauffeurs.count }} chauffeur{% if camion.chauffeurs.count > 1 %}s{% endif %}</strong>
+          assigné{% if camion.chauffeurs.count > 1 %}s{% endif %} à ce camion.
+          Le{% if camion.chauffeurs.count > 1 %}ur{% endif %} lien sera retiré automatiquement.
+        </span>
+      </div>
+      {% endif %}
+
+      <div class="alert alert-danger" style="margin-bottom:0">
+        <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Toutes les données associées (compartiments, documents) seront supprimées définitivement.</span>
+      </div>
+
+      <form method="post" style="display:flex;gap:8px;margin-top:6px">
+        {% csrf_token %}
+        <a href="{% url 'camion_detail' uuid=camion.uuid slug=camion.slug %}" class="btn" style="flex:1;justify-content:center;gap:6px">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="13" height="13"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          Annuler
+        </a>
+        <button type="submit" class="btn btn-danger" style="flex:1;justify-content:center;gap:6px">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          Supprimer définitivement
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Méta -->
+  <div style="margin-top:12px;text-align:center;font-size:.75rem;color:var(--muted)">
+    Enregistré le {{ camion.date_enregistrement|date:"d/m/Y" }} · Modifié le {{ camion.date_modification|date:"d/m/Y" }}
   </div>
 </div>
 {% endblock %}

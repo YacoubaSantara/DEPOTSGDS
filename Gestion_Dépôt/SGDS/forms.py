@@ -1,7 +1,7 @@
 from django import forms
 from django.db.models import Q
 from django.forms import inlineformset_factory
-from .models import Marketeur, Camion, Chauffeur, Famille, Produit, Cuve, ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement, Societe
+from .models import Marketeur, Camion, Chauffeur, Famille, Produit, Cuve, ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement, Societe, MouvementDocument, CompartimentCamion
 
 
 class MarketeurForm(forms.ModelForm):
@@ -166,6 +166,46 @@ class ChauffeurForm(forms.ModelForm):
             self.fields['nationalite'].initial = 'Malien(ne)'
             from .models import Chauffeur as _Chauffeur
             self.fields['numero_employe'].initial = _Chauffeur.get_next_numero()
+
+
+# ─────────────────────────────────────────────────────────────
+#  FAMILLE
+# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+#  COMPARTIMENT CAMION
+# ─────────────────────────────────────────────────────────────
+class CompartimentCamionForm(forms.ModelForm):
+    class Meta:
+        model  = CompartimentCamion
+        fields = ['numero', 'capacite']
+        widgets = {
+            'numero':   forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm',
+                'min': '1', 'readonly': True,
+            }),
+            'capacite': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm',
+                'step': '0.01', 'min': '0',
+                'placeholder': 'Ex: 5000.00',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['numero'].required   = True
+        self.fields['capacite'].required = True
+
+
+CompartimentCamionFormSet = inlineformset_factory(
+    Camion,
+    CompartimentCamion,
+    form=CompartimentCamionForm,
+    fields=['numero', 'capacite'],
+    extra=0,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -423,6 +463,11 @@ class MouvementForm(forms.ModelForm):
             'coefficient_conversion_sortie',
             'volume_15c_sortie',
             'poids_sortie_kg',
+            # Calculs auto CESSION
+            'cession_densite_15c',
+            'cession_coefficient_vcf',
+            # Calcul auto ACQUITTEMENT (calculé depuis entree_source.coefficient_conversion_15c)
+            'acquittement_volume_15c',
         ]
         widgets = {
             # Dates
@@ -431,9 +476,16 @@ class MouvementForm(forms.ModelForm):
             'date_dechargement':                forms.DateInput(attrs={'type': 'date'}),
             'date_permis':                      forms.DateInput(attrs={'type': 'date'}),
             'acquittement_date_declaration':    forms.DateInput(attrs={'type': 'date'}),
+            'acquittement_date_paiement':       forms.DateInput(attrs={'type': 'date'}),
+            'cession_date_autorisation':        forms.DateInput(attrs={'type': 'date'}),
+            # Heures ENTREE
+            'heure_arrivee':                    forms.TimeInput(attrs={'type': 'time'}),
+            'heure_depotage':                   forms.TimeInput(attrs={'type': 'time'}),
+            'heure_fin':                        forms.TimeInput(attrs={'type': 'time'}),
             # Textes longs
             'notes':                            forms.Textarea(attrs={'rows': 3}),
             'cession_motif':                    forms.TextInput(),
+            'compartiments_charges':            forms.TextInput(attrs={'placeholder': 'Ex: C1=5000L, C2=8000L, C3=7000L'}),
             # Volumes & densités — step adapté
             'volume_ambiant_expediteur':        forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'volume_15c_expediteur':            forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
@@ -445,11 +497,13 @@ class MouvementForm(forms.ModelForm):
             'densite_observee_labo':            forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'volume_ambiant_sortie':            forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'densite_15c_sortie':               forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'densite_observee_sortie':          forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'temperature_sortie':               forms.NumberInput(attrs={'step': '0.01'}),
             'cession_volume_ambiant':           forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
             'cession_volume_15c':               forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'cession_densite_observee':         forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'cession_temperature':              forms.NumberInput(attrs={'step': '0.01'}),
             'acquittement_volume_ambiant':      forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
-            'acquittement_volume_15c':          forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -469,6 +523,8 @@ class MouvementForm(forms.ModelForm):
         self.fields['cession_marketeur_destinataire'].queryset = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
         self.fields['camion'].queryset = Camion.objects.select_related('marketeur').filter(statut='EN_SERVICE').order_by('immatriculation')
         self.fields['chauffeur'].queryset = Chauffeur.objects.filter(statut='ACTIF').order_by('nom', 'prenom')
+        self.fields['cession_cuve'].queryset = Cuve.objects.select_related('produit').filter(statut='ACTIVE').order_by('numero')
+        self.fields['cession_cuve'].required = False
 
         # ── Filtre entree_source (ACQUITTEMENT) ───────────────
         # Par défaut : toutes les ENTREE SOUS_DOUANE, triées par date décroissante.
@@ -478,7 +534,8 @@ class MouvementForm(forms.ModelForm):
         qs_entrees = (
             Mouvement.objects
             .filter(type_mouvement='ENTREE', regime_douanier='SOUS_DOUANE')
-            .select_related('produit', 'marketeur')
+            .select_related('produit', 'marketeur', 'cuve')
+            .prefetch_related('acquittements', 'lignes__cuve')
             .order_by('-date_mouvement')
         )
         if self.instance and self.instance.pk:
@@ -540,7 +597,7 @@ class MouvementForm(forms.ModelForm):
         elif type_m == 'ACQUITTEMENT':
             champs_obligatoires = [
                 ('acquittement_volume_ambiant',        "Le volume ambiant à acquitter est obligatoire."),
-                ('acquittement_volume_15c',            "Le volume @15°C à acquitter est obligatoire."),
+                # acquittement_volume_15c est calculé automatiquement — non obligatoire en saisie
                 ('acquittement_reference_declaration', "La référence de déclaration douanière est obligatoire."),
                 ('acquittement_date_declaration',      "La date de déclaration douanière est obligatoire."),
             ]
@@ -653,4 +710,48 @@ class SocieteForm(forms.ModelForm):
             'autorite_tutelle':    forms.TextInput(attrs={'class': 'form-control'}),
             'date_creation':       forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
+
+
+# ─────────────────────────────────────────────────────────────
+#  DOCUMENT JUSTIFICATIF DE MOUVEMENT
+# ─────────────────────────────────────────────────────────────
+class MouvementDocumentForm(forms.ModelForm):
+    _EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
+    _TAILLE_MAX = 10 * 1024 * 1024  # 10 Mo
+
+    class Meta:
+        model = MouvementDocument
+        fields = ['fichier', 'type_document', 'description']
+        widgets = {
+            'fichier': forms.FileInput(attrs={
+                'class': 'form-control',
+                'accept': '.pdf,.png,.jpg,.jpeg',
+            }),
+            'type_document': forms.Select(attrs={'class': 'form-select'}),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Note optionnelle sur ce document…',
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['description'].required = False
+
+    def clean_fichier(self):
+        import os
+        fichier = self.cleaned_data.get('fichier')
+        if not fichier:
+            return fichier
+        ext = os.path.splitext(fichier.name)[1].lower()
+        if ext not in self._EXTENSIONS:
+            raise forms.ValidationError(
+                f"Format non autorisé « {ext} ». Formats acceptés : PDF, PNG, JPG, JPEG."
+            )
+        if fichier.size > self._TAILLE_MAX:
+            raise forms.ValidationError(
+                f"Fichier trop volumineux ({fichier.size / (1024 * 1024):.1f} Mo). Maximum : 10 Mo."
+            )
+        return fichier
 

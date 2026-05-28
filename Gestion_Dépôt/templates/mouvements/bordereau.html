@@ -1,0 +1,276 @@
+{% load static l10n sgds_filters %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Bordereau {{ mouvement.numero_enregistrement }} — SGDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{% static 'css/bordereau.css' %}"/>
+</head>
+<body class="{% if bw %}bw{% endif %}">
+
+{# ─── Toolbar écran (masquée à l'impression) ─── #}
+<div class="toolbar">
+  <button onclick="window.print()" class="primary">Imprimer / PDF</button>
+  <a href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}bw={% if bw %}0{% else %}1{% endif %}"
+     style="text-decoration:none;color:inherit"><button>Mode N&amp;B</button></a>
+  <a href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}compact={% if compact %}0{% else %}1{% endif %}"
+     style="text-decoration:none;color:inherit"><button>{% if compact %}Aéré{% else %}Compact{% endif %}</button></a>
+  <a href="{% url 'mouvement_detail' uuid=mouvement.uuid slug=mouvement.slug %}"
+     style="text-decoration:none;color:inherit"><button>← Retour</button></a>
+</div>
+
+{# ─── Feuille A4 ─── #}
+<div class="sheet {% if compact %}compact{% endif %}">
+
+  {# === En-tête === #}
+  <header class="hdr">
+    <div class="brand">
+      <div class="logo">{{ societe.sigle|default:"SK"|slice:":2" }}</div>
+      <div class="brand-meta">
+        <div class="co">{{ societe.raison_sociale|default:"SANKE SA" }}</div>
+        <div class="sub">
+          <b>{{ societe.nom_depot|default:"Dépôt pétrolier" }}</b> ·
+          {{ societe.adresse|default:"Bamako, Mali" }}<br/>
+          RCCM <span class="mono">{{ societe.numero_agrement|default:"—" }}</span> ·
+          NIF <span class="mono">{{ societe.numero_contribuable|default:"—" }}</span> ·
+          Tél {{ societe.telephone|default:"—" }}
+        </div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="doc-kind">
+        <span class="dot"></span>
+        <span>Bordereau · {{ mouvement.get_type_mouvement_display|default:"Mouvement" }}</span>
+      </div>
+      <div class="doc-title">Bordereau de mouvement</div>
+      <div class="doc-num">N° {{ mouvement.numero_enregistrement }}</div>
+      <div class="doc-period">
+        Période {{ periode_label }} ·
+        imprimé le <span class="mono">{{ now|date:"d/m/Y" }}</span>
+      </div>
+      <div class="barcode" data-ref="{{ mouvement.numero_enregistrement }}"></div>
+      <div class="barcode-cap">{{ mouvement.numero_enregistrement }}</div>
+    </div>
+  </header>
+
+  {# === Bandeau identification === #}
+  <div class="id-strip">
+    <div class="id-cell">
+      <div class="lbl">Type</div>
+      <div class="val">
+        <span class="type-pill {{ mouvement.type_mouvement }}">{{ mouvement.get_type_mouvement_display|upper }}</span>
+      </div>
+    </div>
+    <div class="id-cell">
+      <div class="lbl">Date</div>
+      <div class="val mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</div>
+    </div>
+    <div class="id-cell">
+      <div class="lbl">Régime</div>
+      <div class="val">{{ mouvement.get_regime_douanier_display }}</div>
+    </div>
+    <div class="id-cell">
+      <div class="lbl">Produit</div>
+      <div class="val">{{ mouvement.produit.nom }}</div>
+    </div>
+    <div class="id-cell">
+      <div class="lbl">Marketeur</div>
+      <div class="val">{{ mouvement.marketeur.raison_sociale }}</div>
+    </div>
+    <div class="id-cell">
+      <div class="lbl">Statut</div>
+      <div class="val">
+        {% if statut_acquittement == "ACQUITTE" %}<span class="bdg ok">Acquitté</span>
+        {% elif statut_acquittement == "PARTIEL" %}<span class="bdg warn">Partiel</span>
+        {% elif mouvement.type_mouvement == "ENTREE" and mouvement.regime_douanier == "SOUS_DOUANE" %}<span class="bdg warn">En attente</span>
+        {% else %}<span class="bdg ok">Saisi</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# === 1. Provenance & expédition === #}
+  <section class="section">
+    <div class="section-h">
+      <h3>1 · Provenance &amp; expédition</h3>
+      <span class="marker"></span>
+    </div>
+    <div class="grid-4">
+      <div class="kv"><span class="k">Provenance</span><span class="v">{{ mouvement.provenance|default:"—" }}</span></div>
+      <div class="kv"><span class="k">BL Expéditeur</span><span class="v mono">{{ mouvement.bl_expediteur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">BL Client</span><span class="v mono">{{ mouvement.bl_client|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Pays d'origine</span><span class="v">{{ mouvement.provenance|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date chargement</span><span class="v mono">{{ mouvement.date_chargement|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date déchargement</span><span class="v mono">{{ mouvement.date_dechargement|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant expéd.</span><span class="v mono">{% if mouvement.volume_ambiant_expediteur %}{{ mouvement.volume_ambiant_expediteur|frnum }} L{% else %}—{% endif %}</span></div>
+      <div class="kv"><span class="k">Vol. @15°C expéd.</span><span class="v mono">{% if mouvement.volume_15c_expediteur %}{{ mouvement.volume_15c_expediteur|frnum }} L{% else %}—{% endif %}</span></div>
+      <div class="kv"><span class="k">Densité 15°C expéd.</span><span class="v mono">{{ mouvement.densite_15c_expediteur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Température départ</span><span class="v mono">{% if mouvement.temperature_chargement %}{{ mouvement.temperature_chargement }} °C{% else %}—{% endif %}</span></div>
+      <div class="kv"><span class="k">N° contrat</span><span class="v mono">{{ mouvement.numero_permis_sortie|default:mouvement.numero_s|default:"—" }}</span></div>
+    </div>
+  </section>
+
+  {# === 2. Réception au dépôt === #}
+  <section class="section">
+    <div class="section-h">
+      <h3>2 · Réception au dépôt</h3>
+      <span class="marker"></span>
+    </div>
+    <div class="grid-4">
+      <div class="kv"><span class="k">Cuve réceptrice</span><span class="v">{% with lg=mouvement.lignes.first %}{% if lg and lg.cuve %}{{ lg.cuve.numero }} · {{ lg.cuve.produit.nom|default:mouvement.produit.nom }}{% if mouvement.lignes.count > 1 %} <span style="font-size:7.5pt;color:var(--muted)">(+{{ mouvement.lignes.count|add:"-1" }})</span>{% endif %}{% elif mouvement.cuve %}{{ mouvement.cuve.numero }} · {{ mouvement.cuve.produit.nom|default:mouvement.produit.nom }}{% else %}—{% endif %}{% endwith %}</span></div>
+      <div class="kv"><span class="k">Camion</span><span class="v mono">{{ mouvement.camion.immatriculation|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Chauffeur</span><span class="v">{{ mouvement.chauffeur.nom_complet|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Température réception</span><span class="v mono">{% if mouvement.temperature_reception %}{{ mouvement.temperature_reception }} °C{% else %}—{% endif %}</span></div>
+      <div class="kv"><span class="k">Température labo</span><span class="v mono">{% if mouvement.temperature_labo %}{{ mouvement.temperature_labo }} °C{% else %}—{% endif %}</span></div>
+      <div class="kv"><span class="k">Densité observée labo</span><span class="v mono">{{ mouvement.densite_observee_labo|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant reçu</span><span class="v mono lg accent">{% if mouvement.volume_ambiant_recu %}{{ mouvement.volume_ambiant_recu|frnum }} L{% else %}—{% endif %}</span></div>
+    </div>
+  </section>
+
+  {# === 3. Calculs API MPMS (option) === #}
+  {% if show_calc and mouvement.type_mouvement == "ENTREE" %}
+  <section class="section">
+    <div class="section-h">
+      <h3>3 · Calculs automatiques — API MPMS Ch. 11.1</h3>
+      <span class="marker"></span>
+    </div>
+    <div class="calc">
+      <div class="calc-h">
+        <span>Application des tables ASTM D1250‑80 · correction volume / température</span>
+        <span class="tag">AUTO</span>
+      </div>
+      <div class="calc-b">
+        <div class="grid-3">
+          <div class="kv"><span class="k">Densité @15°C calculée</span><span class="v mono">{{ mouvement.densite_15c_calculee|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Écart densité</span><span class="v mono">{{ mouvement.ecart_densite_15c|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Vcf (coef. 15°C)</span><span class="v mono">{{ mouvement.coefficient_conversion_15c|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Volume @15°C reçu</span><span class="v mono accent">{% if mouvement.volume_15c_recu %}{{ mouvement.volume_15c_recu|frnum }} L{% else %}—{% endif %}</span></div>
+          <div class="kv"><span class="k">Perte / gain ambiant</span><span class="v mono ok">{{ perte_gain_ambiant_signe }} L</span></div>
+          <div class="kv"><span class="k">Perte / gain @15°C</span><span class="v mono ok">{{ perte_gain_15c_signe }} L</span></div>
+          <div class="kv"><span class="k">Poids volumique</span><span class="v mono">{% if poids_volumique %}{{ poids_volumique|frnum }} kg/m³{% else %}—{% endif %}</span></div>
+          <div class="kv"><span class="k">Poids total reçu</span><span class="v mono">{% if mouvement.poids_kg %}{{ mouvement.poids_kg|frnum }} kg{% else %}—{% endif %}</span></div>
+          <div class="kv"><span class="k">Tolérance API</span><span class="v">±0,5 % · {{ tolerance_status }}</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {# === Récap volumes === #}
+  <div class="recap">
+    <div class="recap-cell">
+      <div class="lbl">Vol. expédié @15°C</div>
+      <div class="val">{% if mouvement.volume_15c_expediteur %}{{ mouvement.volume_15c_expediteur|frnum }} L{% else %}— L{% endif %}</div>
+      <div class="sub">selon {{ mouvement.bl_expediteur|default:"BL expéditeur" }}</div>
+    </div>
+    <div class="recap-cell">
+      <div class="lbl">Vol. reçu @15°C</div>
+      <div class="val">{% if mouvement.volume_15c_recu %}{{ mouvement.volume_15c_recu|frnum }} L{% elif mouvement.volume_principal %}{{ mouvement.volume_principal|frnum }} L{% else %}— L{% endif %}</div>
+      <div class="sub">après correction Vcf</div>
+    </div>
+    <div class="recap-cell">
+      <div class="lbl">Écart constaté</div>
+      <div class="val">{{ ecart_signe }} L</div>
+      <div class="sub">{{ ecart_pct }} % · {{ tolerance_status }}</div>
+    </div>
+    <div class="recap-cell">
+      <div class="lbl">À comptabiliser</div>
+      <div class="val">{% if mouvement.volume_principal %}{{ mouvement.volume_principal|frnum }} L{% else %}— L{% endif %}</div>
+      <div class="sub">@15°C · {{ mouvement.get_regime_douanier_display|lower }}</div>
+    </div>
+  </div>
+
+  {# === Signatures (option) === #}
+  {% if show_sigs %}
+  <section class="sigs">
+    <div class="sig">
+      <div>
+        <div class="role">Saisi par</div>
+        <div class="name">{{ mouvement.collaborateur|default:"—" }}</div>
+      </div>
+      <div class="box"></div>
+      <div class="footline">
+        <span>{{ mouvement.date_saisie|date:"d/m/Y" }}</span>
+        <span>{{ mouvement.date_saisie|time:"H:i" }}</span>
+      </div>
+    </div>
+    <div class="sig">
+      <div>
+        <div class="role">Validé · Chef de dépôt</div>
+        <div class="name">—</div>
+      </div>
+      <div class="box"></div>
+      <div class="footline"><span>Date</span><span>Signature</span></div>
+    </div>
+    <div class="sig">
+      <div>
+        <div class="role">Chauffeur</div>
+        <div class="name">{{ mouvement.chauffeur.nom_complet|default:"—" }}</div>
+      </div>
+      <div class="box"></div>
+      <div class="footline">
+        <span>{{ mouvement.camion.immatriculation|default:"—" }}</span>
+        <span>Signature</span>
+      </div>
+    </div>
+    <div class="sig">
+      <div>
+        <div class="role">Visa douane</div>
+        <div class="name">Inspecteur de service</div>
+      </div>
+      <div class="box"></div>
+      <div class="footline"><span>Bureau</span><span>Cachet</span></div>
+    </div>
+  </section>
+  {% endif %}
+
+  {# === Tampon (option ?stamp=1) === #}
+  {% if show_stamp %}
+  <div class="stamp">
+    <div class="inner">
+      <div class="big">VALIDÉ</div>
+      <div class="sm">SGDS · {{ societe.sigle|default:"SANKE SA" }}</div>
+      <div class="dt">{{ mouvement.date_modification|date:"d / m / Y" }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# === Footer === #}
+  <footer class="ftr">
+    <div class="legal">
+      Document généré par <b>SGDS — Système de Gestion de Dépôt du Sanké</b>.
+      Toute correction doit faire l'objet d'un nouveau bordereau référençant ce numéro.
+    </div>
+    <div style="text-align:right">
+      <div>P. 1 / 1</div>
+      <div>SGDS · {{ now|date:"d/m/Y H:i" }}</div>
+      <div style="margin-top:2px">
+        <span style="color:var(--accent)">●</span> {{ mouvement.numero_enregistrement }}
+      </div>
+    </div>
+  </footer>
+</div>
+
+{# ─── Code-barres décoratif (déterministe à partir du n°) ─── #}
+<script>
+  (function(){
+    document.querySelectorAll('.barcode').forEach(bar => {
+      const ref = bar.dataset.ref || '';
+      let seed = 0;
+      for (const c of ref) seed = (seed*31 + c.charCodeAt(0)) >>> 0;
+      const rng = () => { seed = (seed*1664525 + 1013904223) >>> 0; return seed/0x100000000; };
+      let html = '';
+      for (let i=0;i<58;i++){
+        const r = rng();
+        const cls = r<.45 ? 'h' : (r<.8 ? 'm' : 'l');
+        html += '<i class="'+cls+'"></i>';
+      }
+      bar.innerHTML = html;
+    });
+  })();
+  {% if auto_print %}window.addEventListener('load', () => setTimeout(() => window.print(), 250));{% endif %}
+</script>
+
+</body>
+</html>

@@ -5,7 +5,7 @@
 
 {% block breadcrumb %}
 <a href="{% url 'coulage_liste' %}">Coulage</a><span class="breadcrumb-sep">›</span>
-<a href="{% url 'coulage_detail' periode_id=periode.pk %}">{{ periode.libelle }}</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'coulage_detail' periode_uuid=periode.uuid periode_slug=periode.slug %}">{{ periode.libelle }}</a><span class="breadcrumb-sep">›</span>
 <span class="breadcrumb-current">Suivi évolution</span>
 {% endblock %}
 
@@ -32,7 +32,7 @@ tr.row-jaugeage{background:#fefce8}
         {% endfor %}
       </select>
     </form>
-    <a href="{% url 'suivi_export' periode_id=periode.pk produit_id=produit.pk %}" class="btn btn-ghost">
+    <a href="{% url 'suivi_export' periode_uuid=periode.uuid periode_slug=periode.slug produit_uuid=produit.uuid produit_slug=produit.slug %}" class="btn btn-ghost">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Excel
     </a>
@@ -200,9 +200,13 @@ tr.row-jaugeage{background:#fefce8}
 </div>
 
 <script>
+var suivi_urls = {
+  {% for p in produits %}"{{ p.pk }}": "{% url 'suivi_evolution' periode_uuid=periode.uuid periode_slug=periode.slug produit_uuid=p.uuid produit_slug=p.slug %}",
+  {% endfor %}
+};
 document.querySelector('select[name="produit"]').addEventListener('change', function() {
-  const pid = this.value;
-  window.location.href = "{% url 'suivi_evolution' periode_id=periode.pk produit_id=0 %}".replace('/0/', '/' + pid + '/');
+  var url = suivi_urls[this.value];
+  if (url) window.location.href = url;
 });
 </script>
 {% endblock %}

@@ -9,21 +9,142 @@
 
 {% block extra_head %}
 <style>
-.form-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:0;overflow-x:auto}
-.tab-btn{padding:10px 18px;font-size:.82rem;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;background:transparent;white-space:nowrap}
-.tab-btn svg{width:14px;height:14px;stroke:currentColor;fill:none}
-.tab-btn:hover{color:var(--text)}
-.tab-btn.active{color:var(--navy);border-bottom-color:var(--navy)}
-.tab-panel{display:none;animation:fadeIn .25s ease}
-.tab-panel.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.logo-upload{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);position:relative}
-.logo-upload:hover{border-color:var(--navy);background:var(--bg)}
-.logo-upload svg{width:28px;height:28px;stroke:var(--muted);fill:none;margin:0 auto 8px;display:block}
-.logo-upload p{font-size:.8rem;color:var(--muted)}
-#logo-preview{width:80px;height:80px;border-radius:12px;object-fit:cover;margin:0 auto 8px;display:none}
-.status-badge-live{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.72rem;font-weight:600;margin-top:6px}
-.status-badge-live::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7}
+/* ── Onglets de navigation ── */
+.form-tabs-wrap{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;margin-bottom:0;
+}
+.form-tabs{
+  display:flex;gap:0;border-bottom:1px solid var(--border);
+  background:var(--surface-2);overflow-x:auto;scrollbar-width:none;
+}
+.form-tabs::-webkit-scrollbar{display:none;}
+.tab-btn{
+  padding:13px 18px;font-size:12.5px;font-weight:600;
+  color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;
+  cursor:pointer;transition:all .18s;
+  display:flex;align-items:center;gap:7px;
+  background:transparent;white-space:nowrap;position:relative;
+}
+.tab-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;transition:inherit;}
+.tab-btn:hover{color:var(--ink-2);background:rgba(0,0,0,.02);}
+.tab-btn.active{color:var(--accent-ink);border-bottom-color:var(--accent);background:var(--surface);}
+.tab-btn.active svg{stroke:var(--accent);}
+.tab-btn .tab-badge{
+  min-width:16px;height:16px;padding:0 4px;border-radius:8px;
+  background:var(--err);color:#fff;font-size:10px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  line-height:1;margin-left:2px;
+}
+/* Panneaux */
+.tab-panel{display:none;padding:20px;animation:tabIn .22s ease;}
+.tab-panel.active{display:block;}
+@keyframes tabIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Grille de champs ── */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;}
+.form-grid .col-full{grid-column:1/-1;}
+
+.form-section-title{
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border);
+  grid-column:1/-1;
+}
+
+/* Champs */
+.field{display:flex;flex-direction:column;gap:5px;}
+.field-label{font-size:12px;font-weight:600;color:var(--ink-2);}
+.req{color:var(--err);margin-left:2px;}
+.field input,.field select,.field textarea{
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:8px 10px;font-size:13px;background:var(--surface);
+  transition:border-color .15s,box-shadow .15s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,84,26,.08);
+}
+.field .errorlist{margin:0;padding:0;list-style:none;}
+.field .errorlist li{font-size:11.5px;color:var(--err);margin-top:3px;display:flex;align-items:center;gap:4px;}
+.field .errorlist li::before{
+  content:"";width:4px;height:4px;border-radius:50%;background:var(--err);flex-shrink:0;
+}
+.field-hint{font-size:11px;color:var(--muted);}
+
+/* ── Upload logo ── */
+.logo-zone{
+  border:2px dashed var(--border);border-radius:var(--radius-lg);
+  padding:24px 20px;text-align:center;cursor:pointer;
+  transition:border-color .18s,background .18s;background:var(--surface-2);position:relative;
+}
+.logo-zone:hover{border-color:var(--accent);background:var(--accent-soft);}
+.logo-zone.has-logo{border-style:solid;border-color:var(--border);}
+.logo-zone svg.upload-icon{width:32px;height:32px;stroke:var(--muted-2);fill:none;margin:0 auto 10px;display:block;}
+.logo-zone p{font-size:12.5px;color:var(--muted);line-height:1.5;}
+.logo-zone small{font-size:11px;color:var(--muted-2);}
+#logo-preview{width:90px;height:90px;border-radius:12px;object-fit:cover;margin:0 auto 10px;display:none;border:1.5px solid var(--border);}
+.logo-change-btn{
+  display:inline-flex;align-items:center;gap:5px;margin-top:6px;
+  font-size:11.5px;font-weight:600;color:var(--accent);cursor:pointer;
+}
+.logo-change-btn:hover{text-decoration:underline;}
+
+/* ── Badge statut live ── */
+.stat-live{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:20px;
+  font-size:12px;font-weight:700;margin-top:8px;
+}
+.stat-live::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8;}
+.stat-live.ok   {background:var(--ok-soft);color:var(--ok);}
+.stat-live.warn {background:var(--warn-soft);color:var(--warn);}
+.stat-live.err  {background:var(--err-soft);color:var(--err);}
+.stat-live.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--border);}
+
+/* ── Barre de progression ── */
+.form-progress{
+  display:flex;align-items:center;gap:0;padding:0 20px;
+  border-bottom:1px solid var(--border);background:var(--surface);
+}
+.fp-step{
+  display:flex;align-items:center;gap:8px;padding:10px 12px;
+  font-size:11.5px;font-weight:600;color:var(--muted);
+  cursor:pointer;transition:color .15s;
+  position:relative;flex:1;justify-content:center;
+}
+.fp-step:hover{color:var(--ink);}
+.fp-step.active{color:var(--accent-ink);}
+.fp-step-num{
+  width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10.5px;font-weight:700;
+  background:var(--surface-2);border:1.5px solid var(--border);color:var(--muted);
+  transition:all .18s;flex-shrink:0;
+}
+.fp-step.active .fp-step-num{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+.fp-step.done .fp-step-num{
+  background:var(--ok);border-color:var(--ok);color:#fff;
+}
+.fp-step.done .fp-step-num::before{content:"✓";font-size:11px;}
+.fp-step.done .fp-step-num span{display:none;}
+.fp-sep{width:24px;height:1.5px;background:var(--border);flex-shrink:0;}
+
+/* ── Footer formulaire ── */
+.form-footer{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:14px 20px;border-top:1px solid var(--border);
+  background:var(--surface-2);flex-wrap:wrap;
+}
+.form-footer-hint{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+
+/* Responsive */
+@media(max-width:640px){
+  .form-grid{grid-template-columns:1fr;}
+  .form-tabs .tab-btn{padding:11px 13px;font-size:12px;}
+  .fp-step span:not(.fp-step-num){display:none;}
+  .fp-sep{width:12px;}
+}
 </style>
 {% endblock %}
 
@@ -31,207 +152,308 @@
 <div class="ph">
   <div>
     <h1 class="ph-title">{{ action }} Marketeur</h1>
-    <p class="ph-sub">{% if action == 'Modifier' %}Modification de {{ mkt.raison_sociale }}{% else %}Renseignez les informations de la société{% endif %}</p>
+    <p class="ph-sub">{% if action == 'Modifier' %}Modification de {{ mkt.raison_sociale }}{% else %}Renseignez les informations de la société partenaire{% endif %}</p>
   </div>
-  <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">← Retour</a>
+  <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">
+    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="13" height="13"><polyline points="15 18 9 12 15 6"/></svg>
+    Retour à la liste
+  </a>
 </div>
 
-<div class="form-tabs">
-  <button class="tab-btn active" type="button" onclick="switchTab(0)">
-    <svg viewBox="0 0 24 24" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>Identification
-  </button>
-  <button class="tab-btn" type="button" onclick="switchTab(1)">
-    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Coordonnées
-  </button>
-  <button class="tab-btn" type="button" onclick="switchTab(2)">
-    <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Représentant
-  </button>
-  <button class="tab-btn" type="button" onclick="switchTab(3)">
-    <svg viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Banque
-  </button>
-  <button class="tab-btn" type="button" onclick="switchTab(4)">
-    <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Statut
-  </button>
+{% if form.errors %}
+<div style="background:var(--err-soft);border:1px solid #f0b4a6;border-radius:var(--radius-lg);padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+  <svg viewBox="0 0 24 24" stroke="var(--err)" stroke-width="2" fill="none" width="18" height="18" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div>
+    <div style="font-size:13px;font-weight:700;color:var(--err);margin-bottom:3px">Erreurs dans le formulaire</div>
+    <div style="font-size:12px;color:var(--err)">Veuillez corriger les champs indiqués ci-dessous avant d'enregistrer.</div>
+  </div>
 </div>
+{% endif %}
 
-<form method="post" enctype="multipart/form-data" id="mkt-form">
-  {% csrf_token %}
+<div class="form-tabs-wrap">
 
-  <!-- TAB 0 : Identification -->
-  <div class="tab-panel active" id="panel-0">
-    <div class="card" style="margin-top:16px">
-      <div class="card-h"><div class="card-h-title">Identification de la société</div></div>
-      <div class="card-b">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
-          <div class="field" style="grid-column:1/-1">
-            <label class="field-label">Raison sociale<span class="req">*</span></label>
-            {{ form.raison_sociale }}
-            {% if form.raison_sociale.errors %}{{ form.raison_sociale.errors }}{% endif %}
-          </div>
-          <div class="field">
-            <label class="field-label">Sigle</label>{{ form.sigle }}
-          </div>
-          <div class="field">
-            <label class="field-label">Forme juridique<span class="req">*</span></label>
-            {{ form.forme_juridique }}
-            {% if form.forme_juridique.errors %}{{ form.forme_juridique.errors }}{% endif %}
-          </div>
-          <div class="field">
-            <label class="field-label">Capital social (FCFA)</label>{{ form.capital_social }}
-          </div>
-          <div class="field">
-            <label class="field-label">N° Registre de commerce</label>{{ form.numero_registre_commerce }}
-          </div>
-          <div class="field">
-            <label class="field-label">N° Contribuable / NIF</label>{{ form.numero_contribuable }}
-          </div>
-          <div class="field">
-            <label class="field-label">N° IFU</label>{{ form.numero_ifu }}
-          </div>
-          <div class="field">
-            <label class="field-label">Date de création</label>{{ form.date_creation_societe }}
-          </div>
-          <div class="field" style="grid-column:1/-1">
-            <label class="field-label">Domaine d'activité</label>{{ form.domaine_activite }}
-          </div>
-          <div class="field" style="grid-column:1/-1">
-            <label class="field-label">Logo</label>
-            <div class="logo-upload" onclick="document.getElementById('id_logo').click()">
-              {% if mkt.logo %}<img id="logo-preview" src="{{ mkt.logo.url }}" style="display:block"/>
-              {% else %}<img id="logo-preview"/>{% endif %}
-              <svg viewBox="0 0 24 24" stroke-width="1.5" id="logo-icon" {% if mkt.logo %}style="display:none"{% endif %}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              <p id="logo-txt" {% if mkt.logo %}style="display:none"{% endif %}>Cliquez pour choisir un logo<br/><small>PNG, JPG — max 2 Mo</small></p>
-              <div style="display:none">{{ form.logo }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 1 : Coordonnées -->
-  <div class="tab-panel" id="panel-1">
-    <div class="card" style="margin-top:16px">
-      <div class="card-h"><div class="card-h-title">Coordonnées</div></div>
-      <div class="card-b">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
-          <div class="field" style="grid-column:1/-1">
-            <label class="field-label">Adresse complète<span class="req">*</span></label>
-            {{ form.adresse }}
-            {% if form.adresse.errors %}{{ form.adresse.errors }}{% endif %}
-          </div>
-          <div class="field"><label class="field-label">Quartier / Secteur</label>{{ form.quartier }}</div>
-          <div class="field">
-            <label class="field-label">Ville<span class="req">*</span></label>{{ form.ville }}
-            {% if form.ville.errors %}{{ form.ville.errors }}{% endif %}
-          </div>
-          <div class="field"><label class="field-label">Pays</label>{{ form.pays }}</div>
-          <div class="field"><label class="field-label">Boîte postale</label>{{ form.boite_postale }}</div>
-          <div class="field">
-            <label class="field-label">Téléphone principal<span class="req">*</span></label>{{ form.telephone }}
-            {% if form.telephone.errors %}{{ form.telephone.errors }}{% endif %}
-          </div>
-          <div class="field"><label class="field-label">Téléphone secondaire</label>{{ form.telephone2 }}</div>
-          <div class="field"><label class="field-label">Email</label>{{ form.email }}</div>
-          <div class="field"><label class="field-label">Site web</label>{{ form.site_web }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 2 : Représentant -->
-  <div class="tab-panel" id="panel-2">
-    <div class="card" style="margin-top:16px">
-      <div class="card-h"><div class="card-h-title">Représentant légal</div></div>
-      <div class="card-b">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
-          <div class="field">
-            <label class="field-label">Nom<span class="req">*</span></label>{{ form.nom_representant }}
-            {% if form.nom_representant.errors %}{{ form.nom_representant.errors }}{% endif %}
-          </div>
-          <div class="field">
-            <label class="field-label">Prénom<span class="req">*</span></label>{{ form.prenom_representant }}
-            {% if form.prenom_representant.errors %}{{ form.prenom_representant.errors }}{% endif %}
-          </div>
-          <div class="field"><label class="field-label">Fonction</label>{{ form.fonction_representant }}</div>
-          <div class="field"><label class="field-label">Téléphone</label>{{ form.telephone_representant }}</div>
-          <div class="field" style="grid-column:1/-1"><label class="field-label">Email</label>{{ form.email_representant }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 3 : Banque -->
-  <div class="tab-panel" id="panel-3">
-    <div class="card" style="margin-top:16px">
-      <div class="card-h"><div class="card-h-title">Informations bancaires</div></div>
-      <div class="card-b">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
-          <div class="field" style="grid-column:1/-1"><label class="field-label">Banque</label>{{ form.banque }}</div>
-          <div class="field"><label class="field-label">N° Compte bancaire</label>{{ form.numero_compte }}</div>
-          <div class="field"><label class="field-label">Code SWIFT / BIC</label>{{ form.code_swift }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 4 : Statut -->
-  <div class="tab-panel" id="panel-4">
-    <div class="card" style="margin-top:16px">
-      <div class="card-h"><div class="card-h-title">Statut & Observations</div></div>
-      <div class="card-b">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
-          <div class="field">
-            <label class="field-label">Statut</label>
-            {{ form.statut }}
-            <div id="status-live" class="status-badge-live bdg ok">Actif</div>
-          </div>
-          <div class="field" style="grid-column:1/-1"><label class="field-label">Notes / Observations</label>{{ form.notes }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
-    <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">Annuler</a>
-    <button type="submit" class="btn btn-accent">
-      <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      Enregistrer
+  <!-- Onglets -->
+  <div class="form-tabs" id="tab-nav">
+    <button class="tab-btn active" type="button" onclick="switchTab(0)" id="tb-0">
+      <svg viewBox="0 0 24 24" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+      Identification
+      <span class="tab-badge" id="err-0" style="display:none"></span>
+    </button>
+    <button class="tab-btn" type="button" onclick="switchTab(1)" id="tb-1">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Coordonnées
+      <span class="tab-badge" id="err-1" style="display:none"></span>
+    </button>
+    <button class="tab-btn" type="button" onclick="switchTab(2)" id="tb-2">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Représentant
+      <span class="tab-badge" id="err-2" style="display:none"></span>
+    </button>
+    <button class="tab-btn" type="button" onclick="switchTab(3)" id="tb-3">
+      <svg viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Banque
+      <span class="tab-badge" id="err-3" style="display:none"></span>
+    </button>
+    <button class="tab-btn" type="button" onclick="switchTab(4)" id="tb-4">
+      <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Statut
+      <span class="tab-badge" id="err-4" style="display:none"></span>
     </button>
   </div>
-</form>
+
+  <!-- Formulaire -->
+  <form method="post" enctype="multipart/form-data" id="mkt-form" novalidate>
+    {% csrf_token %}
+
+    <!-- TAB 0 : Identification -->
+    <div class="tab-panel active" id="panel-0">
+      <div class="form-grid">
+        <div class="form-section-title">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" width="13" height="13" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+          Identification de la société
+        </div>
+        <div class="field col-full">
+          <label class="field-label">Raison sociale<span class="req">*</span></label>
+          {{ form.raison_sociale }}
+          {% if form.raison_sociale.errors %}{{ form.raison_sociale.errors }}{% endif %}
+        </div>
+        <div class="field">
+          <label class="field-label">Sigle</label>{{ form.sigle }}
+          <span class="field-hint">Acronyme ou nom court</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Forme juridique<span class="req">*</span></label>
+          {{ form.forme_juridique }}
+          {% if form.forme_juridique.errors %}{{ form.forme_juridique.errors }}{% endif %}
+        </div>
+        <div class="field">
+          <label class="field-label">Capital social (FCFA)</label>{{ form.capital_social }}
+        </div>
+        <div class="field">
+          <label class="field-label">N° Registre de commerce</label>{{ form.numero_registre_commerce }}
+        </div>
+        <div class="field">
+          <label class="field-label">N° Contribuable / NIF</label>{{ form.numero_contribuable }}
+        </div>
+        <div class="field">
+          <label class="field-label">N° IFU</label>{{ form.numero_ifu }}
+        </div>
+        <div class="field">
+          <label class="field-label">Date de création</label>{{ form.date_creation_societe }}
+        </div>
+        <div class="field col-full">
+          <label class="field-label">Domaine d'activité</label>{{ form.domaine_activite }}
+        </div>
+        <div class="field col-full">
+          <label class="field-label">Logo de la société</label>
+          <div class="logo-zone {% if mkt.logo %}has-logo{% endif %}" onclick="document.getElementById('id_logo').click()" id="logo-zone">
+            {% if mkt.logo %}
+              <img id="logo-preview" src="{{ mkt.logo.url }}" style="display:block"/>
+              <div class="logo-change-btn">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Changer le logo
+              </div>
+            {% else %}
+              <img id="logo-preview"/>
+              <svg class="upload-icon" id="logo-icon" viewBox="0 0 24 24" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <p id="logo-txt">Cliquez pour choisir un logo<br/><small>PNG, JPG, SVG — max 2 Mo</small></p>
+            {% endif %}
+            <div style="display:none">{{ form.logo }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1 : Coordonnées -->
+    <div class="tab-panel" id="panel-1">
+      <div class="form-grid">
+        <div class="form-section-title">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" width="13" height="13" style="display:inline;vertical-align:middle;margin-right:5px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Coordonnées de la société
+        </div>
+        <div class="field col-full">
+          <label class="field-label">Adresse complète<span class="req">*</span></label>
+          {{ form.adresse }}
+          {% if form.adresse.errors %}{{ form.adresse.errors }}{% endif %}
+        </div>
+        <div class="field"><label class="field-label">Quartier / Secteur</label>{{ form.quartier }}</div>
+        <div class="field">
+          <label class="field-label">Ville<span class="req">*</span></label>{{ form.ville }}
+          {% if form.ville.errors %}{{ form.ville.errors }}{% endif %}
+        </div>
+        <div class="field"><label class="field-label">Pays</label>{{ form.pays }}</div>
+        <div class="field"><label class="field-label">Boîte postale</label>{{ form.boite_postale }}</div>
+        <div class="field">
+          <label class="field-label">Téléphone principal<span class="req">*</span></label>
+          {{ form.telephone }}
+          {% if form.telephone.errors %}{{ form.telephone.errors }}{% endif %}
+        </div>
+        <div class="field"><label class="field-label">Téléphone secondaire</label>{{ form.telephone2 }}</div>
+        <div class="field">
+          <label class="field-label">Email</label>{{ form.email }}
+        </div>
+        <div class="field">
+          <label class="field-label">Site web</label>{{ form.site_web }}
+          <span class="field-hint">Ex : https://www.exemple.com</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2 : Représentant -->
+    <div class="tab-panel" id="panel-2">
+      <div class="form-grid">
+        <div class="form-section-title">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" width="13" height="13" style="display:inline;vertical-align:middle;margin-right:5px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Représentant légal
+        </div>
+        <div class="field">
+          <label class="field-label">Nom<span class="req">*</span></label>
+          {{ form.nom_representant }}
+          {% if form.nom_representant.errors %}{{ form.nom_representant.errors }}{% endif %}
+        </div>
+        <div class="field">
+          <label class="field-label">Prénom<span class="req">*</span></label>
+          {{ form.prenom_representant }}
+          {% if form.prenom_representant.errors %}{{ form.prenom_representant.errors }}{% endif %}
+        </div>
+        <div class="field"><label class="field-label">Fonction / Titre</label>{{ form.fonction_representant }}</div>
+        <div class="field"><label class="field-label">Téléphone direct</label>{{ form.telephone_representant }}</div>
+        <div class="field col-full"><label class="field-label">Email professionnel</label>{{ form.email_representant }}</div>
+      </div>
+    </div>
+
+    <!-- TAB 3 : Banque -->
+    <div class="tab-panel" id="panel-3">
+      <div class="form-grid">
+        <div class="form-section-title">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" width="13" height="13" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Informations bancaires
+        </div>
+        <div style="grid-column:1/-1;background:var(--warn-soft);border:1px solid #e8d4a0;border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <svg viewBox="0 0 24 24" stroke="var(--warn)" stroke-width="1.8" fill="none" width="16" height="16" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span style="font-size:12px;color:var(--warn)">Ces informations sont <strong>confidentielles</strong>. Assurez-vous de les renseigner correctement.</span>
+        </div>
+        <div class="field col-full"><label class="field-label">Banque domiciliataire</label>{{ form.banque }}</div>
+        <div class="field">
+          <label class="field-label">N° Compte bancaire</label>{{ form.numero_compte }}
+        </div>
+        <div class="field">
+          <label class="field-label">Code SWIFT / BIC</label>{{ form.code_swift }}
+          <span class="field-hint">8 ou 11 caractères</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4 : Statut -->
+    <div class="tab-panel" id="panel-4">
+      <div class="form-grid">
+        <div class="form-section-title">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" width="13" height="13" style="display:inline;vertical-align:middle;margin-right:5px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Statut & Observations
+        </div>
+        <div class="field">
+          <label class="field-label">Statut du marketeur</label>
+          {{ form.statut }}
+          <div id="stat-live" class="stat-live ok">Actif</div>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label class="field-label">Notes / Observations internes</label>
+          {{ form.notes }}
+          <span class="field-hint">Ces notes sont visibles uniquement par les administrateurs</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="form-footer">
+      <div class="form-footer-hint">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none" width="13" height="13"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Champs marqués <span style="color:var(--err);font-weight:700;margin:0 2px">*</span> obligatoires
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <a href="{% url 'marketeur_list' %}" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="13" height="13"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Annuler
+        </a>
+        <button type="submit" class="btn btn-accent" style="height:36px;padding:0 20px;font-size:13px">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+          Enregistrer
+        </button>
+      </div>
+    </div>
+
+  </form>
+</div><!-- /.form-tabs-wrap -->
 
 <script>
+// ── Navigation entre onglets ──
 function switchTab(i){
   document.querySelectorAll('.tab-btn').forEach((b,j)=>b.classList.toggle('active',i===j));
   document.querySelectorAll('.tab-panel').forEach((p,j)=>p.classList.toggle('active',i===j));
 }
-document.getElementById('id_logo')?.addEventListener('change',function(){
-  if(this.files&&this.files[0]){
-    const r=new FileReader();
-    r.onload=e=>{
-      const img=document.getElementById('logo-preview');
-      img.src=e.target.result;img.style.display='block';
-      document.getElementById('logo-icon').style.display='none';
-      document.getElementById('logo-txt').style.display='none';
-    };r.readAsDataURL(this.files[0]);
-  }
+
+// ── Upload logo ──
+const logoInput = document.getElementById('id_logo');
+logoInput?.addEventListener('change', function(){
+  if(!this.files || !this.files[0]) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const preview = document.getElementById('logo-preview');
+    preview.src = e.target.result;
+    preview.style.display = 'block';
+    const icon = document.getElementById('logo-icon');
+    const txt  = document.getElementById('logo-txt');
+    if(icon) icon.style.display = 'none';
+    if(txt)  txt.style.display  = 'none';
+    document.getElementById('logo-zone').classList.add('has-logo');
+  };
+  r.readAsDataURL(this.files[0]);
 });
-const statSel=document.getElementById('id_statut');
-const statBadge=document.getElementById('status-live');
-const statMap={ACTIF:{cls:'bdg ok',lbl:'Actif'},INACTIF:{cls:'bdg',lbl:'Inactif'},SUSPENDU:{cls:'bdg warn',lbl:'Suspendu'},BLACKLIST:{cls:'bdg err',lbl:'Blacklisté'}};
-function updateBadge(){
-  const v=statSel?.value||'ACTIF';
-  const s=statMap[v]||statMap.ACTIF;
-  statBadge.className='status-badge-live '+s.cls;
-  statBadge.textContent=s.lbl;
+
+// ── Badge statut live ──
+const statSel   = document.getElementById('id_statut');
+const statBadge = document.getElementById('stat-live');
+const statMap   = {
+  ACTIF:    {cls:'stat-live ok',   lbl:'Actif'},
+  INACTIF:  {cls:'stat-live muted',lbl:'Inactif'},
+  SUSPENDU: {cls:'stat-live warn', lbl:'Suspendu'},
+  BLACKLIST:{cls:'stat-live err',  lbl:'Blacklisté'},
+};
+function refreshBadge(){
+  const s = statMap[statSel?.value] || statMap.ACTIF;
+  statBadge.className = s.cls;
+  statBadge.textContent = s.lbl;
 }
-statSel?.addEventListener('change',updateBadge);
-updateBadge();
+statSel?.addEventListener('change', refreshBadge);
+refreshBadge();
+
+// ── Affichage des erreurs par onglet ──
+const errMap = {
+  raison_sociale:0, sigle:0, forme_juridique:0, capital_social:0,
+  numero_registre_commerce:0, numero_contribuable:0, numero_ifu:0,
+  date_creation_societe:0, domaine_activite:0, logo:0,
+  adresse:1, quartier:1, ville:1, pays:1, boite_postale:1,
+  telephone:1, telephone2:1, email:1, site_web:1,
+  nom_representant:2, prenom_representant:2,
+  fonction_representant:2, telephone_representant:2, email_representant:2,
+  banque:3, numero_compte:3, code_swift:3,
+  statut:4, notes:4,
+};
 {% if form.errors %}
-  const errFields={'raison_sociale':0,'sigle':0,'forme_juridique':0,'capital_social':0,'numero_registre_commerce':0,'numero_contribuable':0,'numero_ifu':0,'date_creation_societe':0,'domaine_activite':0,'logo':0,'adresse':1,'quartier':1,'ville':1,'pays':1,'boite_postale':1,'telephone':1,'telephone2':1,'email':1,'site_web':1,'nom_representant':2,'prenom_representant':2,'fonction_representant':2,'telephone_representant':2,'email_representant':2,'banque':3,'numero_compte':3,'code_swift':3,'statut':4,'notes':4};
-  const errKeys=[{% for field in form.errors %}"{{ field }}",{% endfor %}];
-  if(errKeys.length>0){ const tab=errFields[errKeys[0]]; if(tab!=null) switchTab(tab); }
+const errKeys = [{% for field in form.errors %}"{{ field }}",{% endfor %}];
+const errCounts = {};
+errKeys.forEach(k => {
+  const t = errMap[k];
+  if(t != null) errCounts[t] = (errCounts[t]||0) + 1;
+});
+Object.entries(errCounts).forEach(([tab, n]) => {
+  const badge = document.getElementById('err-'+tab);
+  if(badge){ badge.textContent = n; badge.style.display = 'flex'; }
+});
+if(errKeys.length > 0){
+  const first = errMap[errKeys[0]];
+  if(first != null) switchTab(first);
+}
 {% endif %}
 </script>
 {% endblock %}

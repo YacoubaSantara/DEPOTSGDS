@@ -5,7 +5,7 @@
 {% block breadcrumb %}
 <a href="{% url 'produit_list' %}">Produits</a>
 <span class="breadcrumb-sep">/</span>
-{% if produit %}<a href="{% url 'produit_detail' produit.pk %}">{{ produit.nom }}</a><span class="breadcrumb-sep">/</span>{% endif %}
+{% if produit %}<a href="{% url 'produit_detail' uuid=produit.uuid slug=produit.slug %}">{{ produit.nom }}</a><span class="breadcrumb-sep">/</span>{% endif %}
 <span class="breadcrumb-current">{% if produit %}Modifier{% else %}Nouveau produit{% endif %}</span>
 {% endblock %}
 
@@ -96,7 +96,7 @@
           <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           {% if produit %}Enregistrer les modifications{% else %}Créer le produit{% endif %}
         </button>
-        <a href="{% if produit %}{% url 'produit_detail' produit.pk %}{% else %}{% url 'produit_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+        <a href="{% if produit %}{% url 'produit_detail' uuid=produit.uuid slug=produit.slug %}{% else %}{% url 'produit_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
       </div>
     </div>
 

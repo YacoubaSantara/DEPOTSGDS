@@ -1,0 +1,115 @@
+{% load static sgds_filters %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Bordereau Acquittement {{ mouvement.numero_enregistrement }} — SGDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{% static 'css/bordereau.css' %}"/>
+</head>
+<body class="{% if bw %}bw{% endif %}">
+
+{% include "mouvements/_bordereau_toolbar.html" %}
+
+<div class="sheet {% if compact %}compact{% endif %}">
+
+  {% include "mouvements/_bordereau_header.html" with type_class="ACQUITTEMENT" type_kind="Apurement douanier" doc_title="Bordereau d'acquittement" doc_num=mouvement.numero_enregistrement logo_class="violet" %}
+
+  <div class="id-strip">
+    <div class="id-cell"><div class="lbl">Type</div><div class="val"><span class="type-pill ACQUITTEMENT">ACQUITTEMENT</span></div></div>
+    <div class="id-cell"><div class="lbl">Date acquittement</div><div class="val mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</div></div>
+    <div class="id-cell">
+      <div class="lbl">Changement de régime</div>
+      <div class="val">
+        <span class="regime-arrow">
+          <span class="from">Sous douane</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span class="to">Acquitté</span>
+        </span>
+      </div>
+    </div>
+    <div class="id-cell"><div class="lbl">Produit</div><div class="val">{{ mouvement.produit.nom }}</div></div>
+    <div class="id-cell"><div class="lbl">Marketeur</div><div class="val sm">{{ mouvement.marketeur.raison_sociale }}</div></div>
+    <div class="id-cell"><div class="lbl">Statut</div><div class="val"><span class="bdg ok">Enregistré</span></div></div>
+  </div>
+
+  <section class="section">
+    <div class="section-h"><h3>1 · Référence stock sous douane</h3><span class="marker">§1</span></div>
+    <div class="grid-4">
+      <div class="kv"><span class="k">Mouvement d'entrée source</span><span class="v mono">{{ mouvement.entree_source.numero_enregistrement|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date d'entrée</span><span class="v mono">{{ mouvement.entree_source.date_mouvement|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Provenance origine</span><span class="v">{{ mouvement.entree_source.provenance|default:"—" }}</span></div>
+      <div class="kv"><span class="k">BL d'origine</span><span class="v mono">{{ mouvement.entree_source.bl_expediteur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Cuve concernée</span><span class="v">{{ mouvement.entree_source.cuve.numero|default:"—" }} · {{ mouvement.entree_source.cuve.produit.nom|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. entré (ambiant)</span><span class="v mono">{{ mouvement.entree_source.volume_ambiant_recu|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. déjà acquitté</span><span class="v mono">{{ mouvement.entree_source.volume_acquitte_total|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. restant sous douane</span><span class="v mono">{{ mouvement.entree_source.volume_restant_sous_douane|frnum }} L</span></div>
+      <div class="kv"><span class="k">N° déclaration (D6)</span><span class="v mono violet">{{ mouvement.acquittement_reference_declaration|default:"—" }}</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-h"><h3>2 · Déclaration douanière</h3><span class="marker">§2</span></div>
+    <div class="grid-4">
+      <div class="kv"><span class="k">Réf. déclaration douanière</span><span class="v mono violet">{{ mouvement.acquittement_reference_declaration|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date dépôt déclaration</span><span class="v mono">{{ mouvement.acquittement_date_declaration|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant à acquitter</span><span class="v mono">{{ mouvement.acquittement_volume_ambiant|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. @15°C à acquitter</span><span class="v mono violet lg">{{ mouvement.acquittement_volume_15c|frnum }} L</span></div>
+      <div class="kv"><span class="k">Mode de paiement</span><span class="v">{{ mouvement.get_mode_reglement_display|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Collaborateur</span><span class="v">{{ mouvement.collaborateur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Notes / Observations</span><span class="v" style="font-size:9pt;font-weight:500">{{ mouvement.notes|default:"—"|truncatechars:80 }}</span></div>
+      <div class="kv"><span class="k">Date saisie</span><span class="v mono">{{ mouvement.date_saisie|date:"d/m/Y H:i" }}</span></div>
+    </div>
+  </section>
+
+  <div class="recap">
+    <div class="recap-cell"><div class="lbl">Vol. acquitté @15°C</div><div class="val">{{ mouvement.acquittement_volume_15c|frnum }} L</div><div class="sub">{{ mouvement.produit.nom }} · D6 {{ mouvement.acquittement_reference_declaration|default:"—" }}</div></div>
+    <div class="recap-cell"><div class="lbl">Vol. ambiant</div><div class="val">{{ mouvement.acquittement_volume_ambiant|frnum }} L</div><div class="sub">à la température de référence</div></div>
+    <div class="recap-cell"><div class="lbl">Déclaration douanière</div><div class="val" style="font-size:11pt">{{ mouvement.acquittement_reference_declaration|default:"—" }}</div><div class="sub">{{ mouvement.acquittement_date_declaration|date:"d/m/Y"|default:"date —" }}</div></div>
+    <div class="recap-cell"><div class="lbl">Nouveau régime</div><div class="val" style="font-size:11pt">ACQUITTÉ</div><div class="sub">stock libéré · {{ mouvement.acquittement_volume_15c|frnum }} L</div></div>
+  </div>
+
+  {% if show_sigs %}
+  <section class="sigs">
+    <div class="sig violet">
+      <div><div class="role">Déclarant — Marketeur</div><div class="name">{{ mouvement.marketeur.raison_sociale }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>{{ mouvement.collaborateur|default:"—" }}</span><span>Signature</span></div>
+    </div>
+    <div class="sig violet">
+      <div><div class="role">Chef de dépôt — SGDS</div><div class="name">—</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date</span><span>Cachet</span></div>
+    </div>
+    <div class="sig violet">
+      <div><div class="role">Comptabilité — {{ societe.sigle|default:"SANKE" }}</div><div class="name">Service Trésorerie</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date imputation</span><span>Visa</span></div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if show_stamp %}
+  <div class="stamp violet">
+    <div class="inner">
+      <div class="big">ACQUITTÉ</div>
+      <div class="sm">D6 · {{ mouvement.acquittement_reference_declaration|default:mouvement.numero_enregistrement }}</div>
+      <div class="dt">{{ mouvement.date_mouvement|date:"d / m / Y" }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <footer class="ftr">
+    <div class="legal">Acquittement opéré conformément au Code des Douanes UEMOA (Art. 132 et suiv.). La déclaration {{ mouvement.acquittement_reference_declaration|default:"—" }} vaut titre de mise à la consommation. Le stock acquitté devient libre de toute servitude douanière dès apposition du cachet officiel.</div>
+    <div style="text-align:right">
+      <div>P. 1 / 1</div>
+      <div>SGDS · {{ now|date:"d/m/Y H:i" }}</div>
+      <div style="margin-top:2px"><span style="color:var(--violet)">●</span> {{ mouvement.numero_enregistrement }}</div>
+    </div>
+  </footer>
+</div>
+
+{% include "mouvements/_bordereau_scripts.html" %}
+</body>
+</html>

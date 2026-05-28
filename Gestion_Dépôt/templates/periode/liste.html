@@ -79,7 +79,7 @@
           {% endif %}
         </td>
         <td>
-          <a href="{% url 'coulage_detail' periode_id=periode.pk %}" class="btn btn-sm btn-accent">Consulter</a>
+          <a href="{% url 'coulage_detail' periode_uuid=periode.uuid periode_slug=periode.slug %}" class="btn btn-sm btn-accent">Consulter</a>
         </td>
       </tr>
       {% empty %}

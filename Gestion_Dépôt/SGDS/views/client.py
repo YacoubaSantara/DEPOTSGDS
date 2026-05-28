@@ -331,7 +331,7 @@ def notif_marquer_lue(request, notif_id):
         notif.lue = True
         notif.save(update_fields=['lue'])
         if notif.mouvement_id:
-            return redirect(reverse('mouvement_detail', kwargs={'pk': notif.mouvement_id}))
+            return redirect(reverse('mouvement_detail', kwargs={'uuid': str(notif.mouvement.uuid), 'slug': notif.mouvement.slug}))
     return redirect(request.META.get('HTTP_REFERER', 'client_dashboard'))
 
 

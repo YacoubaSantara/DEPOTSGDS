@@ -78,7 +78,7 @@
     </thead>
     <tbody>
       {% for chf in chauffeurs %}
-      <tr class="clickable" onclick="window.location='{% url 'chauffeur_detail' chf.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'chauffeur_detail' uuid=chf.uuid slug=chf.slug %}'">
         <td>
           <div style="display:flex;align-items:center;gap:10px">
             <div style="width:36px;height:36px;border-radius:50%;background:var(--navy);display:flex;align-items:center;justify-content:center;font-family:inherit;font-size:.75rem;font-weight:700;color:#fff;flex-shrink:0">
@@ -93,7 +93,7 @@
         <td>{% if chf.marketeur %}<span style="font-size:.82rem">{{ chf.marketeur.raison_sociale }}</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
         <td>
           {% if chf.camion %}
-          <a href="{% url 'camion_detail' chf.camion.pk %}" class="mono" style="font-size:.82rem;color:var(--navy)" onclick="event.stopPropagation()">{{ chf.camion.immatriculation }}</a>
+          <a href="{% url 'camion_detail' uuid=chf.camion.uuid slug=chf.camion.slug %}" class="mono" style="font-size:.82rem;color:var(--navy)" onclick="event.stopPropagation()">{{ chf.camion.immatriculation }}</a>
           {% else %}<span style="color:var(--muted);font-size:.82rem">—</span>{% endif %}
         </td>
         <td>
@@ -103,9 +103,9 @@
         </td>
         <td onclick="event.stopPropagation()">
           <div style="display:flex;gap:5px">
-            <a href="{% url 'chauffeur_detail' chf.pk %}" class="btn btn-sm btn-ghost">Voir</a>
-            <a href="{% url 'chauffeur_update' chf.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
-            <a href="{% url 'chauffeur_delete' chf.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+            <a href="{% url 'chauffeur_detail' uuid=chf.uuid slug=chf.slug %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'chauffeur_update' uuid=chf.uuid slug=chf.slug %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'chauffeur_delete' uuid=chf.uuid slug=chf.slug %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
           </div>
         </td>
       </tr>
@@ -114,5 +114,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'partials/_pagination.html' with page_obj=chauffeurs filtres=filtres %}
 </div>
 {% endblock %}

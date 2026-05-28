@@ -21,7 +21,7 @@
     </div>
   </div>
   <div class="ph-actions">
-    <a href="{% url 'coulage_export' periode_id=periode.pk %}" class="btn btn-ghost">
+    <a href="{% url 'coulage_export' periode_uuid=periode.uuid periode_slug=periode.slug %}" class="btn btn-ghost">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export Excel
     </a>
@@ -183,7 +183,7 @@ montant = volume_global_sorti × prix_unitaire ({{ rapport.parametres.prix_unita
       Cette action <strong>verrouillera définitivement</strong> la période. Aucun mouvement ne pourra
       être créé ou modifié pour ce mois. Les stocks d'ouverture du mois suivant seront calculés automatiquement.
     </p>
-    <form method="post" action="{% url 'coulage_cloture' periode_id=periode.pk %}">
+    <form method="post" action="{% url 'coulage_cloture' periode_uuid=periode.uuid periode_slug=periode.slug %}">
       {% csrf_token %}
       <label class="field-label">Notes (optionnel)</label>
       <textarea name="notes" rows="3" class="field-input" style="width:100%;resize:vertical;box-sizing:border-box" placeholder="Observations sur la clôture…"></textarea>

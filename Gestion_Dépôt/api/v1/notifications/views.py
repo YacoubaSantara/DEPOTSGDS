@@ -25,6 +25,7 @@ class NotificationsView(APIView):
                 'lue':           n.lue,
                 'date_creation': n.date_creation.isoformat(),
                 'mouvement_id':  n.mouvement_id,
+                'lien':          n.lien,
             }
             for n in notifs
         ]

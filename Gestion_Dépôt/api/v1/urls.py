@@ -34,7 +34,7 @@ from django.urls import path
 
 from api.v1.auth.views          import LoginView, LogoutView, TokenRefreshAPIView
 from api.v1.dashboard.views     import DashboardView
-from api.v1.mouvements.views    import MouvementListView, MouvementDetailView
+from api.v1.mouvements.views    import MouvementListView, MouvementDetailView, MouvementBordereauPdfView, MouvementDocumentsView, DocumentDetailView
 from api.v1.etats.views         import (
     StockGlobalView, RecapView, ProduitsView, PeriodesView,
     StockOuvertureFermetureView, FraisPassageView, CoulageView,
@@ -52,8 +52,11 @@ urlpatterns = [
     path('dashboard/',    DashboardView.as_view(),    name='api_dashboard'),
 
     # ── Mouvements ────────────────────────────────────────────
-    path('mouvements/',          MouvementListView.as_view(),   name='api_mouvements_list'),
-    path('mouvements/<int:pk>/', MouvementDetailView.as_view(), name='api_mouvement_detail'),
+    path('mouvements/',                              MouvementListView.as_view(),      name='api_mouvements_list'),
+    path('mouvements/<int:pk>/',                     MouvementDetailView.as_view(),       name='api_mouvement_detail'),
+    path('mouvements/<int:pk>/bordereau.pdf/',       MouvementBordereauPdfView.as_view(), name='api_mouvement_bordereau_pdf'),
+    path('mouvements/<int:pk>/documents/',           MouvementDocumentsView.as_view(),    name='api_mouvement_documents'),
+    path('documents/<int:pk>/',                      DocumentDetailView.as_view(),     name='api_document_detail'),
 
     # ── États ─────────────────────────────────────────────────
     path('etats/stock-global/',    StockGlobalView.as_view(),            name='api_stock_global'),

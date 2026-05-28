@@ -1,0 +1,166 @@
+{% load static sgds_filters %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Bordereau Cession {{ mouvement.numero_enregistrement }} — SGDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{% static 'css/bordereau.css' %}"/>
+</head>
+<body class="{% if bw %}bw{% endif %}">
+
+{% include "mouvements/_bordereau_toolbar.html" %}
+
+<div class="sheet {% if compact %}compact{% endif %}">
+
+  {% include "mouvements/_bordereau_header.html" with type_class="CESSION" type_kind="Cession inter-marketeur" doc_title="Bordereau de cession" doc_num=mouvement.numero_enregistrement logo_class="blue" %}
+
+  <div class="id-strip">
+    <div class="id-cell"><div class="lbl">Type</div><div class="val"><span class="type-pill CESSION">CESSION</span></div></div>
+    <div class="id-cell"><div class="lbl">Date cession</div><div class="val mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</div></div>
+    <div class="id-cell"><div class="lbl">Régime</div><div class="val">{{ mouvement.get_regime_douanier_display }}</div></div>
+    <div class="id-cell"><div class="lbl">Produit</div><div class="val">{{ mouvement.produit.nom }}</div></div>
+    <div class="id-cell"><div class="lbl">Mouvement physique</div><div class="val sm">Comptable</div></div>
+    <div class="id-cell"><div class="lbl">Statut</div><div class="val"><span class="bdg ok">Enregistré</span></div></div>
+  </div>
+
+  <section class="section">
+    <div class="section-h"><h3>1 · Parties à la cession</h3><span class="marker"></span></div>
+    <div class="parties">
+      <div class="party cedant">
+        <div class="party-role">Cédant</div>
+        <div class="party-name">{{ mouvement.marketeur.raison_sociale }}</div>
+        <div class="party-rows">
+          <div class="kv"><span class="k">Sigle</span><span class="v">{{ mouvement.marketeur.sigle|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Forme juridique</span><span class="v">{{ mouvement.marketeur.forme_juridique|default:"—" }}</span></div>
+          <div class="kv"><span class="k">RCCM</span><span class="v" style="font-size:9pt">{{ mouvement.marketeur.numero_registre_commerce|default:"—" }}</span></div>
+          <div class="kv"><span class="k">NIF</span><span class="v" style="font-size:9pt">{{ mouvement.marketeur.numero_contribuable|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Adresse</span><span class="v" style="font-size:9pt">{{ mouvement.marketeur.adresse|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Représentant</span><span class="v" style="font-size:9pt">{{ mouvement.marketeur.prenom_representant }} {{ mouvement.marketeur.nom_representant }}</span></div>
+        </div>
+      </div>
+      <div class="party-arrow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </div>
+      <div class="party">
+        <div class="party-role">Cessionnaire</div>
+        <div class="party-name">{{ mouvement.cession_marketeur_destinataire.raison_sociale|default:"—" }}</div>
+        <div class="party-rows">
+          <div class="kv"><span class="k">Sigle</span><span class="v">{{ mouvement.cession_marketeur_destinataire.sigle|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Forme juridique</span><span class="v">{{ mouvement.cession_marketeur_destinataire.forme_juridique|default:"—" }}</span></div>
+          <div class="kv"><span class="k">RCCM</span><span class="v" style="font-size:9pt">{{ mouvement.cession_marketeur_destinataire.numero_registre_commerce|default:"—" }}</span></div>
+          <div class="kv"><span class="k">NIF</span><span class="v" style="font-size:9pt">{{ mouvement.cession_marketeur_destinataire.numero_contribuable|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Adresse</span><span class="v" style="font-size:9pt">{{ mouvement.cession_marketeur_destinataire.adresse|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Représentant</span><span class="v" style="font-size:9pt">{{ mouvement.cession_marketeur_destinataire.prenom_representant|default:"—" }} {{ mouvement.cession_marketeur_destinataire.nom_representant|default:"" }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-4" style="margin-top:4px">
+      <div class="kv"><span class="k">Période d'imputation</span><span class="v">{{ periode_label }}</span></div>
+      <div class="kv"><span class="k">Date cession</span><span class="v mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span></div>
+      <div class="kv"><span class="k">Motif</span><span class="v" style="font-size:9pt;font-weight:500">{{ mouvement.cession_motif|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Collaborateur</span><span class="v mono">{{ mouvement.collaborateur|default:"—" }}</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-h"><h3>2 · Objet de la cession</h3><span class="marker"></span></div>
+    <div class="grid-4">
+      <div class="kv"><span class="k">Produit cédé</span><span class="v">{{ mouvement.produit.nom }} · {{ mouvement.produit.code|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Cuve concernée</span><span class="v">{% if mouvement.cession_cuve %}{{ mouvement.cession_cuve.numero }}{% elif mouvement.cuve %}{{ mouvement.cuve.numero }}{% else %}—{% endif %}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant cédé</span><span class="v mono">{{ mouvement.cession_volume_ambiant|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. @15°C cédé</span><span class="v mono info lg">{{ mouvement.cession_volume_15c|frnum }} L</span></div>
+      <div class="kv"><span class="k">Régime fiscal conservé</span><span class="v">{{ mouvement.get_regime_douanier_display }}</span></div>
+      <div class="kv"><span class="k">Notes</span><span class="v" style="font-size:9pt;font-weight:500">{{ mouvement.notes|default:"—"|truncatechars:80 }}</span></div>
+      <div class="kv"><span class="k">Date saisie</span><span class="v mono">{{ mouvement.date_saisie|date:"d/m/Y H:i" }}</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-h"><h3>3 · Imputation comptable des stocks (@15°C)</h3><span class="marker"></span></div>
+    <div class="liq">
+      <div class="liq-h"><span>Mouvement comptable de stock — aucun déplacement physique</span><span class="tag info">COMPTABLE</span></div>
+      <table>
+        <thead>
+          <tr><th>Partie</th><th>Stock avant</th><th>Mouvement</th><th>Stock après</th><th>Régime</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="tax">{{ mouvement.marketeur.raison_sociale }} <span style="color:var(--muted);font-weight:500;font-size:8.5pt">(cédant)</span></td>
+            <td class="num">{% if stock_avant_cedant is not None %}{{ stock_avant_cedant|frnum }} L{% else %}—{% endif %}</td>
+            <td class="num" style="color:var(--err)">−{{ mouvement.cession_volume_ambiant|frnum }} L</td>
+            <td class="num">{% if stock_apres_cedant is not None %}{{ stock_apres_cedant|frnum }} L{% else %}—{% endif %}</td>
+            <td>{{ mouvement.get_regime_douanier_display }}</td>
+          </tr>
+          <tr>
+            <td class="tax">{{ mouvement.cession_marketeur_destinataire.raison_sociale|default:"Cessionnaire" }} <span style="color:var(--muted);font-weight:500;font-size:8.5pt">(cessionnaire)</span></td>
+            <td class="num">{% if stock_avant_cessionnaire is not None %}{{ stock_avant_cessionnaire|frnum }} L{% else %}—{% endif %}</td>
+            <td class="num" style="color:var(--ok)">+{{ mouvement.cession_volume_ambiant|frnum }} L</td>
+            <td class="num">{% if stock_apres_cessionnaire is not None %}{{ stock_apres_cessionnaire|frnum }} L{% else %}—{% endif %}</td>
+            <td>{{ mouvement.get_regime_douanier_display }}</td>
+          </tr>
+          <tr class="sub">
+            <td>Stock total dépôt (inchangé)</td>
+            <td class="num">{% if stock_avant_total is not None %}{{ stock_avant_total|frnum }} L{% else %}—{% endif %}</td>
+            <td class="num">±0 L</td>
+            <td class="num">{% if stock_apres_total is not None %}{{ stock_apres_total|frnum }} L{% else %}—{% endif %}</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="recap">
+    <div class="recap-cell"><div class="lbl">Vol. cédé @15°C</div><div class="val">{{ mouvement.cession_volume_15c|frnum }} L</div><div class="sub">{{ mouvement.produit.nom }} · {{ mouvement.get_regime_douanier_display|lower }}</div></div>
+    <div class="recap-cell"><div class="lbl">Vol. ambiant cédé</div><div class="val">{{ mouvement.cession_volume_ambiant|frnum }} L</div><div class="sub">sans déplacement physique</div></div>
+    <div class="recap-cell"><div class="lbl">Régime fiscal</div><div class="val" style="font-size:11pt">{{ mouvement.get_regime_douanier_display }}</div><div class="sub">conservé chez cessionnaire</div></div>
+    <div class="recap-cell"><div class="lbl">À comptabiliser</div><div class="val">{{ mouvement.cession_volume_ambiant|frnum }} L</div><div class="sub">@15°C · {{ periode_label }}</div></div>
+  </div>
+
+  {% if show_sigs %}
+  <section class="sigs" style="grid-template-columns:repeat(3,1fr)">
+    <div class="sig info" style="min-height:38mm">
+      <div><div class="role">Représentant CÉDANT</div><div class="name">{{ mouvement.marketeur.prenom_representant }} {{ mouvement.marketeur.nom_representant }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date</span><span>Signature</span></div>
+    </div>
+    <div class="sig info" style="min-height:38mm">
+      <div><div class="role">Représentant CESSIONNAIRE</div><div class="name">{{ mouvement.cession_marketeur_destinataire.prenom_representant|default:"—" }} {{ mouvement.cession_marketeur_destinataire.nom_representant|default:"" }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date</span><span>Signature</span></div>
+    </div>
+    <div class="sig info" style="min-height:38mm">
+      <div><div class="role">Chef de dépôt</div><div class="name">—</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>SGDS · {{ societe.sigle|default:"SANKE" }}</span><span>Cachet</span></div>
+    </div>
+  </section>
+  {% endif %}
+
+   {% if show_stamp %}
+  <div class="stamp accent">
+    <div class="inner">
+      <div class="big">VALIDÉ</div>
+      <div class="sm">SGDS · {{ societe.sigle|default:"SANKE SA" }}</div>
+      <div class="dt">{{ mouvement.date_mouvement|date:"d / m / Y" }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <footer class="ftr">
+    <div class="legal">Document généré par <b>SGDS — Système de Gestion de Dépôt de Stockage</b>. Toute correction doit faire l'objet d'un nouveau bordereau référençant ce numéro.</div>
+    <div style="text-align:right">
+      <div>P. 1 / 1</div>
+      <div>SGDS · {{ now|date:"d/m/Y H:i" }}</div>
+      <div style="margin-top:2px"><span style="color:var(--accent)">●</span> {{ mouvement.numero_enregistrement }}</div>
+    </div>
+  </footer>
+
+</div>
+
+{% include "mouvements/_bordereau_scripts.html" %}
+</body>
+</html>

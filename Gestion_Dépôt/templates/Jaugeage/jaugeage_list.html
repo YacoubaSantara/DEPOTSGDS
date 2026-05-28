@@ -132,7 +132,7 @@
     </thead>
     <tbody>
       {% for j, vol_total, vol_vad in jaugeages_with_totals %}
-      <tr class="clickable" onclick="window.location='{% url 'jaugeage_detail' j.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'jaugeage_detail' uuid=j.uuid slug=j.slug %}'">
         <td class="mono" style="font-weight:700">{{ j.date_jaugeage|date:"d/m/Y" }}</td>
         <td>
           {% if j.type_jaugeage == 'AVR' %}<span class="bdg info">Avant</span>
@@ -158,11 +158,11 @@
         <td class="mono" style="font-size:11px;color:var(--muted)">{{ j.date_creation|date:"d/m/Y H:i" }}</td>
         <td onclick="event.stopPropagation()">
           <div style="display:flex;gap:5px">
-            <a href="{% url 'jaugeage_detail' j.pk %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'jaugeage_detail' uuid=j.uuid slug=j.slug %}" class="btn btn-sm btn-ghost">Voir</a>
             {% if not request.user.is_marketeur_role %}
-            <a href="{% url 'jaugeage_saisie' j.pk %}" class="btn btn-sm btn-accent">Saisie</a>
+            <a href="{% url 'jaugeage_saisie' uuid=j.uuid slug=j.slug %}" class="btn btn-sm btn-accent">Saisie</a>
             {% endif %}
-            <a href="{% url 'jaugeage_rapport' j.pk %}" class="btn btn-sm btn-ghost" title="Rapport A4">
+            <a href="{% url 'jaugeage_rapport' uuid=j.uuid slug=j.slug %}" class="btn btn-sm btn-ghost" title="Rapport A4">
               <svg viewBox="0 0 24 24" stroke-width="2" style="width:12px;height:12px;stroke:currentColor;fill:none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </a>
           </div>
@@ -171,6 +171,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'partials/_pagination.html' with page_obj=jaugeages filtres=filtres %}
   {% else %}
   <div class="tbl-empty" style="padding:60px 20px;text-align:center">
     <svg viewBox="0 0 24 24" stroke-width="1.5" style="width:44px;height:44px;stroke:var(--border);fill:none;margin-bottom:12px;display:block;margin-inline:auto"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>

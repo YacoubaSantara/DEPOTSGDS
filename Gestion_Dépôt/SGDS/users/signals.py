@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from django.contrib.auth.signals import (
     user_logged_in, user_logged_out, user_login_failed,
 )
+from django.contrib.auth.models import Group
 
 from .models import UserProfile, AuditLog, Role
 from .middleware import get_current_request
@@ -199,3 +200,54 @@ def empecher_retrait_permissions_superadmin(sender, instance, action, pk_set, **
         codes.extend(c for c, _ in cat['permissions'])
     toutes_perms = Permission.objects.filter(codename__in=codes)
     instance.permissions.set(toutes_perms)
+
+
+# ================================================================================
+# HYBRIDE RBAC <-> DJANGO NATIF : synchronisation Role <-> auth.Group natif
+# ================================================================================
+
+# -- 1. Creation / MAJ du auth.Group lie au Role ---------------------------------
+@receiver(post_save, sender=Role)
+def sync_role_vers_group(sender, instance, created, **kwargs):
+    if getattr(instance, '_sync_group_en_cours', False):
+        return
+    group, _ = Group.objects.get_or_create(name=instance.code)
+    if instance.django_group_id != group.pk:
+        instance._sync_group_en_cours = True
+        Role.objects.filter(pk=instance.pk).update(django_group=group)
+        instance._sync_group_en_cours = False
+    group.permissions.set(instance.permissions.all())
+
+
+# -- 2. Suppression du auth.Group quand un Role est supprime ---------------------
+@receiver(post_delete, sender=Role)
+def supprimer_group_orphelin(sender, instance, **kwargs):
+    if instance.django_group_id:
+        Group.objects.filter(pk=instance.django_group_id).delete()
+
+
+# -- 3. Sync user.groups quand UserProfile.role change ---------------------------
+@receiver(post_save, sender=UserProfile)
+def sync_user_vers_groups(sender, instance, **kwargs):
+    user = instance.user
+    ids_sgds = list(
+        Role.objects.exclude(django_group__isnull=True)
+                    .values_list('django_group_id', flat=True)
+    )
+    if ids_sgds:
+        user.groups.remove(*ids_sgds)
+    role = instance.role
+    if role and role.django_group_id:
+        user.groups.add(role.django_group_id)
+
+
+# -- 4. Sync permissions Role -> Group quand M2M change --------------------------
+@receiver(m2m_changed, sender=Role.permissions.through)
+def sync_permissions_role_vers_group(sender, instance, action, **kwargs):
+    if action not in ('post_add', 'post_remove', 'post_clear'):
+        return
+    if not instance.django_group_id:
+        return
+    group = Group.objects.filter(pk=instance.django_group_id).first()
+    if group:
+        group.permissions.set(instance.permissions.all())

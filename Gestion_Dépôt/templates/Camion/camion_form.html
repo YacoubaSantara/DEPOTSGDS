@@ -8,7 +8,7 @@
 {% if action == 'Nouveau' %}
 <span class="breadcrumb-current">Nouveau camion</span>
 {% else %}
-<a href="{% url 'camion_detail' camion.pk %}">{{ camion.immatriculation }}</a>
+<a href="{% url 'camion_detail' uuid=camion.uuid slug=camion.slug %}">{{ camion.immatriculation }}</a>
 <span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">Modifier</span>
 {% endif %}
@@ -17,22 +17,27 @@
 {% block content %}
 <div class="ph">
   <div>
-    <h1 class="ph-title">{% if action == 'Nouveau' %}Enregistrer un camion{% else %}Modifier le camion{% endif %}</h1>
-    <div class="ph-sub">{% if action == 'Nouveau' %}Ajouter un nouveau camion citerne au parc{% else %}Modifier les informations de {{ camion.immatriculation }}{% endif %}</div>
+    <h1 class="ph-title">{% if action == 'Nouveau' %}Enregistrer un nouveau camion{% else %}Modifier le camion{% endif %}</h1>
+    <div class="ph-sub">{% if action == 'Nouveau' %}Renseignez les informations du camion citerne à ajouter au parc{% else %}Mise à jour des données de {{ camion.immatriculation }}{% endif %}</div>
   </div>
 </div>
 
 <form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
 
-  <!-- Identification -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-h"><div class="card-h-title">Identification du véhicule</div></div>
-    <div class="card-b">
+  <!-- Section 1 : Identification -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      <h3>Identification du véhicule</h3>
+      <span style="margin-left:auto;font-size:10.5px;opacity:.45;font-family:'JetBrains Mono',monospace">1 / 6</span>
+    </div>
+    <div class="form-card-body">
       <div class="dg-3">
         <div class="field">
           <label class="field-label" for="{{ form.immatriculation.id_for_label }}">Immatriculation<span class="req">*</span></label>
           {{ form.immatriculation }}{{ form.immatriculation.errors }}
+          <span class="field-hint">Ex : TG-1234-AB</span>
         </div>
         <div class="field">
           <label class="field-label" for="{{ form.marque.id_for_label }}">Marque<span class="req">*</span></label>
@@ -50,6 +55,7 @@
           <label class="field-label" for="{{ form.couleur.id_for_label }}">Couleur</label>
           {{ form.couleur }}
         </div>
+        <div class="field"></div>
         <div class="field">
           <label class="field-label" for="{{ form.numero_serie_chassis.id_for_label }}">N° Série châssis</label>
           {{ form.numero_serie_chassis }}
@@ -62,10 +68,14 @@
     </div>
   </div>
 
-  <!-- Citerne -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-h"><div class="card-h-title">Caractéristiques citerne</div></div>
-    <div class="card-b">
+  <!-- Section 2 : Citerne -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <h3>Caractéristiques citerne</h3>
+      <span style="margin-left:auto;font-size:10.5px;opacity:.45;font-family:'JetBrains Mono',monospace">2 / 6</span>
+    </div>
+    <div class="form-card-body">
       <div class="dg-3">
         <div class="field">
           <label class="field-label" for="{{ form.type_produit.id_for_label }}">Type de produit transporté<span class="req">*</span></label>
@@ -78,23 +88,77 @@
         <div class="field">
           <label class="field-label" for="{{ form.nombre_compartiments.id_for_label }}">Nombre de compartiments</label>
           {{ form.nombre_compartiments }}
+          <span class="field-hint">Modifiez ce champ pour mettre à jour les compartiments ci-dessous</span>
         </div>
         <div class="field">
           <label class="field-label" for="{{ form.date_mise_en_circulation.id_for_label }}">Date de mise en circulation</label>
           {{ form.date_mise_en_circulation }}
         </div>
-        <div class="field">
-          <label class="field-label" for="{{ form.carte_grise.id_for_label }}">Carte grise (fichier)</label>
+        <div class="field" style="grid-column:1/-1">
+          <label class="field-label" for="{{ form.carte_grise.id_for_label }}">Carte grise (fichier PDF ou image)</label>
           {{ form.carte_grise }}
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Assurance -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-h"><div class="card-h-title">Assurance</div></div>
-    <div class="card-b">
+  <!-- Section 3 : Compartiments -->
+  <div class="form-card" id="section-compartiments">
+    <div class="form-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="8" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="16" y2="21"/></svg>
+      <h3>Capacité par compartiment</h3>
+      <span style="margin-left:auto;font-size:10.5px;opacity:.45;font-family:'JetBrains Mono',monospace">3 / 6</span>
+    </div>
+    <div class="form-card-body">
+      {{ formset.management_form }}
+      <div id="compartiments-body">
+        {% for cf in formset %}
+        <div class="compartiment-row" style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)">
+          {% for hidden in cf.hidden_fields %}{{ hidden }}{% endfor %}
+          <div style="width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <span style="font-size:12px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace">{{ cf.numero.value }}</span>
+          </div>
+          <input type="hidden" name="{{ cf.numero.html_name }}" value="{{ cf.numero.value|default_if_none:'' }}">
+          <div style="flex:1;display:flex;align-items:center;gap:8px">
+            <input type="number" name="{{ cf.capacite.html_name }}"
+                   value="{{ cf.capacite.value|default_if_none:'' }}"
+                   step="0.01" min="0" placeholder="0.00"
+                   class="form-control comp-capacite"
+                   style="max-width:180px;font-family:'JetBrains Mono',monospace;font-weight:600">
+            <span style="font-size:12.5px;color:var(--muted);font-weight:500">litres</span>
+          </div>
+          {% if cf.DELETE %}<span style="display:none">{{ cf.DELETE }}</span>{% endif %}
+          {% if cf.capacite.errors %}<span style="color:var(--err);font-size:12px;font-weight:500">{{ cf.capacite.errors|join:" " }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Récapitulatif -->
+      <div class="calc-zone" style="margin-top:12px">
+        <div class="calc-zone-title">
+          <svg viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Récapitulatif de capacité
+        </div>
+        <div class="calc-row">
+          <span class="calc-label">Total des compartiments saisis</span>
+          <span class="calc-value" id="total-compartiments">—</span>
+        </div>
+        <div class="calc-row">
+          <span class="calc-label">Capacité totale renseignée</span>
+          <span class="calc-value" id="recap-capacite-totale">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4 : Assurance -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <h3>Assurance</h3>
+      <span style="margin-left:auto;font-size:10.5px;opacity:.45;font-family:'JetBrains Mono',monospace">4 / 6</span>
+    </div>
+    <div class="form-card-body">
       <div class="dg-3">
         <div class="field">
           <label class="field-label" for="{{ form.compagnie_assurance.id_for_label }}">Compagnie d'assurance</label>
@@ -112,10 +176,14 @@
     </div>
   </div>
 
-  <!-- Technique -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-h"><div class="card-h-title">Entretien technique</div></div>
-    <div class="card-b">
+  <!-- Section 5 : Entretien -->
+  <div class="form-card">
+    <div class="form-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      <h3>Entretien technique</h3>
+      <span style="margin-left:auto;font-size:10.5px;opacity:.45;font-family:'JetBrains Mono',monospace">5 / 6</span>
+    </div>
+    <div class="form-card-body">
       <div class="dg-3">
         <div class="field">
           <label class="field-label" for="{{ form.kilometrage.id_for_label }}">Kilométrage (km)</label>
@@ -133,13 +201,17 @@
     </div>
   </div>
 
-  <!-- Statut & Affectation -->
-  <div class="card" style="margin-bottom:20px">
-    <div class="card-h"><div class="card-h-title">Statut & Affectation</div></div>
-    <div class="card-b">
+  <!-- Section 6 : Statut & Affectation -->
+  <div class="form-card" style="margin-bottom:0">
+    <div class="form-card-header">
+      <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <h3>Statut &amp; Affectation</h3>
+      <span style="margin-left:auto;font-size:10.5px;opacity:.45;font-family:'JetBrains Mono',monospace">6 / 6</span>
+    </div>
+    <div class="form-card-body">
       <div class="dg-3">
         <div class="field">
-          <label class="field-label" for="{{ form.statut.id_for_label }}">Statut</label>
+          <label class="field-label" for="{{ form.statut.id_for_label }}">Statut opérationnel</label>
           {{ form.statut }}
         </div>
         <div class="field">
@@ -147,19 +219,130 @@
           {{ form.marketeur }}
         </div>
       </div>
-      <div class="field" style="margin-top:16px">
+      <div class="field" style="margin-top:4px">
         <label class="field-label" for="{{ form.notes.id_for_label }}">Notes / Observations</label>
         {{ form.notes }}
       </div>
     </div>
   </div>
 
-  <div style="display:flex;gap:12px;justify-content:flex-end;padding:18px 0">
-    <a href="{% if action == 'Modifier' %}{% url 'camion_detail' camion.pk %}{% else %}{% url 'camion_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
-    <button type="submit" class="btn btn-accent">
-      <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      {% if action == 'Nouveau' %}Enregistrer le camion{% else %}Sauvegarder les modifications{% endif %}
-    </button>
+  <!-- Footer collant -->
+  <div class="form-footer">
+    <div class="form-footer-left">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      {% if action == 'Modifier' %}Modification de <strong>{{ camion.immatriculation }}</strong>{% else %}Nouveau camion citerne{% endif %}
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="{% if action == 'Modifier' %}{% url 'camion_detail' uuid=camion.uuid slug=camion.slug %}{% else %}{% url 'camion_list' %}{% endif %}" class="btn btn-ghost">
+        Annuler
+      </a>
+      <button type="submit" class="btn btn-accent">
+        <svg viewBox="0 0 24 24" stroke-width="2.5" fill="none" stroke="currentColor" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+        {% if action == 'Nouveau' %}Enregistrer le camion{% else %}Sauvegarder les modifications{% endif %}
+      </button>
+    </div>
   </div>
+
 </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const PREFIX    = 'compartiments';
+  const nbComp    = document.getElementById('{{ form.nombre_compartiments.id_for_label }}');
+  const capTotale = document.getElementById('{{ form.capacite_totale.id_for_label }}');
+  const body      = document.getElementById('compartiments-body');
+  const totalSpan = document.getElementById('total-compartiments');
+  const recapSpan = document.getElementById('recap-capacite-totale');
+  const totalForms  = document.getElementById('id_' + PREFIX + '-TOTAL_FORMS');
+  const initialForms = document.getElementById('id_' + PREFIX + '-INITIAL_FORMS');
+
+  function snapshotRows() {
+    return Array.from(body.querySelectorAll('.compartiment-row')).map(row => ({
+      id      : (row.querySelector('input[name$="-id"]') || {}).value || '',
+      capacite: (row.querySelector('.comp-capacite') || {}).value || '',
+    }));
+  }
+  let snapshot = snapshotRows();
+
+  function buildRow(idx, numero, capaciteVal, idVal) {
+    const div = document.createElement('div');
+    div.className = 'compartiment-row';
+    div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border)';
+    div.innerHTML =
+      `<input type="hidden" name="${PREFIX}-${idx}-id" value="${idVal || ''}">` +
+      `<div style="width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">` +
+        `<span style="font-size:12px;font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace">${numero}</span>` +
+      `</div>` +
+      `<input type="hidden" name="${PREFIX}-${idx}-numero" value="${numero}">` +
+      `<div style="flex:1;display:flex;align-items:center;gap:8px">` +
+        `<input type="number" name="${PREFIX}-${idx}-capacite"` +
+        ` value="${capaciteVal}" step="0.01" min="0" placeholder="0.00"` +
+        ` class="form-control comp-capacite" style="max-width:180px;font-family:'JetBrains Mono',monospace;font-weight:600">` +
+        `<span style="font-size:12.5px;color:var(--muted);font-weight:500">litres</span>` +
+      `</div>`;
+    div.querySelector('.comp-capacite').addEventListener('input', updateTotaux);
+    return div;
+  }
+
+  function syncCompartiments() {
+    const n         = parseInt(nbComp.value) || 0;
+    const initCount = parseInt(initialForms ? initialForms.value : '0') || 0;
+    body.innerHTML  = '';
+    for (let i = 0; i < n; i++) {
+      const saved = snapshot[i] || {};
+      body.appendChild(buildRow(i, i + 1, saved.capacite || '', saved.id || ''));
+    }
+    for (let i = n; i < initCount; i++) {
+      const saved = snapshot[i] || {};
+      if (!saved.id) continue;
+      const ghost = document.createElement('div');
+      ghost.style.display = 'none';
+      ghost.innerHTML =
+        `<input type="hidden" name="${PREFIX}-${i}-id" value="${saved.id}">` +
+        `<input type="hidden" name="${PREFIX}-${i}-numero" value="${i + 1}">` +
+        `<input type="hidden" name="${PREFIX}-${i}-capacite" value="${saved.capacite || 0}">` +
+        `<input type="hidden" name="${PREFIX}-${i}-DELETE" value="1">`;
+      body.appendChild(ghost);
+    }
+    if (totalForms) totalForms.value = Math.max(n, initCount);
+    updateTotaux();
+  }
+
+  window.updateTotaux = function () {
+    const inputs = body.querySelectorAll('.comp-capacite');
+    let sum = 0, hasVal = false;
+    inputs.forEach(inp => {
+      const v = parseFloat(inp.value);
+      if (!isNaN(v) && v > 0) { sum += v; hasVal = true; }
+    });
+    totalSpan.textContent = hasVal
+      ? sum.toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' L' : '—';
+    const ct = parseFloat(capTotale ? capTotale.value : '');
+    recapSpan.textContent = (!isNaN(ct) && ct > 0)
+      ? ct.toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:2}) + ' L' : '—';
+
+    /* Coloration si total > capacité */
+    if (hasVal && !isNaN(ct) && ct > 0) {
+      totalSpan.className = sum > ct ? 'calc-value negative' : (sum < ct ? 'calc-val alerte' : 'calc-value positive');
+    } else {
+      totalSpan.className = 'calc-value';
+    }
+  };
+
+  if (nbComp) {
+    nbComp.addEventListener('change', syncCompartiments);
+    nbComp.addEventListener('input',  syncCompartiments);
+  }
+  if (capTotale) capTotale.addEventListener('input', updateTotaux);
+  body.querySelectorAll('.comp-capacite').forEach(inp => inp.addEventListener('input', updateTotaux));
+
+  if (snapshot.length === 0 && nbComp && parseInt(nbComp.value) > 0) {
+    syncCompartiments();
+  } else {
+    updateTotaux();
+  }
+})();
+</script>
 {% endblock %}

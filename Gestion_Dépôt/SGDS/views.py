@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404, redirect
+﻿from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
@@ -6,18 +6,19 @@ from django.forms import modelformset_factory
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.core.paginator import Paginator
 from .models import Marketeur, Camion, Chauffeur, Famille, Produit, Cuve, ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement
 from .forms import (
     MarketeurForm, CamionForm, ChauffeurForm, FamilleForm, ProduitForm, CuveForm,
     ParametreJaugeageCuveForm, JaugeageJourForm, MesureCuveForm, MouvementForm,
-    LigneMouvementFormSet,
+    LigneMouvementFormSet, CompartimentCamionFormSet,
 )
 import qrcode
 import base64
 import io
 
 
-# ── Helpers ────────────────────────────────────────────────────
+# Helpers
 def _deny_marketeur(request):
     """Refuse l'accès aux utilisateurs avec rôle MARKETEUR (lecture seule)."""
     if request.user.is_marketeur_role:
@@ -26,17 +27,41 @@ def _deny_marketeur(request):
     return False
 
 
-# ─────────────────────────────────────────────────────────────
+def _check_mouvement_acces(request, mouvement):
+    """
+    Vérifie qu'un marketeur connecté a le droit de voir ce mouvement.
+    Retourne une réponse de redirection si accès refusé, sinon None.
+    Un marketeur ne peut accéder qu'aux mouvements dont il est le marketeur
+    ou le destinataire (cession).
+    """
+    if not request.user.is_marketeur_role:
+        return None  # Admin / staff : accès libre
+    mkt = getattr(request.user, 'marketeur', None)
+    if mkt is None:
+        messages.error(request, "Votre compte n'est lié à aucun marketeur.")
+        return redirect('connexion')
+    est_concerne = (
+        mouvement.marketeur_id == mkt.pk or
+        (mouvement.cession_marketeur_destinataire_id is not None and
+         mouvement.cession_marketeur_destinataire_id == mkt.pk)
+    )
+    if not est_concerne:
+        messages.error(request, "Accès refusé — ce mouvement ne vous appartient pas.")
+        return redirect('client_mouvements')
+    return None
+
+
+#
 #  MARKETEUR
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def marketeur_list(request):
     # Un marketeur est redirigé vers son propre profil
     if request.user.is_marketeur_role:
         if request.user.marketeur:
-            return redirect('marketeur_detail', pk=request.user.marketeur.pk)
-        messages.error(request, "Votre compte n'est lié à aucun marketeur.")
+            return redirect('marketeur_detail', uuid=request.user.marketeur.uuid, slug=request.user.marketeur.slug)
+        messages.error(request, "Votre compte n'est lié Ã  aucun marketeur.")
         return redirect('connexion')
 
     qs     = Marketeur.objects.all()
@@ -59,8 +84,12 @@ def marketeur_list(request):
 
     villes = Marketeur.objects.values_list('ville', flat=True).distinct().order_by('ville')
 
+    paginator  = Paginator(qs, 10)
+    page_num   = request.GET.get('page', 1)
+    marketeurs = paginator.get_page(page_num)
+
     ctx = {
-        'marketeurs': qs,
+        'marketeurs': marketeurs,
         'count':      qs.count(),
         'total':      Marketeur.objects.count(),
         'nb_actif':   Marketeur.objects.filter(statut='ACTIF').count(),
@@ -70,19 +99,20 @@ def marketeur_list(request):
         'q':          q,
         'statut':     statut,
         'ville':      ville,
+        'filtres':    {'q': q, 'statut': statut, 'ville': ville},
     }
     return render(request, 'Marketeur/marketeur_list.html', ctx)
 
 
 @login_required
-def marketeur_detail(request, pk):
-    mkt = get_object_or_404(Marketeur, pk=pk)
+def marketeur_detail(request, uuid, slug):
+    mkt = get_object_or_404(Marketeur, uuid=uuid)
     # Un marketeur ne peut voir que son propre profil
     if request.user.is_marketeur_role:
-        if not request.user.marketeur or request.user.marketeur.pk != pk:
+        if not request.user.marketeur or str(request.user.marketeur.uuid) != str(uuid):
             messages.error(request, "Accès refusé.")
             if request.user.marketeur:
-                return redirect('marketeur_detail', pk=request.user.marketeur.pk)
+                return redirect('marketeur_detail', uuid=request.user.marketeur.uuid, slug=request.user.marketeur.slug)
             return redirect('connexion')
     return render(request, 'Marketeur/marketeur_detail.html', {'mkt': mkt})
 
@@ -103,26 +133,26 @@ def marketeur_create(request):
 
 
 @login_required
-def marketeur_update(request, pk):
+def marketeur_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('marketeur_detail', pk=pk)
-    mkt = get_object_or_404(Marketeur, pk=pk)
+        return redirect('marketeur_detail', uuid=mkt.uuid, slug=mkt.slug)
+    mkt = get_object_or_404(Marketeur, uuid=uuid)
     if request.method == 'POST':
         form = MarketeurForm(request.POST, request.FILES, instance=mkt)
         if form.is_valid():
             form.save()
             messages.success(request, f'Marketeur « {mkt.raison_sociale} » modifié avec succès.')
-            return redirect('marketeur_detail', pk=pk)
+            return redirect('marketeur_detail', uuid=mkt.uuid, slug=mkt.slug)
     else:
         form = MarketeurForm(instance=mkt)
     return render(request, 'Marketeur/marketeur_form.html', {'form': form, 'action': 'Modifier', 'mkt': mkt})
 
 
 @login_required
-def marketeur_delete(request, pk):
+def marketeur_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('marketeur_detail', pk=pk)
-    mkt = get_object_or_404(Marketeur, pk=pk)
+        return redirect('marketeur_detail', uuid=mkt.uuid, slug=mkt.slug)
+    mkt = get_object_or_404(Marketeur, uuid=uuid)
     if request.method == 'POST':
         nom = mkt.raison_sociale
         mkt.delete()
@@ -131,9 +161,9 @@ def marketeur_delete(request, pk):
     return render(request, 'Marketeur/marketeur_confirm_delete.html', {'mkt': mkt})
 
 
-# ─────────────────────────────────────────────────────────────
+#
 #  CAMION
-# ─────────────────────────────────────────────────────────────
+#
 
 @login_required
 def camion_list(request):
@@ -159,8 +189,12 @@ def camion_list(request):
     if type_p:
         qs = qs.filter(type_produit=type_p)
 
+    paginator = Paginator(qs, 10)
+    page_num  = request.GET.get('page', 1)
+    camions   = paginator.get_page(page_num)
+
     ctx = {
-        'camions':          qs,
+        'camions':          camions,
         'total':            Camion.objects.count(),
         'nb_service':       Camion.objects.filter(statut='EN_SERVICE').count(),
         'nb_maintenance':   Camion.objects.filter(statut='EN_MAINTENANCE').count(),
@@ -170,13 +204,14 @@ def camion_list(request):
         'q':        q,
         'statut':   statut,
         'type_produit': type_p,
+        'filtres':  {'q': q, 'statut': statut, 'type_produit': type_p},
     }
     return render(request, 'Camion/camion_list.html', ctx)
 
 
 @login_required
-def camion_detail(request, pk):
-    camion = get_object_or_404(Camion, pk=pk)
+def camion_detail(request, uuid, slug):
+    camion = get_object_or_404(Camion, uuid=uuid)
     # Vérification accès marketeur
     if request.user.is_marketeur_role and request.user.marketeur:
         if camion.marketeur_id != request.user.marketeur.pk:
@@ -190,48 +225,59 @@ def camion_create(request):
     if _deny_marketeur(request):
         return redirect('camion_list')
     if request.method == 'POST':
-        form = CamionForm(request.POST, request.FILES)
-        if form.is_valid():
+        form    = CamionForm(request.POST, request.FILES)
+        formset = CompartimentCamionFormSet(request.POST, prefix='compartiments')
+        if form.is_valid() and formset.is_valid():
             cam = form.save()
+            formset.instance = cam
+            formset.save()
             messages.success(request, f'Camion « {cam.immatriculation} » enregistré avec succès.')
             return redirect('camion_list')
     else:
-        form = CamionForm()
-    return render(request, 'Camion/camion_form.html', {'form': form, 'action': 'Nouveau'})
+        form    = CamionForm()
+        formset = CompartimentCamionFormSet(prefix='compartiments')
+    return render(request, 'Camion/camion_form.html', {
+        'form': form, 'formset': formset, 'action': 'Nouveau'
+    })
 
 
 @login_required
-def camion_update(request, pk):
+def camion_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('camion_detail', pk=pk)
-    camion = get_object_or_404(Camion, pk=pk)
+        return redirect('camion_detail', uuid=camion.uuid, slug=camion.slug)
+    camion = get_object_or_404(Camion, uuid=uuid)
     if request.method == 'POST':
-        form = CamionForm(request.POST, request.FILES, instance=camion)
-        if form.is_valid():
+        form    = CamionForm(request.POST, request.FILES, instance=camion)
+        formset = CompartimentCamionFormSet(request.POST, instance=camion, prefix='compartiments')
+        if form.is_valid() and formset.is_valid():
             form.save()
+            formset.save()
             messages.success(request, f'Camion « {camion.immatriculation} » modifié avec succès.')
-            return redirect('camion_detail', pk=pk)
+            return redirect('camion_detail', uuid=camion.uuid, slug=camion.slug)
     else:
-        form = CamionForm(instance=camion)
-    return render(request, 'Camion/camion_form.html', {'form': form, 'action': 'Modifier', 'camion': camion})
+        form    = CamionForm(instance=camion)
+        formset = CompartimentCamionFormSet(instance=camion, prefix='compartiments')
+    return render(request, 'Camion/camion_form.html', {
+        'form': form, 'formset': formset, 'action': 'Modifier', 'camion': camion
+    })
 
 
 @login_required
-def camion_delete(request, pk):
+def camion_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('camion_detail', pk=pk)
-    camion = get_object_or_404(Camion, pk=pk)
+        return redirect('camion_detail', uuid=camion.uuid, slug=camion.slug)
+    camion = get_object_or_404(Camion, uuid=uuid)
     if request.method == 'POST':
         immat = camion.immatriculation
         camion.delete()
-        messages.success(request, f'Camion « {immat} » supprimé.')
+        messages.success(request, f'Camion a « {immat} » été supprimé.')
         return redirect('camion_list')
     return render(request, 'Camion/camion_confirm_delete.html', {'camion': camion})
 
 
-# ─────────────────────────────────────────────────────────────
+#
 #  CHAUFFEUR
-# ─────────────────────────────────────────────────────────────
+#
 
 @login_required
 def chauffeur_list(request):
@@ -255,21 +301,26 @@ def chauffeur_list(request):
     if statut:
         qs = qs.filter(statut=statut)
 
+    paginator  = Paginator(qs, 10)
+    page_num   = request.GET.get('page', 1)
+    chauffeurs = paginator.get_page(page_num)
+
     ctx = {
-        'chauffeurs':    qs,
+        'chauffeurs':    chauffeurs,
         'total':         Chauffeur.objects.count(),
         'nb_actif':      Chauffeur.objects.filter(statut='ACTIF').count(),
         'nb_inactif':    Chauffeur.objects.filter(statut='INACTIF').count(),
         'nb_suspendu':   Chauffeur.objects.filter(statut='SUSPENDU').count(),
         'q':      q,
         'statut': statut,
+        'filtres': {'q': q, 'statut': statut},
     }
     return render(request, 'Chauffeur/chauffeur_list.html', ctx)
 
 
 @login_required
-def chauffeur_detail(request, pk):
-    chauffeur = get_object_or_404(Chauffeur, pk=pk)
+def chauffeur_detail(request, uuid, slug):
+    chauffeur = get_object_or_404(Chauffeur, uuid=uuid)
     if request.user.is_marketeur_role and request.user.marketeur:
         if chauffeur.marketeur_id != request.user.marketeur.pk:
             messages.error(request, "Accès refusé.")
@@ -295,26 +346,26 @@ def chauffeur_create(request):
 
 
 @login_required
-def chauffeur_update(request, pk):
+def chauffeur_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('chauffeur_detail', pk=pk)
-    chauffeur = get_object_or_404(Chauffeur, pk=pk)
+        return redirect('chauffeur_detail', uuid=chauffeur.uuid, slug=chauffeur.slug)
+    chauffeur = get_object_or_404(Chauffeur, uuid=uuid)
     if request.method == 'POST':
         form = ChauffeurForm(request.POST, request.FILES, instance=chauffeur)
         if form.is_valid():
             form.save()
             messages.success(request, f'Chauffeur « {chauffeur.nom_complet} » modifié avec succès.')
-            return redirect('chauffeur_detail', pk=pk)
+            return redirect('chauffeur_detail', uuid=chauffeur.uuid, slug=chauffeur.slug)
     else:
         form = ChauffeurForm(instance=chauffeur)
     return render(request, 'Chauffeur/chauffeur_form.html', {'form': form, 'action': 'Modifier', 'chauffeur': chauffeur})
 
 
 @login_required
-def chauffeur_delete(request, pk):
+def chauffeur_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('chauffeur_detail', pk=pk)
-    chauffeur = get_object_or_404(Chauffeur, pk=pk)
+        return redirect('chauffeur_detail', uuid=chauffeur.uuid, slug=chauffeur.slug)
+    chauffeur = get_object_or_404(Chauffeur, uuid=uuid)
     if request.method == 'POST':
         nom = chauffeur.nom_complet
         chauffeur.delete()
@@ -324,8 +375,8 @@ def chauffeur_delete(request, pk):
 
 
 @login_required
-def chauffeur_badge(request, pk):
-    chauffeur = get_object_or_404(Chauffeur.objects.select_related('marketeur', 'camion'), pk=pk)
+def chauffeur_badge(request, uuid, slug):
+    chauffeur = get_object_or_404(Chauffeur.objects.select_related('marketeur', 'camion'), uuid=uuid)
     if request.user.is_marketeur_role and request.user.marketeur:
         if chauffeur.marketeur_id != request.user.marketeur.pk:
             messages.error(request, "Accès refusé.")
@@ -351,9 +402,9 @@ def chauffeur_badge(request, pk):
     })
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  FAMILLE
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def famille_list(request):
@@ -366,20 +417,25 @@ def famille_list(request):
     if statut:
         qs = qs.filter(statut=statut)
 
+    paginator = Paginator(qs, 10)
+    page_num  = request.GET.get('page', 1)
+    familles  = paginator.get_page(page_num)
+
     ctx = {
-        'familles':  qs,
+        'familles':  familles,
         'total':     Famille.objects.count(),
         'nb_actif':  Famille.objects.filter(statut='ACTIF').count(),
         'nb_inactif':Famille.objects.filter(statut='INACTIF').count(),
         'q':     q,
         'statut':statut,
+        'filtres': {'q': q, 'statut': statut},
     }
     return render(request, 'Famille/famille_list.html', ctx)
 
 
 @login_required
-def famille_detail(request, pk):
-    famille = get_object_or_404(Famille, pk=pk)
+def famille_detail(request, uuid, slug):
+    famille = get_object_or_404(Famille, uuid=uuid)
     produits = famille.produits.all()
     return render(request, 'Famille/famille_detail.html', {'famille': famille, 'produits': produits})
 
@@ -400,26 +456,26 @@ def famille_create(request):
 
 
 @login_required
-def famille_update(request, pk):
+def famille_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('famille_detail', pk=pk)
-    famille = get_object_or_404(Famille, pk=pk)
+        return redirect('famille_detail', uuid=famille.uuid, slug=famille.slug)
+    famille = get_object_or_404(Famille, uuid=uuid)
     if request.method == 'POST':
         form = FamilleForm(request.POST, instance=famille)
         if form.is_valid():
             form.save()
             messages.success(request, f'Famille « {famille.nom} » modifiée avec succès.')
-            return redirect('famille_detail', pk=pk)
+            return redirect('famille_detail', uuid=famille.uuid, slug=famille.slug)
     else:
         form = FamilleForm(instance=famille)
     return render(request, 'Famille/famille_form.html', {'form': form, 'action': 'Modifier', 'famille': famille})
 
 
 @login_required
-def famille_delete(request, pk):
+def famille_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('famille_detail', pk=pk)
-    famille = get_object_or_404(Famille, pk=pk)
+        return redirect('famille_detail', uuid=famille.uuid, slug=famille.slug)
+    famille = get_object_or_404(Famille, uuid=uuid)
     if request.method == 'POST':
         nom = famille.nom
         famille.delete()
@@ -428,9 +484,9 @@ def famille_delete(request, pk):
     return render(request, 'Famille/famille_confirm_delete.html', {'famille': famille})
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  PRODUIT
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def produit_list(request):
@@ -449,8 +505,12 @@ def produit_list(request):
     if famille_id:
         qs = qs.filter(famille_id=famille_id)
 
+    paginator = Paginator(qs, 10)
+    page_num  = request.GET.get('page', 1)
+    produits  = paginator.get_page(page_num)
+
     ctx = {
-        'produits':      qs,
+        'produits':      produits,
         'total':         Produit.objects.count(),
         'nb_actif':      Produit.objects.filter(statut='ACTIF').count(),
         'nb_inactif':    Produit.objects.filter(statut='INACTIF').count(),
@@ -459,13 +519,14 @@ def produit_list(request):
         'q':         q,
         'statut':    statut,
         'famille_id':famille_id,
+        'filtres':   {'q': q, 'statut': statut, 'famille': famille_id},
     }
     return render(request, 'Produit/produit_list.html', ctx)
 
 
 @login_required
-def produit_detail(request, pk):
-    produit = get_object_or_404(Produit.objects.select_related('famille'), pk=pk)
+def produit_detail(request, uuid, slug):
+    produit = get_object_or_404(Produit.objects.select_related('famille'), uuid=uuid)
     cuves = produit.cuves.all()
     return render(request, 'Produit/produit_detail.html', {'produit': produit, 'cuves': cuves})
 
@@ -486,26 +547,26 @@ def produit_create(request):
 
 
 @login_required
-def produit_update(request, pk):
+def produit_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('produit_detail', pk=pk)
-    produit = get_object_or_404(Produit, pk=pk)
+        return redirect('produit_detail', uuid=produit.uuid, slug=produit.slug)
+    produit = get_object_or_404(Produit, uuid=uuid)
     if request.method == 'POST':
         form = ProduitForm(request.POST, instance=produit)
         if form.is_valid():
             form.save()
             messages.success(request, f'Produit « {produit.nom} » modifié avec succès.')
-            return redirect('produit_detail', pk=pk)
+            return redirect('produit_detail', uuid=produit.uuid, slug=produit.slug)
     else:
         form = ProduitForm(instance=produit)
     return render(request, 'Produit/produit_form.html', {'form': form, 'action': 'Modifier', 'produit': produit})
 
 
 @login_required
-def produit_delete(request, pk):
+def produit_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('produit_detail', pk=pk)
-    produit = get_object_or_404(Produit, pk=pk)
+        return redirect('produit_detail', uuid=produit.uuid, slug=produit.slug)
+    produit = get_object_or_404(Produit, uuid=uuid)
     if request.method == 'POST':
         nom = produit.nom
         produit.delete()
@@ -514,9 +575,9 @@ def produit_delete(request, pk):
     return render(request, 'Produit/produit_confirm_delete.html', {'produit': produit})
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  CUVE
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def cuve_list(request):
@@ -535,8 +596,12 @@ def cuve_list(request):
     if produit_id:
         qs = qs.filter(produit_id=produit_id)
 
+    paginator = Paginator(qs, 10)
+    page_num  = request.GET.get('page', 1)
+    cuves     = paginator.get_page(page_num)
+
     ctx = {
-        'cuves':           qs,
+        'cuves':           cuves,
         'total':           Cuve.objects.count(),
         'nb_active':       Cuve.objects.filter(statut='ACTIVE').count(),
         'nb_maintenance':  Cuve.objects.filter(statut='EN_MAINTENANCE').count(),
@@ -547,13 +612,14 @@ def cuve_list(request):
         'q':          q,
         'statut':     statut,
         'produit_id': produit_id,
+        'filtres':    {'q': q, 'statut': statut, 'produit': produit_id},
     }
     return render(request, 'Cuve/cuve_list.html', ctx)
 
 
 @login_required
-def cuve_detail(request, pk):
-    cuve = get_object_or_404(Cuve.objects.select_related('produit', 'produit__famille'), pk=pk)
+def cuve_detail(request, uuid, slug):
+    cuve = get_object_or_404(Cuve.objects.select_related('produit', 'produit__famille'), uuid=uuid)
     return render(request, 'Cuve/cuve_detail.html', {'cuve': cuve})
 
 
@@ -573,26 +639,26 @@ def cuve_create(request):
 
 
 @login_required
-def cuve_update(request, pk):
+def cuve_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('cuve_detail', pk=pk)
-    cuve = get_object_or_404(Cuve, pk=pk)
+        return redirect('cuve_detail', uuid=cuve.uuid, slug=cuve.slug)
+    cuve = get_object_or_404(Cuve, uuid=uuid)
     if request.method == 'POST':
         form = CuveForm(request.POST, instance=cuve)
         if form.is_valid():
             form.save()
             messages.success(request, f'Cuve « {cuve.numero} » modifiée avec succès.')
-            return redirect('cuve_detail', pk=pk)
+            return redirect('cuve_detail', uuid=cuve.uuid, slug=cuve.slug)
     else:
         form = CuveForm(instance=cuve)
     return render(request, 'Cuve/cuve_form.html', {'form': form, 'action': 'Modifier', 'cuve': cuve})
 
 
 @login_required
-def cuve_delete(request, pk):
+def cuve_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('cuve_detail', pk=pk)
-    cuve = get_object_or_404(Cuve, pk=pk)
+        return redirect('cuve_detail', uuid=cuve.uuid, slug=cuve.slug)
+    cuve = get_object_or_404(Cuve, uuid=uuid)
     if request.method == 'POST':
         num = cuve.numero
         cuve.delete()
@@ -601,9 +667,9 @@ def cuve_delete(request, pk):
     return render(request, 'Cuve/cuve_confirm_delete.html', {'cuve': cuve})
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  PARAMÈTRES DE JAUGEAGE
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def parametre_list(request):
@@ -616,16 +682,16 @@ def parametre_list(request):
 
 
 @login_required
-def parametre_detail(request, pk):
-    parametre = get_object_or_404(ParametreJaugeageCuve.objects.select_related('cuve'), pk=pk)
+def parametre_detail(request, uuid, slug):
+    parametre = get_object_or_404(ParametreJaugeageCuve.objects.select_related('cuve'), uuid=uuid)
     return render(request, 'ParametreJaugeage/parametre_detail.html', {'parametre': parametre})
 
 
 @login_required
-def parametre_create_update(request, cuve_pk):
+def parametre_create_update(request, cuve_uuid, cuve_slug):
     if _deny_marketeur(request):
         return redirect('parametre_list')
-    cuve = get_object_or_404(Cuve, pk=cuve_pk)
+    cuve = get_object_or_404(Cuve, uuid=cuve_uuid)
     instance = getattr(cuve, 'parametre_jaugeage', None)
     action = 'Modifier' if instance else 'Configurer'
 
@@ -636,7 +702,7 @@ def parametre_create_update(request, cuve_pk):
             parametre.cuve = cuve
             parametre.save()
             messages.success(request, f'Paramètres de jaugeage de la cuve {cuve.numero} enregistrés.')
-            return redirect('parametre_detail', pk=parametre.pk)
+            return redirect('parametre_detail', uuid=parametre.uuid, slug=parametre.slug)
     else:
         form = ParametreJaugeageCuveForm(instance=instance)
 
@@ -646,10 +712,10 @@ def parametre_create_update(request, cuve_pk):
 
 
 @login_required
-def parametre_delete(request, pk):
+def parametre_delete(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('parametre_list')
-    parametre = get_object_or_404(ParametreJaugeageCuve.objects.select_related('cuve'), pk=pk)
+    parametre = get_object_or_404(ParametreJaugeageCuve.objects.select_related('cuve'), uuid=uuid)
     if request.method == 'POST':
         num = parametre.cuve.numero
         parametre.delete()
@@ -658,9 +724,9 @@ def parametre_delete(request, pk):
     return render(request, 'ParametreJaugeage/parametre_confirm_delete.html', {'parametre': parametre})
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  JAUGEAGE DU JOUR
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def jaugeage_list(request):
@@ -681,11 +747,14 @@ def jaugeage_list(request):
     if date_f:
         qs = qs.filter(date_jaugeage__lte=date_f)
 
+    # Pagination avant le calcul Python (pour ne traiter que la page courante)
+    paginator     = Paginator(qs, 10)
+    page_num      = request.GET.get('page', 1)
+    jaugeages_page = paginator.get_page(page_num)
+
     # Calcul du volume total @15°C par jaugeage (propriétés Python, non annotables SQL)
-    # On passe une liste de tuples (jaugeage, total_ou_None) pour un accès simple en template
-    jaugeages_list = list(qs)
     jaugeages_with_totals = []
-    for j in jaugeages_list:
+    for j in jaugeages_page:
         mesures = list(j.mesures.all())
         total = sum(float(m.volume_standard_15c_calcule or 0) for m in mesures)
         total_vad = sum(float(m.volume_ambiant_depot or 0) for m in mesures)
@@ -697,7 +766,7 @@ def jaugeage_list(request):
     date_derniere_maj = stocks_produits.aggregate(Max('date_maj_stock'))['date_maj_stock__max']
 
     ctx = {
-        'jaugeages':              jaugeages_list,
+        'jaugeages':              jaugeages_page,
         'jaugeages_with_totals':  jaugeages_with_totals,
         'total':          JaugeageJour.objects.count(),
         'nb_avr':         JaugeageJour.objects.filter(type_jaugeage='AVR').count(),
@@ -708,6 +777,7 @@ def jaugeage_list(request):
         'type_jaugeage':  type_j,
         'date_debut':     date_d,
         'date_fin':       date_f,
+        'filtres':        {'q': q, 'type_jaugeage': type_j, 'date_debut': date_d, 'date_fin': date_f},
         'stocks_produits':    stocks_produits,
         'date_derniere_maj':  date_derniere_maj,
     }
@@ -715,12 +785,12 @@ def jaugeage_list(request):
 
 
 @login_required
-def jaugeage_detail(request, pk):
+def jaugeage_detail(request, uuid, slug):
     jaugeage = get_object_or_404(
         JaugeageJour.objects.prefetch_related('mesures__cuve__parametre_jaugeage'),
-        pk=pk
+        uuid=uuid
     )
-    # ── Totaux volumes pour le tfoot ─────────────────────────────
+    # â"€â"€ Totaux volumes pour le tfoot â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     mesures = list(jaugeage.mesures.all())
     def _sum(attr):
         vals = [float(getattr(m, attr)) for m in mesures if getattr(m, attr) is not None]
@@ -756,9 +826,9 @@ def jaugeage_create(request):
                 jaugeage.temperature_reference = form.cleaned_data.get('temperature_reference') or 15.0
                 jaugeage.save()
                 messages.success(request, f'Jaugeage du {jaugeage.date_jaugeage} créé. Saisissez les mesures.')
-                return redirect('jaugeage_saisie', pk=jaugeage.pk)
+                return redirect('jaugeage_saisie', uuid=jaugeage.uuid, slug=jaugeage.slug)
             except IntegrityError:
-                form.add_error(None, 'Un jaugeage avec cette date, ce type et cette heure existe déjà.')
+                form.add_error(None, 'Un jaugeage avec cette date, ce type et cette heure existe déjÃ .')
     else:
         from datetime import date as _date
         form = JaugeageJourForm(initial={
@@ -771,29 +841,29 @@ def jaugeage_create(request):
 
 
 @login_required
-def jaugeage_update(request, pk):
+def jaugeage_update(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('jaugeage_detail', pk=pk)
-    jaugeage = get_object_or_404(JaugeageJour, pk=pk)
+        return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
+    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
     if request.method == 'POST':
         form = JaugeageJourForm(request.POST, instance=jaugeage)
         if form.is_valid():
             try:
                 form.save()
                 messages.success(request, 'Jaugeage modifié avec succès.')
-                return redirect('jaugeage_detail', pk=pk)
+                return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
             except IntegrityError:
-                form.add_error(None, 'Un jaugeage avec cette date, ce type et cette heure existe déjà.')
+                form.add_error(None, 'Un jaugeage avec cette date, ce type et cette heure existe déjÃ .')
     else:
         form = JaugeageJourForm(instance=jaugeage)
     return render(request, 'Jaugeage/jaugeage_form.html', {'form': form, 'action': 'Modifier', 'jaugeage': jaugeage})
 
 
 @login_required
-def jaugeage_delete(request, pk):
+def jaugeage_delete(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('jaugeage_detail', pk=pk)
-    jaugeage = get_object_or_404(JaugeageJour, pk=pk)
+        return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
+    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
     if request.method == 'POST':
         label = str(jaugeage)
         jaugeage.delete()
@@ -806,10 +876,10 @@ def jaugeage_delete(request, pk):
 
 
 @login_required
-def jaugeage_saisie(request, pk):
+def jaugeage_saisie(request, uuid, slug):
     if _deny_marketeur(request):
-        return redirect('jaugeage_detail', pk=pk)
-    jaugeage = get_object_or_404(JaugeageJour, pk=pk)
+        return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
+    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
     MesureCuveFormSet = modelformset_factory(MesureCuve, form=MesureCuveForm, extra=0)
     qs = jaugeage.mesures.select_related(
         'cuve', 'cuve__produit', 'cuve__produit__famille', 'cuve__parametre_jaugeage'
@@ -823,21 +893,21 @@ def jaugeage_saisie(request, pk):
                 "Ce jaugeage est validé et ne peut plus être modifié. "
                 "Demandez au chef de dépôt de le déverrouiller."
             )
-            return redirect('jaugeage_detail', pk=pk)
+            return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
         formset = MesureCuveFormSet(request.POST, queryset=qs)
         if formset.is_valid():
             formset.save()
             messages.success(request, 'Mesures enregistrées avec succès.')
-            return redirect('jaugeage_saisie', pk=pk)   # rester sur la saisie pour voir les calculs
+            return redirect('jaugeage_saisie', uuid=jaugeage.uuid, slug=jaugeage.slug)   # rester sur la saisie pour voir les calculs
         else:
             messages.error(request, 'Des erreurs ont été détectées. Vérifiez les valeurs saisies.')
     else:
         formset = MesureCuveFormSet(queryset=qs)
 
-    # Associer chaque form à sa mesure
+    # Associer chaque form Ã  sa mesure
     forms_with_mesures = list(zip(formset.forms, qs))
 
-    # ── Grouper par produit pour le layout colonne-par-cuve ──────
+    # â"€â"€ Grouper par produit pour le layout colonne-par-cuve â"€â"€â"€â"€â"€â"€
     from collections import OrderedDict
     pg_dict = OrderedDict()
     for form, mesure in forms_with_mesures:
@@ -853,7 +923,7 @@ def jaugeage_saisie(request, pk):
     # Liste plate dans le même ordre (pour forloop.counter0 global en template)
     all_cuves = [(form, mesure) for pg in product_groups for form, mesure in pg['cuves']]
 
-    # ── Totaux volumes ambiant dépôt (calculés après le dernier save) ────
+    # â"€â"€ Totaux volumes ambiant dépôt (calculés après le dernier save) â"€â"€â"€â"€
     totaux_groupes = []
     total_depot_val = 0.0
     total_v15c_val = 0.0
@@ -894,24 +964,24 @@ def jaugeage_saisie(request, pk):
     })
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  VALIDATION / DÉVALIDATION D'UN JAUGEAGE
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
-def valider_jaugeage(request, pk):
+def valider_jaugeage(request, uuid, slug):
     """Valide un jaugeage (POST, staff uniquement)."""
     if not request.user.is_staff:
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("Réservé aux responsables dépôt.")
     if request.method != 'POST':
-        return redirect('jaugeage_detail', pk=pk)
+        return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
 
-    jaugeage = get_object_or_404(JaugeageJour, pk=pk)
+    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
 
     if jaugeage.est_valide:
-        messages.warning(request, "Ce jaugeage est déjà validé.")
-        return redirect('jaugeage_detail', pk=pk)
+        messages.warning(request, "Ce jaugeage est déjÃ  validé.")
+        return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
 
     # Vérifier que toutes les mesures sont complètes
     mesures_incompletes = []
@@ -930,7 +1000,7 @@ def valider_jaugeage(request, pk):
             request,
             f"Impossible de valider : les mesures des cuves {cuves_str} sont incomplètes."
         )
-        return redirect('jaugeage_saisie', pk=pk)
+        return redirect('jaugeage_saisie', uuid=jaugeage.uuid, slug=jaugeage.slug)
 
     from django.utils import timezone
     jaugeage.est_valide = True
@@ -938,26 +1008,26 @@ def valider_jaugeage(request, pk):
     jaugeage.valide_par = request.user
     jaugeage.save(update_fields=['est_valide', 'date_validation', 'valide_par'])
 
-    # Mise à jour automatique des stocks produits
+    # Mise Ã  jour automatique des stocks produits
     Produit.mettre_a_jour_stocks(jaugeage)
 
     messages.success(
         request,
         f"Jaugeage du {jaugeage.date_jaugeage.strftime('%d/%m/%Y')} validé avec succès."
     )
-    return redirect('jaugeage_detail', pk=pk)
+    return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
 
 
 @login_required
-def devalider_jaugeage(request, pk):
+def devalider_jaugeage(request, uuid, slug):
     """Déverrouille un jaugeage validé (POST, staff uniquement)."""
     if not request.user.is_staff:
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden("Réservé aux responsables dépôt.")
     if request.method != 'POST':
-        return redirect('jaugeage_detail', pk=pk)
+        return redirect('jaugeage_detail', uuid=jaugeage.uuid, slug=jaugeage.slug)
 
-    jaugeage = get_object_or_404(JaugeageJour, pk=pk)
+    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
     jaugeage.est_valide = False
     jaugeage.date_validation = None
     jaugeage.valide_par = None
@@ -971,22 +1041,22 @@ def devalider_jaugeage(request, pk):
         request,
         f"Jaugeage du {jaugeage.date_jaugeage.strftime('%d/%m/%Y')} déverrouillé. Stocks recalculés."
     )
-    return redirect('jaugeage_saisie', pk=pk)
+    return redirect('jaugeage_saisie', uuid=jaugeage.uuid, slug=jaugeage.slug)
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  RAPPORT D'IMPRESSION — Vue A4 du jaugeage
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
-def jaugeage_rapport(request, pk):
+def jaugeage_rapport(request, uuid, slug):
     """Vue d'impression A4 du Rapport de Jaugeage Journalier (RJJ)."""
     jaugeage = get_object_or_404(
         JaugeageJour.objects.prefetch_related(
             'mesures__cuve__parametre_jaugeage',
             'mesures__cuve__produit__famille',
         ),
-        pk=pk,
+        uuid=uuid,
     )
 
     # Grouper les mesures par produit (même ordre que la saisie)
@@ -1049,9 +1119,9 @@ def jaugeage_rapport(request, pk):
     })
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  PARAMÈTRES MÉTROLOGIQUES — Fiche normative API MPMS
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def parametres_metrologiques(request):
@@ -1066,7 +1136,7 @@ def parametres_metrologiques(request):
             'id': 'super',
             'label': 'Produits légers',
             'categorie': 'Super, essence sans plomb',
-            'seuil': 'ρ ≤ 770 kg/m³',
+            'seuil': 'Ï â‰¤ 770 kg/mÂ³',
             'type': 'standard',
             'k0': K_SUPER[0],
             'k1': K_SUPER[1],
@@ -1076,9 +1146,9 @@ def parametres_metrologiques(request):
         },
         {
             'id': 'ambigue',
-            'label': 'Zone ambiguë',
-            'categorie': 'Algorithme itératif spécial (point fixe, démarrage à 778,84 kg/m³)',
-            'seuil': '770 < ρ < 788 kg/m³',
+            'label': 'Zone ambiguÃ«',
+            'categorie': 'Algorithme itératif spécial (point fixe, démarrage Ã  778,84 kg/mÂ³)',
+            'seuil': '770 < Ï < 788 kg/mÂ³',
             'type': 'ambiguous',
             'a': A_AMB,
             'b': B_AMB,
@@ -1090,7 +1160,7 @@ def parametres_metrologiques(request):
             'id': 'middle',
             'label': 'Produits moyens',
             'categorie': 'Gasoil, kérosène, jet-A1',
-            'seuil': '788 ≤ ρ < 839 kg/m³',
+            'seuil': '788 â‰¤ Ï < 839 kg/mÂ³',
             'type': 'standard',
             'k0': K_MIDDLE[0],
             'k1': K_MIDDLE[1],
@@ -1102,7 +1172,7 @@ def parametres_metrologiques(request):
             'id': 'heavy',
             'label': 'Produits lourds',
             'categorie': 'Fuel-oil, résidus lourds',
-            'seuil': 'ρ ≥ 839 kg/m³',
+            'seuil': 'Ï â‰¥ 839 kg/mÂ³',
             'type': 'standard',
             'k0': K_HEAVY[0],
             'k1': K_HEAVY[1],
@@ -1130,9 +1200,9 @@ def parametres_metrologiques(request):
     })
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 #  MOUVEMENTS (entrée / sortie / cession / acquittement)
-# ─────────────────────────────────────────────────────────────
+# 
 
 @login_required
 def mouvement_liste(request):
@@ -1142,7 +1212,7 @@ def mouvement_liste(request):
 
     qs = Mouvement.objects.select_related('produit', 'marketeur', 'camion').prefetch_related('lignes__cuve').order_by('-date_mouvement', '-date_saisie')
 
-    # ── Filtres ──
+    # â"€â"€ Filtres â"€â"€
     type_m      = request.GET.get('type', '').strip()
     regime      = request.GET.get('regime', '').strip()
     mkt_pk      = request.GET.get('marketeur', '').strip()
@@ -1171,7 +1241,7 @@ def mouvement_liste(request):
             Q(marketeur__raison_sociale__icontains=q)
         )
 
-    # ── Totaux sur le queryset filtré (avant pagination) ──
+    # â"€â"€ Totaux sur le queryset filtré (avant pagination) â"€â"€
     nb_total   = qs.count()
 
     # Pagination
@@ -1244,12 +1314,12 @@ def mouvement_creer(request):
 
 
 @login_required
-def mouvement_modifier(request, pk):
+def mouvement_modifier(request, uuid, slug):
     """Formulaire d'édition d'un mouvement existant."""
     if _deny_marketeur(request):
         return redirect('mouvement_liste')
 
-    mouvement = get_object_or_404(Mouvement, pk=pk)
+    mouvement = get_object_or_404(Mouvement, uuid=uuid)
 
     if request.method == 'POST':
         form = MouvementForm(request.POST, instance=mouvement)
@@ -1385,30 +1455,60 @@ def mouvement_calcul_preview(request):
             if dens_15_sortie is not None:
                 result['poids_sortie_kg'] = round(result['volume_15c_sortie'] * dens_15_sortie / 1000, 2)
 
+    elif type_mvt == 'CESSION':
+        v_amb_cession  = _f('cession_volume_ambiant')
+        dens_obs       = _f('cession_densite_observee')
+        temp_cession   = _f('cession_temperature')
+
+        # D@15°C calculée via TRH_15
+        d15 = None
+        if dens_obs is not None and temp_cession is not None:
+            try:
+                d15 = round(pc.density_at_15c(dens_obs, temp_cession), 2)
+                result['cession_densite_15c'] = d15
+            except Exception:
+                pass
+
+        # Vcf @15°C via TVCF_15
+        vcf = None
+        if d15 is not None and temp_cession is not None:
+            try:
+                vcf = round(pc.vcf_to_15c(d15, temp_cession), 4)
+                result['cession_coefficient_vcf'] = vcf
+            except Exception:
+                pass
+
+        # Vol. @15°C cédé
+        if v_amb_cession is not None and vcf is not None:
+            result['cession_volume_15c'] = round(v_amb_cession * vcf, 2)
+
     return JsonResponse(result)
 
 
 @login_required
-def mouvement_detail(request, pk):
+def mouvement_detail(request, uuid, slug):
     """Fiche de détail d'un mouvement — lecture seule."""
     mouvement = get_object_or_404(
         Mouvement.objects.select_related(
             'marketeur', 'produit', 'camion', 'camion__marketeur',
             'chauffeur', 'cession_marketeur_destinataire',
         ).prefetch_related('lignes__cuve__produit'),
-        pk=pk
+        uuid=uuid
     )
+    acces = _check_mouvement_acces(request, mouvement)
+    if acces:
+        return acces
     return render(request, 'mouvements/detail.html', {'mouvement': mouvement})
 
 
 @login_required
-def mouvement_supprimer(request, pk):
+def mouvement_supprimer(request, uuid, slug):
     """Suppression d'un mouvement — réservée au staff."""
     if not request.user.is_staff:
         messages.error(request, "La suppression de mouvements est réservée au staff.")
         return redirect('mouvement_liste')
 
-    mouvement = get_object_or_404(Mouvement, pk=pk)
+    mouvement = get_object_or_404(Mouvement, uuid=uuid)
 
     if request.method == 'POST':
         mouvement.delete()
@@ -1418,9 +1518,261 @@ def mouvement_supprimer(request, pk):
     return render(request, 'mouvements/confirmer_suppression.html', {'mouvement': mouvement})
 
 
-# ═════════════════════════════════════════════════════════════
+# 
+#  EXPORT PDF — MOUVEMENTS
+# 
+
+@login_required
+def mouvement_detail_pdf(request, uuid, slug):
+    """Télécharge la fiche détaillée d'un mouvement en PDF."""
+    from django.utils import timezone
+    from SGDS.services.export_pdf import render_to_pdf
+
+    mouvement = get_object_or_404(
+        Mouvement.objects.select_related(
+            'marketeur', 'produit', 'camion', 'camion__marketeur',
+            'chauffeur', 'cession_marketeur_destinataire',
+        ).prefetch_related('lignes__cuve__produit'),
+        uuid=uuid,
+    )
+    acces = _check_mouvement_acces(request, mouvement)
+    if acces:
+        return acces
+    filename = f"MVT_{mouvement.numero_enregistrement}.pdf"
+    return render_to_pdf(
+        'mouvements/detail_pdf.html',
+        {
+            'mouvement':    mouvement,
+            'generated_at': timezone.now().strftime('%d/%m/%Y Ã  %H:%M'),
+        },
+        filename=filename,
+    )
+
+
+@login_required
+def mouvement_bordereau(request, uuid, slug):
+    """Bordereau de mouvement A4 imprimable (Ctrl+P → PDF navigateur)."""
+    from django.utils import timezone as tz
+    from SGDS.models import Societe
+
+    mouvement = get_object_or_404(
+        Mouvement.objects.select_related(
+            "produit", "marketeur", "cuve", "cuve__produit",
+            "camion", "chauffeur",
+        ).prefetch_related(
+            "lignes__cuve__produit",
+        ),
+        uuid=uuid,
+    )
+    acces = _check_mouvement_acces(request, mouvement)
+    if acces:
+        return acces
+    societe = Societe.get_instance()
+
+    def flag(name, default=True):
+        v = request.GET.get(name)
+        if v is None:
+            return default
+        return v not in ("0", "false", "no", "off", "")
+
+    # Période comptable label
+    try:
+        from SGDS.services.periode_comptable import periode_pour_date
+        periode = periode_pour_date(mouvement.date_mouvement)
+        periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
+    except Exception:
+        periode_label = mouvement.date_mouvement.strftime("%B %Y")
+
+    # Volumes calculés (entrée)
+    vol_exp = float(mouvement.volume_15c_expediteur or 0)
+    vol_recu = float(mouvement.volume_15c_recu or 0)
+    ecart = vol_recu - vol_exp
+    if vol_exp:
+        ecart_signe = f"{'+' if ecart >= 0 else ''}{ecart:,.0f}".replace(",", "â€¯")
+        ecart_pct = f"{'+' if ecart >= 0 else ''}{(ecart / vol_exp * 100):.2f}"
+        tolerance_status = "OK" if abs(ecart / vol_exp) <= 0.005 else "HORS TOLÉRANCE"
+    else:
+        ecart_signe = "—"
+        ecart_pct = "—"
+        tolerance_status = "—"
+
+    pg_amb = float(mouvement.perte_gain_reception or 0)
+    pg_15c = float(mouvement.perte_gain_15c or 0)
+    perte_gain_ambiant_signe = f"{'+' if pg_amb >= 0 else ''}{pg_amb:,.0f}".replace(",", "â€¯") if mouvement.perte_gain_reception is not None else "—"
+    perte_gain_15c_signe = f"{'+' if pg_15c >= 0 else ''}{pg_15c:,.0f}".replace(",", "â€¯") if mouvement.perte_gain_15c is not None else "—"
+    poids_volumique = float(mouvement.densite_15c_calculee) if mouvement.densite_15c_calculee else None
+
+    ctx = {
+        "mouvement": mouvement,
+        "societe": societe,
+        "now": tz.now(),
+        "periode_label": periode_label,
+        "show_calc": flag("calc", True),
+        "show_sigs": flag("sigs", True),
+        "show_stamp": flag("stamp", False),
+        "compact": flag("compact", False),
+        "bw": flag("bw", False),
+        "auto_print": flag("auto", False),
+        "ecart_signe": ecart_signe,
+        "ecart_pct": ecart_pct,
+        "tolerance_status": tolerance_status,
+        "perte_gain_ambiant_signe": perte_gain_ambiant_signe,
+        "perte_gain_15c_signe": perte_gain_15c_signe,
+        "poids_volumique": poids_volumique,
+        "statut_acquittement": mouvement.statut_acquittement,
+    }
+    return render(request, "mouvements/bordereau.html", ctx)
+
+
+@login_required
+def mouvement_bordereau_pdf(request, uuid, slug):
+    """PDF server-side du bordereau (nécessite WeasyPrint — pip install weasyprint)."""
+    try:
+        from weasyprint import HTML, CSS
+        from django.template.loader import render_to_string
+        from django.contrib.staticfiles import finders
+    except ImportError:
+        from django.http import HttpResponse
+        return HttpResponse(
+            "WeasyPrint non installé. Installez-le avec : pip install weasyprint",
+            status=501,
+            content_type="text/plain; charset=utf-8",
+        )
+
+    # Réutilise la même vue pour construire le contexte
+    fake_request = request
+    from django.utils import timezone as tz
+    from SGDS.models import Societe
+
+    mouvement = get_object_or_404(
+        Mouvement.objects.select_related(
+            "produit", "marketeur", "cuve", "cuve__produit",
+            "camion", "chauffeur",
+        ).prefetch_related(
+            "lignes__cuve__produit",
+        ),
+        uuid=uuid,
+    )
+    acces = _check_mouvement_acces(request, mouvement)
+    if acces:
+        return acces
+    societe = Societe.get_instance()
+
+    try:
+        from SGDS.services.periode_comptable import periode_pour_date
+        periode = periode_pour_date(mouvement.date_mouvement)
+        periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
+    except Exception:
+        periode_label = mouvement.date_mouvement.strftime("%B %Y")
+
+    vol_exp = float(mouvement.volume_15c_expediteur or 0)
+    vol_recu = float(mouvement.volume_15c_recu or 0)
+    ecart = vol_recu - vol_exp
+    if vol_exp:
+        ecart_signe = f"{'+' if ecart >= 0 else ''}{ecart:,.0f}".replace(",", "â€¯")
+        ecart_pct = f"{'+' if ecart >= 0 else ''}{(ecart / vol_exp * 100):.2f}"
+        tolerance_status = "OK" if abs(ecart / vol_exp) <= 0.005 else "HORS TOLÉRANCE"
+    else:
+        ecart_signe = "—"
+        ecart_pct = "—"
+        tolerance_status = "—"
+
+    pg_amb = float(mouvement.perte_gain_reception or 0)
+    pg_15c_val = float(mouvement.perte_gain_15c or 0)
+    perte_gain_ambiant_signe = f"{'+' if pg_amb >= 0 else ''}{pg_amb:,.0f}".replace(",", "â€¯") if mouvement.perte_gain_reception is not None else "—"
+    perte_gain_15c_signe = f"{'+' if pg_15c_val >= 0 else ''}{pg_15c_val:,.0f}".replace(",", "â€¯") if mouvement.perte_gain_15c is not None else "—"
+    poids_volumique = float(mouvement.densite_15c_calculee) if mouvement.densite_15c_calculee else None
+
+    ctx = {
+        "mouvement": mouvement,
+        "societe": societe,
+        "now": tz.now(),
+        "periode_label": periode_label,
+        "show_calc": True,
+        "show_sigs": True,
+        "show_stamp": False,
+        "compact": False,
+        "bw": False,
+        "auto_print": False,
+        "ecart_signe": ecart_signe,
+        "ecart_pct": ecart_pct,
+        "tolerance_status": tolerance_status,
+        "perte_gain_ambiant_signe": perte_gain_ambiant_signe,
+        "perte_gain_15c_signe": perte_gain_15c_signe,
+        "poids_volumique": poids_volumique,
+        "statut_acquittement": mouvement.statut_acquittement,
+    }
+    html_string = render_to_string("mouvements/bordereau.html", ctx, request=request)
+    css_path = finders.find("css/bordereau.css")
+    pdf_bytes = HTML(
+        string=html_string,
+        base_url=request.build_absolute_uri("/"),
+    ).write_pdf(
+        stylesheets=[CSS(filename=css_path)] if css_path else None,
+        presentational_hints=True,
+    )
+    from django.http import HttpResponse
+    filename = f"bordereau_{mouvement.numero_enregistrement}.pdf"
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
+
+
+@login_required
+def mouvements_liste_pdf(request):
+    """Télécharge la liste filtrée des mouvements en PDF (max 500 lignes)."""
+    from django.utils import timezone
+    from SGDS.services.export_pdf import render_to_pdf
+
+    qs = Mouvement.objects.select_related(
+        'produit', 'marketeur', 'camion', 'cession_marketeur_destinataire',
+    ).order_by('-date_mouvement', '-date_saisie')
+
+    type_m     = request.GET.get('type', '').strip()
+    regime     = request.GET.get('regime', '').strip()
+    mkt_pk     = request.GET.get('marketeur', '').strip()
+    produit_pk = request.GET.get('produit', '').strip()
+    date_debut = request.GET.get('date_debut', '').strip()
+    date_fin   = request.GET.get('date_fin', '').strip()
+    q          = request.GET.get('q', '').strip()
+
+    if type_m:      qs = qs.filter(type_mouvement=type_m)
+    if regime:      qs = qs.filter(regime_douanier=regime)
+    if mkt_pk:      qs = qs.filter(marketeur_id=mkt_pk)
+    if produit_pk:  qs = qs.filter(produit_id=produit_pk)
+    if date_debut:  qs = qs.filter(date_mouvement__gte=date_debut)
+    if date_fin:    qs = qs.filter(date_mouvement__lte=date_fin)
+    if q:
+        qs = qs.filter(
+            Q(numero_enregistrement__icontains=q) |
+            Q(camion__immatriculation__icontains=q) |
+            Q(bl_expediteur__icontains=q) |
+            Q(marketeur__raison_sociale__icontains=q)
+        )
+
+    nb_total   = qs.count()
+    mouvements = list(qs[:500])
+    today      = timezone.now().strftime('%Y%m%d')
+
+    return render_to_pdf(
+        'mouvements/liste_pdf.html',
+        {
+            'mouvements':   mouvements,
+            'nb_total':     nb_total,
+            'generated_at': timezone.now().strftime('%d/%m/%Y Ã  %H:%M'),
+            'filtres': {
+                'type': type_m, 'regime': regime, 'marketeur': mkt_pk,
+                'produit': produit_pk, 'date_debut': date_debut,
+                'date_fin': date_fin, 'q': q,
+            },
+        },
+        filename=f"Mouvements_{today}.pdf",
+    )
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  PÉRIODES COMPTABLES
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views import View
@@ -1525,9 +1877,9 @@ class OuvrirPeriodeView(LoginRequiredMixin, UserPassesTestMixin, View):
             })
 
 
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  COULAGE — RÉPARTITION MENSUELLE
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def _rapport_depuis_snapshot(cloture):
     """
@@ -1777,14 +2129,14 @@ class ExportCoulageExcelView(LoginRequiredMixin, View):
 
         produits = rapport['produits']
 
-        # ── Titre ────────────────────────────────────────────────
+        # â"€â"€ Titre â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         ws.merge_cells(f'A1:{get_column_letter(6 + len(produits) * 7)}1')
         titre_cell = ws['A1']
         titre_cell.value = f"Répartition du coulage — {periode.libelle}"
         titre_cell.font  = Font(bold=True, size=14, color='1E3A5F')
         ws.row_dimensions[1].height = 24
 
-        # ── En-têtes ─────────────────────────────────────────────
+        # â"€â"€ En-têtes â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         row = 3
         ws.cell(row=row, column=1, value='Code').font       = navy_font
         ws.cell(row=row, column=1).fill                     = navy_fill
@@ -1819,7 +2171,7 @@ class ExportCoulageExcelView(LoginRequiredMixin, View):
             c.font = navy_font; c.fill = navy_fill; c.alignment = center
             col += 1
 
-        # ── Données ───────────────────────────────────────────────
+        # â"€â"€ Données â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         for ligne in rapport['lignes']:
             row += 1
             ws.cell(row=row, column=1,
@@ -1856,7 +2208,7 @@ class ExportCoulageExcelView(LoginRequiredMixin, View):
             c = ws.cell(row=row, column=col, value=float(ligne['montant']))
             c.number_format = num_fmt; c.alignment = right_al; col += 1
 
-        # ── Ligne totaux ──────────────────────────────────────────
+        # â"€â"€ Ligne totaux â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
         row += 1
         c = ws.cell(row=row, column=1, value='TOTAUX')
         c.font = header_font
@@ -1882,9 +2234,9 @@ class ExportCoulageExcelView(LoginRequiredMixin, View):
         return response
 
 
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  SUIVI ÉVOLUTION JOURNALIER
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class SuiviEvolutionView(LoginRequiredMixin, View):
     """Tableau journalier stock/mouvements pour un produit sur une période."""
@@ -1929,9 +2281,9 @@ class ExportSuiviExcelView(LoginRequiredMixin, View):
         return response
 
 
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 #  FRAIS DE PASSAGE
-# ═════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 class FraisPassageView(LoginRequiredMixin, View):
     """Document de facturation mensuel — frais de passage par marketeur."""
@@ -1956,16 +2308,4 @@ class ExportFraisPassageExcelView(LoginRequiredMixin, View):
         from .models import PeriodeComptable
         from .services.frais_passage import calculer_frais_passage
         from .services.export_excel import exporter_frais_passage_xlsx
-        from django.http import HttpResponse
-
-        periode = get_object_or_404(PeriodeComptable, pk=periode_id)
-        rapport = calculer_frais_passage(periode)
-
-        contenu = exporter_frais_passage_xlsx(rapport)
-        response = HttpResponse(
-            contenu,
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        )
-        nom = f"frais_passage_{periode.libelle.replace(' ', '_')}.xlsx"
-        response['Content-Disposition'] = f'attachment; filename="{nom}"'
-        return response
+        from django.http import H

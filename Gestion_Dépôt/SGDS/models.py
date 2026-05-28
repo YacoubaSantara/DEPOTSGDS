@@ -1,9 +1,37 @@
 
+import uuid as uuid_lib
+
 from django.db import models
 from django.core.validators import MinValueValidator
 from django.conf import settings
+from django.utils.text import slugify
 from decimal import Decimal
 from .import petroleum_calc as pc
+from simple_history.models import HistoricalRecords
+
+
+# ─── Utilitaire : génère un slug unique pour un modèle ─────────────────────────
+def _slug_unique(model_class, base_slug, exclude_pk=None, max_length=200):
+    """
+    Retourne un slug unique pour model_class.
+    Si base_slug existe déjà, ajoute un suffixe numérique (ex: total-energies-2).
+    """
+    slug = base_slug[:max_length]
+    qs = model_class.objects.filter(slug=slug)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if not qs.exists():
+        return slug
+    counter = 2
+    while True:
+        suffix = f"-{counter}"
+        candidate = base_slug[: max_length - len(suffix)] + suffix
+        qs2 = model_class.objects.filter(slug=candidate)
+        if exclude_pk:
+            qs2 = qs2.exclude(pk=exclude_pk)
+        if not qs2.exists():
+            return candidate
+        counter += 1
 
 
 class Marketeur(models.Model):
@@ -69,6 +97,10 @@ class Marketeur(models.Model):
     date_enregistrement   = models.DateTimeField(auto_now_add=True, verbose_name="Date d'enregistrement")
     date_modification     = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Marketeur"
         verbose_name_plural = "Marketeurs"
@@ -76,6 +108,11 @@ class Marketeur(models.Model):
 
     def __str__(self):
         return f"{self.raison_sociale} ({self.sigle or self.forme_juridique})"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _slug_unique(Marketeur, slugify(self.raison_sociale), exclude_pk=self.pk)
+        super().save(*args, **kwargs)
 
     @property
     def representant_complet(self):
@@ -142,6 +179,10 @@ class Camion(models.Model):
     date_enregistrement = models.DateTimeField(auto_now_add=True, verbose_name="Date d'enregistrement")
     date_modification   = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Camion citerne"
         verbose_name_plural = "Camions citernes"
@@ -149,6 +190,40 @@ class Camion(models.Model):
 
     def __str__(self):
         return f"{self.immatriculation} — {self.marque} ({self.capacite_totale} L)"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _slug_unique(Camion, slugify(self.immatriculation), exclude_pk=self.pk)
+        super().save(*args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────
+#  COMPARTIMENT CAMION
+# ─────────────────────────────────────────────────────────────
+class CompartimentCamion(models.Model):
+    """
+    Capacité individuelle de chaque compartiment d'un camion citerne.
+    Le nombre de lignes doit correspondre à Camion.nombre_compartiments.
+    """
+    camion   = models.ForeignKey(
+        'Camion', on_delete=models.CASCADE,
+        related_name='compartiments',
+        verbose_name="Camion"
+    )
+    numero   = models.PositiveSmallIntegerField(verbose_name="N° compartiment")
+    capacite = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        verbose_name="Capacité (litres)"
+    )
+
+    class Meta:
+        verbose_name        = "Compartiment"
+        verbose_name_plural = "Compartiments"
+        ordering            = ['camion', 'numero']
+        unique_together     = [('camion', 'numero')]
+
+    def __str__(self):
+        return f"C{self.numero} — {self.capacite} L ({self.camion.immatriculation})"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -213,6 +288,10 @@ class Chauffeur(models.Model):
     date_enregistrement = models.DateTimeField(auto_now_add=True, verbose_name="Date d'enregistrement")
     date_modification   = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Chauffeur"
         verbose_name_plural = "Chauffeurs"
@@ -220,6 +299,12 @@ class Chauffeur(models.Model):
 
     def __str__(self):
         return f"{self.prenom} {self.nom}"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(f"{self.nom}-{self.prenom}")
+            self.slug = _slug_unique(Chauffeur, base, exclude_pk=self.pk)
+        super().save(*args, **kwargs)
 
     @property
     def nom_complet(self):
@@ -276,6 +361,10 @@ class Famille(models.Model):
     date_creation     = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     date_modification = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Famille de produits"
         verbose_name_plural = "Familles de produits"
@@ -283,6 +372,11 @@ class Famille(models.Model):
 
     def __str__(self):
         return f"{self.nom} ({self.code})"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _slug_unique(Famille, slugify(self.nom), exclude_pk=self.pk)
+        super().save(*args, **kwargs)
 
     @property
     def nb_produits(self):
@@ -340,6 +434,10 @@ class Produit(models.Model):
     date_creation     = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     date_modification = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Produit"
         verbose_name_plural = "Produits"
@@ -347,6 +445,11 @@ class Produit(models.Model):
 
     def __str__(self):
         return f"{self.nom} ({self.code})"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _slug_unique(Produit, slugify(self.code), exclude_pk=self.pk)
+        super().save(*args, **kwargs)
 
     @property
     def nb_cuves(self):
@@ -439,6 +542,10 @@ class Cuve(models.Model):
     date_enregistrement= models.DateTimeField(auto_now_add=True, verbose_name="Date d'enregistrement")
     date_modification  = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Cuve"
         verbose_name_plural = "Cuves"
@@ -446,6 +553,11 @@ class Cuve(models.Model):
 
     def __str__(self):
         return f"{self.numero} — {self.designation}"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _slug_unique(Cuve, slugify(self.numero), exclude_pk=self.pk)
+        super().save(*args, **kwargs)
 
     @property
     def taux_remplissage(self):
@@ -521,17 +633,27 @@ class ParametreJaugeageCuve(models.Model):
         verbose_name="Est une pompe (index)",
         help_text="True pour P GO, P SP"
     )
- 
+
     date_creation = models.DateTimeField(auto_now_add=True)
     date_modification = models.DateTimeField(auto_now=True)
     notes = models.TextField(blank=True, null=True, verbose_name="Notes")
- 
+
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name = "Paramètre de jaugeage de cuve"
         verbose_name_plural = "Paramètres de jaugeage des cuves"
- 
+
     def __str__(self):
         return f"Paramètres jaugeage {self.cuve.numero}"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(f"params-{self.cuve.numero}")
+            self.slug = _slug_unique(ParametreJaugeageCuve, base, exclude_pk=self.pk)
+        super().save(*args, **kwargs)
  
  
 # ─────────────────────────────────────────────────────────────
@@ -588,7 +710,11 @@ class JaugeageJour(models.Model):
 
     date_creation = models.DateTimeField(auto_now_add=True)
     date_modification = models.DateTimeField(auto_now=True)
- 
+
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name = "Jaugeage"
         verbose_name_plural = "Jaugeages"
@@ -633,6 +759,10 @@ class JaugeageJour(models.Model):
     def save(self, *args, **kwargs):
         if not kwargs.get('update_fields'):
             self.full_clean()
+        if not self.slug:
+            heure_str = self.heure_jaugeage.strftime('%H%M') if self.heure_jaugeage else ''
+            base = slugify(f"{self.date_jaugeage}-{self.type_jaugeage}-{heure_str}")
+            self.slug = _slug_unique(JaugeageJour, base, exclude_pk=self.pk)
         super().save(*args, **kwargs)
 
     @classmethod
@@ -993,6 +1123,11 @@ class Mouvement(models.Model):
     perte_gain_15c            = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name="Perte / Gain @15°C (L)")
     poids_kg                  = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Poids (kg)")
 
+    # ── Champs horaires ENTRÉE ─────────────────────────────────
+    heure_arrivee             = models.TimeField(blank=True, null=True, verbose_name="Heure d'arrivée")
+    heure_depotage            = models.TimeField(blank=True, null=True, verbose_name="Heure de dépotage")
+    heure_fin                 = models.TimeField(blank=True, null=True, verbose_name="Heure de fin")
+
     # ── Champs SORTIE ──────────────────────────────────────────
     reference_client_externe    = models.CharField(max_length=100, blank=True, null=True, verbose_name="Référence client externe")
     destination                 = models.CharField(max_length=200, blank=True, null=True, verbose_name="Destination")
@@ -1008,6 +1143,11 @@ class Mouvement(models.Model):
     volume_15c_sortie           = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Volume @15°C sortie (L)")
     poids_sortie_kg             = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Poids sortie (kg)")
     mode_reglement              = models.CharField(max_length=20, choices=MODE_REGLEMENT_CHOICES, blank=True, null=True, verbose_name="Mode de règlement")
+    # Champs opérationnels SORTIE (les horaires sont partagés avec ENTREE)
+    compartiments_charges       = models.CharField(max_length=300, blank=True, null=True, verbose_name="Compartiments chargés")
+    numero_autorisation_marketeur = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° autorisation Marketeur")
+    numero_bon_enlevement       = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° bon d'enlèvement")
+    densite_observee_sortie     = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True, verbose_name="Densité observée sortie (kg/m³)")
 
     # ── Champs CESSION ─────────────────────────────────────────
     cession_marketeur_destinataire = models.ForeignKey(
@@ -1018,12 +1158,36 @@ class Mouvement(models.Model):
     cession_volume_ambiant = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Volume ambiant cédé (L)")
     cession_volume_15c     = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Volume @15°C cédé (L)")
     cession_motif          = models.CharField(max_length=300, blank=True, null=True, verbose_name="Motif de la cession")
+    # Champs complémentaires CESSION
+    cession_numero_autorisation_direction = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° autorisation Direction")
+    cession_date_autorisation  = models.DateField(blank=True, null=True, verbose_name="Date autorisation")
+    cession_reference_contrat  = models.CharField(max_length=100, blank=True, null=True, verbose_name="Référence contrat")
+    cession_periode_imputation = models.CharField(max_length=100, blank=True, null=True, verbose_name="Période d'imputation")
+    cession_visa_direction     = models.CharField(max_length=100, blank=True, null=True, verbose_name="Visa direction")
+    cession_cuve               = models.ForeignKey(
+        'Cuve', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='cessions',
+        verbose_name="Cuve (cession)"
+    )
+    # Données labo CESSION pour API MPMS
+    cession_densite_observee   = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True, verbose_name="Densité observée cession (kg/m³)")
+    cession_temperature        = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True, verbose_name="Température cession (°C)")
+    # Calculés auto CESSION
+    cession_densite_15c        = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True, verbose_name="Densité @15°C cession (kg/m³)")
+    cession_coefficient_vcf    = models.DecimalField(max_digits=8, decimal_places=4, blank=True, null=True, verbose_name="Coefficient Vcf cession")
 
     # ── Champs ACQUITTEMENT ────────────────────────────────────
     acquittement_volume_ambiant          = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Volume ambiant à acquitter (L)")
-    acquittement_volume_15c              = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Volume @15°C à acquitter (L)")
+    acquittement_volume_15c              = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Volume @15°C à acquitter (L)", help_text="Calculé automatiquement : Vol. ambiant × Vcf de l'entrée source")
     acquittement_reference_declaration   = models.CharField(max_length=200, blank=True, null=True, verbose_name="Référence déclaration douanière")
     acquittement_date_declaration        = models.DateField(blank=True, null=True, verbose_name="Date de la déclaration douanière")
+    # Champs douaniers complémentaires ACQUITTEMENT
+    acquittement_bureau_douane           = models.CharField(max_length=200, blank=True, null=True, verbose_name="Bureau de douane")
+    acquittement_code_bureau             = models.CharField(max_length=50,  blank=True, null=True, verbose_name="Code bureau")
+    acquittement_numero_quittance        = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° quittance")
+    acquittement_date_paiement           = models.DateField(blank=True, null=True, verbose_name="Date paiement")
+    acquittement_commissionnaire         = models.CharField(max_length=200, blank=True, null=True, verbose_name="Commissionnaire en douane")
+    acquittement_agent_dedouaneur        = models.CharField(max_length=200, blank=True, null=True, verbose_name="Agent dédouaneur")
     entree_source = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -1037,6 +1201,10 @@ class Mouvement(models.Model):
         limit_choices_to={'type_mouvement': 'ENTREE', 'regime_douanier': 'SOUS_DOUANE'},
     )
 
+
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
 
     # ── Meta ───────────────────────────────────────────────────
     class Meta:
@@ -1187,11 +1355,43 @@ class Mouvement(models.Model):
                     * float(self.densite_15c_sortie) / 1000, 2
                 )
 
+        elif self.type_mouvement == 'CESSION':
+            # Calculs API MPMS pour la cession (TRH_15 + TVCF_15)
+            if (self.cession_densite_observee is not None
+                    and self.cession_temperature is not None):
+                d15 = pc.density_at_15c(
+                    float(self.cession_densite_observee),
+                    float(self.cession_temperature)
+                )
+                self.cession_densite_15c = round(d15, 2)
+
+                vcf = pc.vcf_to_15c(float(d15), float(self.cession_temperature))
+                self.cession_coefficient_vcf = round(vcf, 4)
+
+                if self.cession_volume_ambiant is not None:
+                    self.cession_volume_15c = round(
+                        float(self.cession_volume_ambiant)
+                        * float(self.cession_coefficient_vcf), 2
+                    )
+
         elif self.type_mouvement == 'ACQUITTEMENT':
             # Forcer le régime douanier — un acquittement est toujours ACQUITTE
             self.regime_douanier = 'ACQUITTE'
 
-        # CESSION : pas de calculs automatiques
+            # Calcul automatique du Vol. @15°C :
+            # On réutilise le coefficient Vcf de l'entrée source (même produit/chargement).
+            # acquittement_volume_15c = acquittement_volume_ambiant × entree_source.coefficient_conversion_15c
+            if (self.acquittement_volume_ambiant is not None
+                    and self.entree_source_id is not None):
+                try:
+                    src = self.__class__.objects.filter(pk=self.entree_source_id).only('coefficient_conversion_15c').first()
+                    if src and src.coefficient_conversion_15c:
+                        self.acquittement_volume_15c = round(
+                            float(self.acquittement_volume_ambiant)
+                            * float(src.coefficient_conversion_15c), 2
+                        )
+                except Exception:
+                    pass  # En cas d'erreur on laisse la valeur existante
 
     def clean(self):
         """Vérifie qu'une période OUVERTE existe pour la date du mouvement."""
@@ -1235,6 +1435,10 @@ class Mouvement(models.Model):
                             self.type_mouvement, annee
                         )
                         self._calculer_auto()
+                        # Génération du slug après le numéro d'enregistrement
+                        if not self.slug:
+                            base = slugify(self.numero_enregistrement)
+                            self.slug = _slug_unique(Mouvement, base, exclude_pk=self.pk)
                         super().save(*args, **kwargs)
                         return
                 except _IntegrityError:
@@ -1244,6 +1448,9 @@ class Mouvement(models.Model):
         else:
             # MODIFICATION : recalcul des champs auto, numéro inchangé
             self._calculer_auto()
+            if not self.slug and self.numero_enregistrement:
+                base = slugify(self.numero_enregistrement)
+                self.slug = _slug_unique(Mouvement, base, exclude_pk=self.pk)
             super().save(*args, **kwargs)
 
     # ── Propriétés utiles ──────────────────────────────────────
@@ -1297,6 +1504,19 @@ class Mouvement(models.Model):
             (acq.acquittement_volume_ambiant or Decimal('0'))
             for acq in self.acquittements.all()
         )
+
+    @property
+    def volume_restant_sous_douane(self):
+        """
+        Pour une ENTREE SOUS_DOUANE : volume ambiant encore sous douane (non acquitté).
+        = volume_ambiant_recu - volume_acquitte_total
+        Retourne None si le mouvement n'est pas une ENTREE SOUS_DOUANE.
+        """
+        if not (self.type_mouvement == 'ENTREE' and self.regime_douanier == 'SOUS_DOUANE'):
+            return None
+        vol_entree   = self.volume_ambiant_recu or Decimal('0')
+        vol_acquitte = self.volume_acquitte_total or Decimal('0')
+        return max(Decimal('0'), vol_entree - vol_acquitte)
 
     @property
     def statut_acquittement(self):
@@ -1360,6 +1580,105 @@ class LigneMouvement(models.Model):
     def __str__(self):
         cuve_str = self.cuve.numero if self.cuve else "sans cuve"
         return f"{self.mouvement.numero_enregistrement} — {cuve_str} : {self.volume_ambiant} L"
+
+
+# ─────────────────────────────────────────────────────────────
+#  DOCUMENT JOINT À UN MOUVEMENT
+# ─────────────────────────────────────────────────────────────
+class MouvementDocument(models.Model):
+    """
+    Fichier justificatif attaché à un mouvement (BL, permis de sortie, etc.).
+    """
+    TYPE_CHOICES = [
+        ('BL_EXPEDITEUR',      'BL Expéditeur'),
+        ('BL_CLIENT',          'BL Client'),
+        ('PERMIS_SORTIE',      'Permis de Sortie'),
+        ('BON_LIVRAISON',      'Bon de Livraison'),
+        ('ORDRE_CESSION',      'Ordre de Cession'),
+        ('DECLARATION_DOUANE', 'Déclaration Douanière'),
+        ('AUTRE',              'Autre'),
+    ]
+
+    mouvement      = models.ForeignKey(
+        Mouvement, on_delete=models.CASCADE,
+        related_name='documents', verbose_name="Mouvement"
+    )
+    fichier        = models.FileField(
+        upload_to='mouvements/documents/%Y/%m/',
+        verbose_name="Fichier"
+    )
+    type_document  = models.CharField(
+        max_length=20, choices=TYPE_CHOICES,
+        verbose_name="Type de document"
+    )
+    nom_original   = models.CharField(
+        max_length=255, verbose_name="Nom du fichier"
+    )
+    description    = models.CharField(
+        max_length=500, blank=True, verbose_name="Description"
+    )
+    date_upload    = models.DateTimeField(auto_now_add=True, verbose_name="Date d'upload")
+    taille_fichier = models.PositiveIntegerField(default=0, verbose_name="Taille (octets)")
+    uploader       = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='documents_uploades', verbose_name="Uploadé par"
+    )
+
+    # --- Identifiant URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+
+    class Meta:
+        verbose_name        = "Document justificatif"
+        verbose_name_plural = "Documents justificatifs"
+        ordering            = ['-date_upload']
+
+    def __str__(self):
+        return f"{self.get_type_document_display()} — {self.nom_original or self.fichier.name}"
+
+
+# ─────────────────────────────────────────────────────────────
+#  NOTIFICATION MARKETEUR
+# ─────────────────────────────────────────────────────────────
+class Notification(models.Model):
+    """
+    Notification envoyée à un marketeur lors d'un mouvement le concernant.
+    """
+    TYPE_CHOICES = [
+        ('ENTREE',         'Entrée'),
+        ('SORTIE',         'Sortie'),
+        ('CESSION_EMISE',  'Cession émise'),
+        ('CESSION_RECUE',  'Cession reçue'),
+        ('ACQUITTEMENT',   'Acquittement'),
+        ('DOCUMENT_AJOUTE','Document ajouté'),
+    ]
+
+    marketeur      = models.ForeignKey(
+        'Marketeur', on_delete=models.CASCADE,
+        related_name='notifications', verbose_name="Marketeur"
+    )
+    mouvement      = models.ForeignKey(
+        'Mouvement', on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='notifications', verbose_name="Mouvement"
+    )
+    type_notif     = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    titre          = models.CharField(max_length=200)
+    message        = models.TextField()
+    lue            = models.BooleanField(default=False)
+    lien           = models.CharField(max_length=300, blank=True, null=True)
+    date_creation  = models.DateTimeField(auto_now_add=True)
+
+    # --- Identifiant URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+
+    class Meta:
+        verbose_name        = "Notification"
+        verbose_name_plural = "Notifications"
+        ordering            = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.titre} → {self.marketeur}"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1458,6 +1777,10 @@ class PeriodeComptable(models.Model):
     )
     notes = models.TextField(blank=True, null=True, verbose_name="Notes")
 
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=20, unique=True, blank=True, verbose_name="Slug URL")
+
     class Meta:
         verbose_name        = "Période comptable"
         verbose_name_plural = "Périodes comptables"
@@ -1468,6 +1791,11 @@ class PeriodeComptable(models.Model):
 
     def __str__(self):
         return self.libelle
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = f"{self.annee}-{self.mois:02d}"
+        super().save(*args, **kwargs)
 
     @property
     def est_ouverte(self):
@@ -1792,6 +2120,9 @@ class InventaireInitialMarketeur(models.Model):
     date_creation   = models.DateTimeField(auto_now_add=True)
     date_modification = models.DateTimeField(auto_now=True)
 
+    # --- Identifiant URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+
     class Meta:
         verbose_name        = "Inventaire initial marketeur"
         verbose_name_plural = "Inventaires initiaux marketeurs"
@@ -1843,14 +2174,14 @@ class Societe(models.Model):
     email                 = models.EmailField(blank=True, null=True, verbose_name="Email")
     site_web              = models.URLField(blank=True, null=True, verbose_name="Site web")
 
-    # ── Informations dépôt ─────────────────────────────────────
+    # ── Informations dépôt ───────────────────────────────────────────────────────────
     nom_depot             = models.CharField(max_length=200, default='SGDS SANKE', verbose_name="Nom du dépôt")
     type_depot            = models.CharField(max_length=100, default='Dépôt de droit', verbose_name="Type de dépôt")
     numero_agrement       = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° Agrément")
     autorite_tutelle      = models.CharField(max_length=200, blank=True, null=True, verbose_name="Autorité de tutelle")
     date_creation         = models.DateField(blank=True, null=True, verbose_name="Date de création")
 
-    # ── Meta ───────────────────────────────────────────────────
+    # ── Meta ──────────────────────────────────────────────────────────────────────
     date_modification     = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
     class Meta:
@@ -1881,33 +2212,3 @@ class Societe(models.Model):
         """Force pk=1 — singleton strict."""
         self.pk = 1
         super().save(*args, **kwargs)
-
-
-# ─────────────────────────────────────────────────────────────
-#  NOTIFICATION MARKETEUR
-# ─────────────────────────────────────────────────────────────
-
-class Notification(models.Model):
-    TYPE_CHOICES = [
-        ('ENTREE',        'Entrée'),
-        ('SORTIE',        'Sortie'),
-        ('CESSION_EMISE', 'Cession émise'),
-        ('CESSION_RECUE', 'Cession reçue'),
-        ('ACQUITTEMENT',  'Acquittement'),
-    ]
-    marketeur     = models.ForeignKey('Marketeur', on_delete=models.CASCADE, related_name='notifications')
-    type_notif    = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    titre         = models.CharField(max_length=200)
-    message       = models.TextField()
-    mouvement     = models.ForeignKey('Mouvement', on_delete=models.CASCADE,
-                                      related_name='notifications', null=True, blank=True)
-    lue           = models.BooleanField(default=False)
-    date_creation = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-date_creation']
-        verbose_name = 'Notification'
-        verbose_name_plural = 'Notifications'
-
-    def __str__(self):
-        return f"[{self.type_notif}] {self.marketeur} — {self.titre}"

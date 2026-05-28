@@ -4,25 +4,223 @@
 
 {% block breadcrumb %}
 <a href="{% url 'marketeur_list' %}">Marketeurs</a><span class="breadcrumb-sep">/</span>
-<a href="{% url 'marketeur_detail' mkt.pk %}">{{ mkt.raison_sociale }}</a><span class="breadcrumb-sep">/</span>
+<a href="{% url 'marketeur_detail' uuid=mkt.uuid slug=mkt.slug %}">{{ mkt.raison_sociale }}</a><span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">Supprimer</span>
 {% endblock %}
 
+{% block extra_head %}
+<style>
+.del-wrap{max-width:520px;margin:0 auto;}
+
+/* Hero danger -->*/
+.del-hero{
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  background:linear-gradient(135deg,#3a0e08 0%,#5c1a12 50%,#3a0e08 100%);
+  padding:32px 24px 28px;text-align:center;position:relative;overflow:hidden;
+}
+.del-hero::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 100%,rgba(220,60,30,.3),transparent 60%);
+}
+.del-hero-inner{position:relative;z-index:1;}
+.del-icon-wrap{
+  width:68px;height:68px;border-radius:50%;
+  background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;
+  animation:pulseWarn 2.5s ease-in-out infinite;
+}
+@keyframes pulseWarn{
+  0%,100%{box-shadow:0 0 0 0 rgba(252,165,165,.2);}
+  50%{box-shadow:0 0 0 12px rgba(252,165,165,.0);}
+}
+.del-hero-title{font-size:1.25rem;font-weight:800;color:#fff;margin-bottom:6px;letter-spacing:-.01em;}
+.del-hero-sub{font-size:13px;color:rgba(255,255,255,.5);}
+
+/* Corps */
+.del-body{
+  background:var(--surface);border:1px solid var(--border);
+  border-top:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);
+  padding:24px;
+}
+
+/* Card identité du marketeur */
+.del-mkt-card{
+  display:flex;align-items:center;gap:13px;
+  padding:14px 16px;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:20px;
+}
+.del-mkt-logo{width:46px;height:46px;border-radius:9px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+.del-mkt-init{
+  width:46px;height:46px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--accent-ink);
+  background:var(--accent-soft);border:1px solid #f0cdb8;
+}
+.del-mkt-name{font-size:14px;font-weight:700;color:var(--ink);}
+.del-mkt-name span{font-weight:400;color:var(--muted);}
+.del-mkt-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;}
+.del-mkt-sep{color:var(--border-2);}
+
+/* Statut badge dans la card */
+.del-stat{
+  margin-left:auto;display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;
+}
+.del-stat::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.8;}
+.del-stat.ok   {background:var(--ok-soft);color:var(--ok);}
+.del-stat.warn {background:var(--warn-soft);color:var(--warn);}
+.del-stat.err  {background:var(--err-soft);color:var(--err);}
+.del-stat.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--border);}
+
+/* Avertissement -->*/
+.del-alert{
+  background:var(--err-soft);border:1px solid #f1b6a8;border-radius:var(--radius-lg);
+  padding:14px 16px;margin-bottom:20px;
+}
+.del-alert-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.del-alert-title{font-size:12.5px;font-weight:700;color:var(--err);}
+.del-alert-body{font-size:12.5px;color:var(--err);line-height:1.6;}
+
+/* Checklist des conséquences -->*/
+.del-checklist{
+  list-style:none;margin-bottom:20px;display:flex;flex-direction:column;gap:6px;
+}
+.del-checklist li{
+  display:flex;align-items:flex-start;gap:9px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.5;
+}
+.del-checklist li::before{
+  content:"";flex-shrink:0;margin-top:5px;
+  width:6px;height:6px;border-radius:50%;background:var(--err);opacity:.7;
+}
+
+/* Champ de confirmation -->*/
+.del-confirm-wrap{margin-bottom:20px;}
+.del-confirm-label{font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:6px;display:block;}
+.del-confirm-label span{font-family:'JetBrains Mono',monospace;background:var(--err-soft);color:var(--err);padding:1px 6px;border-radius:4px;font-size:11.5px;}
+.del-confirm-input{
+  width:100%;height:36px;padding:0 12px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-size:13px;font-family:'JetBrains Mono',monospace;
+  transition:border-color .15s;
+}
+.del-confirm-input:focus{outline:none;border-color:var(--err);box-shadow:0 0 0 3px rgba(168,51,28,.08);}
+.del-confirm-input.valid{border-color:var(--err);background:var(--err-soft);}
+
+/* Boutons -->*/
+.del-actions{display:flex;gap:10px;}
+.del-actions .btn-cancel{flex:1;justify-content:center;}
+.del-actions .btn-confirm{
+  flex:1;justify-content:center;height:38px;font-size:13px;
+  background:var(--err);color:#fff;border:none;border-radius:var(--radius);
+  display:flex;align-items:center;gap:7px;cursor:pointer;font-weight:600;
+  transition:background .15s,opacity .15s;
+}
+.del-actions .btn-confirm:hover{background:#c03d22;}
+.del-actions .btn-confirm:disabled{opacity:.4;cursor:not-allowed;}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="card" style="max-width:520px">
-  <div class="card-h">
-    <div class="card-h-title" style="color:var(--err)">Confirmer la suppression</div>
-  </div>
-  <div class="card-b">
-    <p>Êtes-vous sûr de vouloir supprimer le marketeur <strong>{{ mkt.raison_sociale }}</strong>{% if mkt.sigle %} ({{ mkt.sigle }}){% endif %} ?</p>
-    <div class="alert alert-error" style="margin-top:12px">
-      Cette action est <strong>irréversible</strong>. Toutes les données associées à ce marketeur seront définitivement supprimées.
+<div class="del-wrap">
+
+  <!-- Hero danger -->
+  <div class="del-hero">
+    <div class="del-hero-inner">
+      <div class="del-icon-wrap">
+        <svg viewBox="0 0 24 24" stroke="#fca5a5" stroke-width="1.8" fill="none" width="30" height="30">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <div class="del-hero-title">Confirmer la suppression</div>
+      <div class="del-hero-sub">Action définitive et irréversible</div>
     </div>
-    <form method="post" style="display:flex;gap:8px;margin-top:16px">
+  </div>
+
+  <!-- Corps -->
+  <div class="del-body">
+
+    <!-- Identité du marketeur -->
+    <div class="del-mkt-card">
+      {% if mkt.logo %}
+        <img class="del-mkt-logo" src="{{ mkt.logo.url }}" alt="{{ mkt.raison_sociale }}"/>
+      {% else %}
+        <div class="del-mkt-init">{{ mkt.raison_sociale|slice:":2"|upper }}</div>
+      {% endif %}
+      <div style="flex:1;min-width:0">
+        <div class="del-mkt-name">{{ mkt.raison_sociale }}{% if mkt.sigle %} <span>({{ mkt.sigle }})</span>{% endif %}</div>
+        <div class="del-mkt-meta">
+          <span>{{ mkt.get_forme_juridique_display }}</span>
+          <span class="del-mkt-sep">·</span>
+          <span>{{ mkt.ville }}, {{ mkt.pays }}</span>
+        </div>
+      </div>
+      {% if mkt.statut == 'ACTIF' %}<span class="del-stat ok">Actif</span>
+      {% elif mkt.statut == 'SUSPENDU' %}<span class="del-stat warn">Suspendu</span>
+      {% elif mkt.statut == 'BLACKLIST' %}<span class="del-stat err">Blacklisté</span>
+      {% else %}<span class="del-stat muted">Inactif</span>{% endif %}
+    </div>
+
+    <!-- Alerte -->
+    <div class="del-alert">
+      <div class="del-alert-head">
+        <svg viewBox="0 0 24 24" stroke="var(--err)" stroke-width="2" fill="none" width="15" height="15"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div class="del-alert-title">Action irréversible</div>
+      </div>
+      <div class="del-alert-body">
+        La suppression de <strong>{{ mkt.raison_sociale }}</strong> entraînera la perte définitive de toutes les données liées à ce marketeur.
+      </div>
+    </div>
+
+    <!-- Conséquences -->
+    <ul class="del-checklist">
+      <li>Toutes les informations de la société seront effacées</li>
+      <li>Les camions et chauffeurs associés seront supprimés</li>
+      <li>L'historique des mouvements et inventaires sera perdu</li>
+      <li>Cette action ne peut pas être annulée</li>
+    </ul>
+
+    <!-- Confirmation par saisie -->
+    <div class="del-confirm-wrap">
+      <label class="del-confirm-label" for="del-input">
+        Pour confirmer, tapez <span>{{ mkt.raison_sociale|upper }}</span> ci-dessous
+      </label>
+      <input class="del-confirm-input" type="text" id="del-input"
+             placeholder="{{ mkt.raison_sociale|upper }}" autocomplete="off"/>
+    </div>
+
+    <!-- Formulaire de suppression -->
+    <form method="post" id="del-form">
       {% csrf_token %}
-      <a href="{% url 'marketeur_detail' mkt.pk %}" class="btn">Annuler</a>
-      <button type="submit" class="btn btn-danger">Supprimer définitivement</button>
+      <div class="del-actions">
+        <a href="{% url 'marketeur_detail' uuid=mkt.uuid slug=mkt.slug %}" class="btn btn-ghost btn-cancel">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="13" height="13"><polyline points="15 18 9 12 15 6"/></svg>
+          Annuler
+        </a>
+        <button type="submit" class="btn-confirm" id="del-btn" disabled>
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Supprimer définitivement
+        </button>
+      </div>
     </form>
+
   </div>
 </div>
+
+<script>
+// Activation du bouton uniquement quand la saisie correspond
+const input   = document.getElementById('del-input');
+const btn     = document.getElementById('del-btn');
+const expected = "{{ mkt.raison_sociale|upper|escapejs }}";
+input.addEventListener('input', function(){
+  const ok = this.value.trim().toUpperCase() === expected;
+  btn.disabled = !ok;
+  this.classList.toggle('valid', ok);
+});
+</script>
+
 {% endblock %}

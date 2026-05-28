@@ -1,0 +1,137 @@
+{% load static l10n sgds_filters %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Bordereau d'entrée {{ mouvement.numero_enregistrement }} — SGDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{% static 'css/bordereau.css' %}"/>
+</head>
+<body class="{% if bw %}bw{% endif %}">
+
+{% include "mouvements/_bordereau_toolbar.html" %}
+
+<div class="sheet {% if compact %}compact{% endif %}">
+
+  {% include "mouvements/_bordereau_header.html" with type_class="ENTREE" type_kind="Entrée produit" doc_title="Bordereau d'entrée" doc_num=mouvement.numero_enregistrement logo_class="" %}
+
+  <div class="id-strip" style="margin-top:2mm">
+    <div class="id-cell" style="padding:4px 7px"><div class="lbl">Type</div><div class="val"><span class="type-pill ENTREE">ENTRÉE</span></div></div>
+    <div class="id-cell" style="padding:4px 7px"><div class="lbl">Date mouvement</div><div class="val mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</div></div>
+    <div class="id-cell" style="padding:4px 7px"><div class="lbl">Régime</div><div class="val">{{ mouvement.get_regime_douanier_display }}</div></div>
+    <div class="id-cell" style="padding:4px 7px"><div class="lbl">Produit</div><div class="val">{{ mouvement.produit.nom }}</div></div>
+    <div class="id-cell" style="padding:4px 7px"><div class="lbl">Marketeur</div><div class="val sm">{{ mouvement.marketeur.raison_sociale }}</div></div>
+    <div class="id-cell" style="padding:4px 7px"><div class="lbl">Statut</div><div class="val"><span class="bdg ok">Enregistré</span></div></div>
+  </div>
+
+  <section class="section" style="margin-top:3mm">
+    <div class="section-h" style="margin-bottom:4px"><h3>1 · Provenance &amp; expédition</h3><span class="marker">§1</span></div>
+    <div class="grid-4" style="gap:6px 10px">
+      <div class="kv"><span class="k">Provenance</span><span class="v">{{ mouvement.provenance|default:"—" }}</span></div>
+      <div class="kv"><span class="k">BL Expéditeur</span><span class="v mono">{{ mouvement.bl_expediteur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">BL Client</span><span class="v mono">{{ mouvement.bl_client|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Pays d'origine</span><span class="v">{{ mouvement.provenance|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date chargement</span><span class="v mono">{{ mouvement.date_chargement|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date déchargement</span><span class="v mono">{{ mouvement.date_dechargement|date:"d/m/Y"|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant expéd.</span><span class="v mono">{{ mouvement.volume_ambiant_expediteur|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. @15°C expéd.</span><span class="v mono">{{ mouvement.volume_15c_expediteur|frnum }} L</span></div>
+      <div class="kv"><span class="k">Densité 15°C expéd.</span><span class="v mono">{{ mouvement.densite_15c_expediteur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Température départ</span><span class="v mono">{{ mouvement.temperature_chargement|default:"—" }} °C</span></div>
+      <div class="kv"><span class="k">Plomb scellé n°</span><span class="v mono">{{ mouvement.notes|default:"—"|truncatechars:20 }}</span></div>
+      <div class="kv"><span class="k">Réf. externe</span><span class="v mono">{{ mouvement.reference_client_externe|default:"—" }}</span></div>
+    </div>
+  </section>
+
+  <section class="section" style="margin-top:3mm">
+    <div class="section-h" style="margin-bottom:4px"><h3>2 · Réception au dépôt</h3><span class="marker">§2</span></div>
+    <div class="grid-4" style="gap:6px 10px">
+      {% with lg=mouvement.lignes.first %}
+      <div class="kv"><span class="k">Cuve réceptrice</span><span class="v">{% if lg.cuve %}{{ lg.cuve.numero }} · {{ lg.cuve.produit.nom|default:"—" }}{% elif mouvement.cuve %}{{ mouvement.cuve.numero }} · {{ mouvement.cuve.produit.nom|default:"—" }}{% else %}—{% endif %}</span></div>
+      {% endwith %}
+      <div class="kv"><span class="k">Camion</span><span class="v mono">{{ mouvement.camion.immatriculation|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Chauffeur</span><span class="v">{{ mouvement.chauffeur.nom_complet|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Heure d'arrivée</span><span class="v mono">{{ mouvement.heure_arrivee|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Heure dépotage</span><span class="v mono">{{ mouvement.heure_depotage|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Heure fin</span><span class="v mono">{{ mouvement.heure_fin|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Température réception</span><span class="v mono">{{ mouvement.temperature_reception|default:"—" }} °C</span></div>
+      <div class="kv"><span class="k">Température labo</span><span class="v mono">{{ mouvement.temperature_labo|default:"—" }} °C</span></div>
+      <div class="kv"><span class="k">Densité observée labo</span><span class="v mono">{{ mouvement.densite_observee_labo|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Plombs vérifiés</span><span class="v">{{ mouvement.notes|default:"—"|truncatechars:20 }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant reçu</span><span class="v mono lg accent">{{ mouvement.volume_ambiant_recu|frnum }} L</span></div>
+      <div class="kv"><span class="k">Date saisie</span><span class="v mono">{{ mouvement.date_saisie|date:"d/m/Y H:i" }}</span></div>
+    </div>
+  </section>
+
+  {% if show_calc %}
+  <section class="section">
+    <div class="section-h"><h3>3 · Calculs automatiques — API MPMS Ch. 11.1</h3><span class="marker">§3</span></div>
+    <div class="liq">
+      <div class="liq-h"><span>Correction volume / température selon ASTM D1250‑80</span><span class="tag">AUTO</span></div>
+      <div class="liq-b">
+        <div class="grid-3">
+          <div class="kv"><span class="k">Densité @15°C calculée</span><span class="v mono">{{ mouvement.densite_15c_calculee|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Écart densité</span><span class="v mono">{{ mouvement.ecart_densite_15c|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Vcf (coef. 15°C)</span><span class="v mono">{{ mouvement.coefficient_conversion_15c|default:"—" }}</span></div>
+          <div class="kv"><span class="k">Volume @15°C reçu</span><span class="v mono accent">{{ mouvement.volume_15c_recu|frnum }} L</span></div>
+          <div class="kv"><span class="k">Perte / gain ambiant</span><span class="v mono ok">{{ perte_gain_ambiant_signe }}</span></div>
+          <div class="kv"><span class="k">Perte / gain @15°C</span><span class="v mono ok">{{ perte_gain_15c_signe }}</span></div>
+          <div class="kv"><span class="k">Poids volumique</span><span class="v mono">{{ poids_volumique|default:"—" }} kg/m³</span></div>
+          <div class="kv"><span class="k">Poids total reçu</span><span class="v mono">{{ mouvement.poids_kg|frnum }} kg</span></div>
+          <div class="kv"><span class="k">Tolérance API</span><span class="v">{{ tolerance_status }}</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="recap">
+    <div class="recap-cell"><div class="lbl">Vol. expédié ambiant</div><div class="val">{{ mouvement.volume_ambiant_expediteur|frnum }} L</div><div class="sub">BL {{ mouvement.bl_expediteur|default:"—" }}</div></div>
+    <div class="recap-cell"><div class="lbl">Vol. reçu ambiant</div><div class="val">{{ mouvement.volume_ambiant_recu|frnum }} L</div><div class="sub">volume ambiant reçu</div></div>
+    <div class="recap-cell"><div class="lbl">Écart constaté</div><div class="val">{{ ecart_signe }} L</div><div class="sub">{{ ecart_pct }} % · {{ tolerance_status }}</div></div>
+    <div class="recap-cell"><div class="lbl">À comptabiliser</div><div class="val">{{ mouvement.volume_ambiant_recu|frnum }} L</div><div class="sub">Ambiant · {{ mouvement.get_regime_douanier_display|lower }}</div></div>
+  </div>
+
+  {% if show_sigs %}
+  <section class="sigs" style="grid-template-columns:repeat(3,1fr)">
+    <div class="sig" style="min-height:38mm">
+      <div><div class="role">Saisi par</div><div class="name">{{ mouvement.collaborateur|default:"—" }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>{{ mouvement.date_saisie|date:"d/m/Y" }}</span><span>{{ mouvement.date_saisie|time:"H:i" }}</span></div>
+    </div>
+    <div class="sig" style="min-height:38mm">
+      <div><div class="role">Chef de dépôt</div><div class="name">—</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date</span><span>Signature</span></div>
+    </div>
+    <div class="sig" style="min-height:38mm">
+      <div><div class="role">Chauffeur</div><div class="name">{{ mouvement.chauffeur.nom_complet|default:"—" }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>{{ mouvement.camion.immatriculation|default:"—" }}</span><span>Signature</span></div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if show_stamp %}
+  <div class="stamp accent">
+    <div class="inner">
+      <div class="big">VALIDÉ</div>
+      <div class="sm">SGDS · {{ societe.sigle|default:"SANKE SA" }}</div>
+      <div class="dt">{{ mouvement.date_mouvement|date:"d / m / Y" }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <footer class="ftr">
+    <div class="legal">Document généré par <b>SGDS — Système de Gestion de Dépôt de Stockage</b>. Toute correction doit faire l'objet d'un nouveau bordereau référençant ce numéro.</div>
+    <div style="text-align:right">
+      <div>P. 1 / 1</div>
+      <div>SGDS · {{ now|date:"d/m/Y H:i" }}</div>
+      <div style="margin-top:2px"><span style="color:var(--accent)">●</span> {{ mouvement.numero_enregistrement }}</div>
+    </div>
+  </footer>
+</div>
+
+{% include "mouvements/_bordereau_scripts.html" %}
+</body>
+</html>

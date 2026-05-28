@@ -9,6 +9,7 @@ def notifications_marketeur(request):
         and request.user.marketeur
     ):
         mkt = request.user.marketeur
-        notifs = Notification.objects.filter(marketeur=mkt, lue=False).order_by('-date_creation')[:8]
-        return {'notifs_recentes': notifs, 'notif_count': notifs.count()}
+        notifs = Notification.objects.filter(marketeur=mkt).order_by('-date_creation')[:12]
+        count_non_lues = Notification.objects.filter(marketeur=mkt, lue=False).count()
+        return {'notifs_recentes': notifs, 'notif_count': count_non_lues}
     return {'notifs_recentes': [], 'notif_count': 0}

@@ -2,8 +2,12 @@
 Vues mouvements pour l'API mobile.
 
 Endpoints :
-  GET /api/v1/mouvements/          → liste paginée (filtres : produit, type, regime, date)
-  GET /api/v1/mouvements/{id}/     → détail complet d'un mouvement
+  GET  /api/v1/mouvements/                        → liste paginée
+  GET  /api/v1/mouvements/{id}/                   → détail complet
+  GET  /api/v1/mouvements/{id}/bordereau.pdf/     → bordereau officiel PDF (même format que le web)
+  GET  /api/v1/mouvements/{id}/documents/         → liste documents
+  POST /api/v1/mouvements/{id}/documents/         → upload document
+  GET  /api/v1/documents/{id}/                    → détail document
 """
 from decimal import Decimal
 
@@ -11,10 +15,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 
 from api.v1.permissions import IsMarketeurActif
-from SGDS.models import Mouvement
+from SGDS.models import Mouvement, MouvementDocument
 from .serializers import MouvementListSerializer, MouvementDetailSerializer
 
 
@@ -190,3 +195,197 @@ class MouvementDetailView(APIView):
         )
         serializer = MouvementDetailSerializer(_serialize_detail(m))
         return Response(serializer.data)
+
+
+def _serialize_document(doc, request):
+    return {
+        'id':            doc.pk,
+        'type_document': doc.type_document,
+        'type_document_label': doc.get_type_document_display(),
+        'nom_original':  doc.nom_original,
+        'description':   doc.description,
+        'date_upload':   doc.date_upload.isoformat(),
+        'taille_fichier': doc.taille_fichier,
+        'url_fichier':   request.build_absolute_uri(doc.fichier.url),
+    }
+
+
+class MouvementDocumentsView(APIView):
+    """
+    GET  /api/v1/mouvements/{pk}/documents/ → liste des documents
+    POST /api/v1/mouvements/{pk}/documents/ → upload (multipart/form-data)
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes     = [IsMarketeurActif]
+    parser_classes         = [MultiPartParser, FormParser]
+
+    def get(self, request, pk):
+        marketeur = request.user.marketeur
+        mouvement = get_object_or_404(Mouvement, pk=pk, marketeur=marketeur)
+        docs = MouvementDocument.objects.filter(mouvement=mouvement)
+        return Response([_serialize_document(d, request) for d in docs])
+
+    def post(self, request, pk):
+        import os
+        marketeur = request.user.marketeur
+        mouvement = get_object_or_404(Mouvement, pk=pk, marketeur=marketeur)
+
+        fichier = request.FILES.get('fichier')
+        type_doc = request.data.get('type_document', '')
+        description = request.data.get('description', '')
+
+        if not fichier:
+            return Response({'detail': 'Le champ fichier est requis.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(fichier.name)[1].lower()
+        if ext not in {'.pdf', '.png', '.jpg', '.jpeg'}:
+            return Response({'detail': f'Format non autorisé : {ext}.'}, status=status.HTTP_400_BAD_REQUEST)
+        if fichier.size > 10 * 1024 * 1024:
+            return Response({'detail': 'Fichier trop volumineux (max 10 Mo).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_types = {c[0] for c in MouvementDocument.TYPE_DOC_CHOICES}
+        if type_doc not in valid_types:
+            return Response({'detail': f'Type invalide. Valeurs : {", ".join(valid_types)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        doc = MouvementDocument.objects.create(
+            mouvement=mouvement,
+            fichier=fichier,
+            type_document=type_doc,
+            nom_original=fichier.name,
+            description=description,
+            uploader=request.user,
+        )
+        return Response(_serialize_document(doc, request), status=status.HTTP_201_CREATED)
+
+
+class MouvementBordereauPdfView(APIView):
+    """
+    GET /api/v1/mouvements/{pk}/bordereau.pdf/
+
+    Retourne le bordereau officiel en PDF (identique à la version web).
+    Nécessite WeasyPrint côté serveur.
+    Authentification : Bearer JWT.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes     = [IsMarketeurActif]
+
+    def get(self, request, pk):
+        from django.http import HttpResponse
+        try:
+            from weasyprint import HTML, CSS
+            from django.template.loader import render_to_string
+            from django.contrib.staticfiles import finders
+        except ImportError as e:
+            return HttpResponse(
+                f"WeasyPrint ImportError : {e}",
+                status=501,
+                content_type="text/plain; charset=utf-8",
+            )
+        except Exception as e:
+            return HttpResponse(
+                f"Erreur chargement WeasyPrint : {type(e).__name__} — {e}",
+                status=501,
+                content_type="text/plain; charset=utf-8",
+            )
+
+        from django.utils import timezone as tz
+        from SGDS.models import Societe
+
+        marketeur = request.user.marketeur
+        mouvement = get_object_or_404(
+            Mouvement.objects.select_related(
+                "produit", "marketeur", "cuve", "cuve__produit",
+                "camion", "chauffeur",
+            ).prefetch_related("lignes__cuve__produit"),
+            pk=pk,
+            marketeur=marketeur,   # sécurité : seulement ses propres mouvements
+        )
+
+        societe = Societe.get_instance()
+
+        try:
+            from SGDS.services.periode_comptable import periode_pour_date
+            periode = periode_pour_date(mouvement.date_mouvement)
+            periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
+        except Exception:
+            periode_label = mouvement.date_mouvement.strftime("%B %Y")
+
+        # Calculs écart expéditeur / reçu
+        vol_exp  = float(mouvement.volume_15c_expediteur or 0)
+        vol_recu = float(mouvement.volume_15c_recu or 0)
+        ecart    = vol_recu - vol_exp
+        if vol_exp:
+            ecart_signe      = f"{'+' if ecart >= 0 else ''}{ecart:,.0f}".replace(",", " ")
+            ecart_pct        = f"{'+' if ecart >= 0 else ''}{(ecart / vol_exp * 100):.2f}"
+            tolerance_status = "OK" if abs(ecart / vol_exp) <= 0.005 else "HORS TOLÉRANCE"
+        else:
+            ecart_signe = ecart_pct = tolerance_status = "—"
+
+        pg_amb  = float(mouvement.perte_gain_reception or 0)
+        pg_15c  = float(mouvement.perte_gain_15c or 0) if hasattr(mouvement, 'perte_gain_15c') else 0
+        perte_gain_ambiant_signe = (
+            f"{'+' if pg_amb >= 0 else ''}{pg_amb:,.0f}".replace(",", " ")
+            if mouvement.perte_gain_reception is not None else "—"
+        )
+        perte_gain_15c_signe = (
+            f"{'+' if pg_15c >= 0 else ''}{pg_15c:,.0f}".replace(",", " ")
+            if hasattr(mouvement, 'perte_gain_15c') and mouvement.perte_gain_15c is not None else "—"
+        )
+        poids_volumique = float(mouvement.densite_15c_calculee) if getattr(mouvement, 'densite_15c_calculee', None) else None
+
+        ctx = {
+            "mouvement":                  mouvement,
+            "societe":                    societe,
+            "now":                        tz.now(),
+            "periode_label":              periode_label,
+            "show_calc":                  True,
+            "show_sigs":                  True,
+            "show_stamp":                 False,
+            "compact":                    False,
+            "bw":                         False,
+            "auto_print":                 False,
+            "ecart_signe":                ecart_signe,
+            "ecart_pct":                  ecart_pct,
+            "tolerance_status":           tolerance_status,
+            "perte_gain_ambiant_signe":   perte_gain_ambiant_signe,
+            "perte_gain_15c_signe":       perte_gain_15c_signe,
+            "poids_volumique":            poids_volumique,
+            "statut_acquittement":        getattr(mouvement, 'statut_acquittement', None),
+        }
+
+        try:
+            html_string = render_to_string("mouvements/bordereau.html", ctx, request=request)
+            css_path    = finders.find("css/bordereau.css")
+            pdf_bytes   = HTML(
+                string=html_string,
+                base_url=request.build_absolute_uri("/"),
+            ).write_pdf(
+                stylesheets=[CSS(filename=css_path)] if css_path else None,
+                presentational_hints=True,
+            )
+        except Exception as e:
+            return HttpResponse(
+                f"Erreur génération PDF : {type(e).__name__} — {e}",
+                status=500,
+                content_type="text/plain; charset=utf-8",
+            )
+
+        filename = f"bordereau_{mouvement.numero_enregistrement}.pdf"
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
+
+
+class DocumentDetailView(APIView):
+    """GET /api/v1/documents/{pk}/ → détail d'un document (restriction marketeur)"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes     = [IsMarketeurActif]
+
+    def get(self, request, pk):
+        marketeur = request.user.marketeur
+        doc = get_object_or_404(
+            MouvementDocument.objects.select_related('mouvement'),
+            pk=pk,
+            mouvement__marketeur=marketeur,
+        )
+        return Response(_serialize_document(doc, request))

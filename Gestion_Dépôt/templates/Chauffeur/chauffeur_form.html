@@ -8,7 +8,7 @@
 {% if action == 'Nouveau' %}
 <span class="breadcrumb-current">Nouveau chauffeur</span>
 {% else %}
-<a href="{% url 'chauffeur_detail' chauffeur.pk %}">{{ chauffeur.nom_complet }}</a>
+<a href="{% url 'chauffeur_detail' uuid=chauffeur.uuid slug=chauffeur.slug %}">{{ chauffeur.nom_complet }}</a>
 <span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">Modifier</span>
 {% endif %}
@@ -151,7 +151,7 @@
   </div>
 
   <div style="display:flex;gap:12px;justify-content:flex-end;padding:18px 0">
-    <a href="{% if action == 'Modifier' %}{% url 'chauffeur_detail' chauffeur.pk %}{% else %}{% url 'chauffeur_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+    <a href="{% if action == 'Modifier' %}{% url 'chauffeur_detail' uuid=chauffeur.uuid slug=chauffeur.slug %}{% else %}{% url 'chauffeur_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
     <button type="submit" class="btn btn-accent">
       <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
       {% if action == 'Nouveau' %}Enregistrer le chauffeur{% else %}Sauvegarder les modifications{% endif %}

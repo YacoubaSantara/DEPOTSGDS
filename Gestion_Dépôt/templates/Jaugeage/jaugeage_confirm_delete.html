@@ -4,7 +4,7 @@
 
 {% block breadcrumb %}
 <a href="{% url 'jaugeage_list' %}">Jaugeages</a><span class="breadcrumb-sep">›</span>
-<a href="{% url 'jaugeage_detail' jaugeage.pk %}">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'jaugeage_detail' uuid=jaugeage.uuid slug=jaugeage.slug %}">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</a><span class="breadcrumb-sep">›</span>
 <span class="breadcrumb-current">Supprimer</span>
 {% endblock %}
 
@@ -49,7 +49,7 @@
       </div>
     </div>
     <div style="padding:16px 24px;background:var(--surface-2);display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)">
-      <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-ghost">Annuler</a>
+      <a href="{% url 'jaugeage_detail' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn btn-ghost">Annuler</a>
       <form method="post" style="display:inline">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger">

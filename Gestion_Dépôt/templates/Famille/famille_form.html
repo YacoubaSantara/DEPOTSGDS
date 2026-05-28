@@ -5,7 +5,7 @@
 {% block breadcrumb %}
 <a href="{% url 'famille_list' %}">Familles</a>
 <span class="breadcrumb-sep">/</span>
-{% if famille %}<a href="{% url 'famille_detail' famille.pk %}">{{ famille.nom }}</a><span class="breadcrumb-sep">/</span>{% endif %}
+{% if famille %}<a href="{% url 'famille_detail' uuid=famille.uuid slug=famille.slug %}">{{ famille.nom }}</a><span class="breadcrumb-sep">/</span>{% endif %}
 <span class="breadcrumb-current">{% if famille %}Modifier{% else %}Nouvelle famille{% endif %}</span>
 {% endblock %}
 
@@ -54,7 +54,7 @@
             <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             {% if famille %}Enregistrer les modifications{% else %}Créer la famille{% endif %}
           </button>
-          <a href="{% if famille %}{% url 'famille_detail' famille.pk %}{% else %}{% url 'famille_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+          <a href="{% if famille %}{% url 'famille_detail' uuid=famille.uuid slug=famille.slug %}{% else %}{% url 'famille_list' %}{% endif %}" class="btn btn-ghost">Annuler</a>
         </div>
       </div>
     </div>

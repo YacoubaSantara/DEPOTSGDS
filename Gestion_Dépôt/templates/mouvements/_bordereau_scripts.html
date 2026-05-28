@@ -1,0 +1,17 @@
+{% comment %}Script JS commun : code-barres décoratif + auto-print.{% endcomment %}
+<script>
+  document.querySelectorAll('.barcode').forEach(bar => {
+    const ref = bar.dataset.ref || '';
+    let seed = 0;
+    for (const c of ref) seed = (seed*31 + c.charCodeAt(0)) >>> 0;
+    const rng = () => { seed = (seed*1664525 + 1013904223) >>> 0; return seed/0x100000000; };
+    let html = '';
+    for (let i=0;i<58;i++){
+      const r = rng();
+      const cls = r<.45 ? 'h' : (r<.8 ? 'm' : 'l');
+      html += '<i class="'+cls+'"></i>';
+    }
+    bar.innerHTML = html;
+  });
+  {% if auto_print %}window.addEventListener('load', () => setTimeout(() => window.print(), 250));{% endif %}
+</script>

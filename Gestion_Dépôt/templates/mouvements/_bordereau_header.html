@@ -1,0 +1,33 @@
+{% comment %}
+  En-tête commun à tous les bordereaux.
+  Variables locales : type_class, type_kind, doc_title, doc_num, logo_class
+  Variables de contexte : societe, mouvement, now, periode_label
+{% endcomment %}
+<header class="hdr">
+  <div class="brand">
+    <div class="logo {{ logo_class }}">{{ societe.sigle|default:"SK"|slice:":2" }}</div>
+    <div class="brand-meta">
+      <div class="co">{{ societe.raison_sociale|default:"SANKE SA" }}</div>
+      <div class="sub">
+        <b>{{ societe.nom_depot|default:"Dépôt pétrolier" }}</b> ·
+        {{ societe.adresse|default:"Bamako, Mali" }}<br/>
+        Agrément <span class="mono">{{ societe.numero_agrement|default:"—" }}</span> ·
+        NIF <span class="mono">{{ societe.numero_contribuable|default:"—" }}</span> ·
+        Tél {{ societe.telephone|default:"—" }}
+      </div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="doc-kind {{ type_class }}">
+      <span class="dot"></span><span>Bordereau · {{ type_kind }}</span>
+    </div>
+    <div class="doc-title">{{ doc_title }}</div>
+    <div class="doc-num">N° {{ doc_num }}</div>
+    <div class="doc-period">
+      Période {{ periode_label }} ·
+      imprimé le <span class="mono">{{ now|date:"d/m/Y" }}</span>
+    </div>
+    <div class="barcode" data-ref="{{ doc_num }}" style="margin-top:6px"></div>
+    <div class="barcode-cap">{{ doc_num }}</div>
+  </div>
+</header>

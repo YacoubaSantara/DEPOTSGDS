@@ -67,7 +67,7 @@
     </thead>
     <tbody>
       {% for fam in familles %}
-      <tr class="clickable" onclick="window.location='{% url 'famille_detail' fam.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'famille_detail' uuid=fam.uuid slug=fam.slug %}'">
         <td>
           <div style="font-weight:600">{{ fam.nom }}</div>
           {% if fam.description %}<div style="font-size:.75rem;color:var(--muted);margin-top:2px">{{ fam.description|truncatechars:60 }}</div>{% endif %}
@@ -88,9 +88,9 @@
         <td style="font-size:.8rem;color:var(--muted)">{{ fam.date_creation|date:"d/m/Y" }}</td>
         <td onclick="event.stopPropagation()">
           <div style="display:flex;gap:5px">
-            <a href="{% url 'famille_detail' fam.pk %}" class="btn btn-sm btn-ghost">Voir</a>
-            <a href="{% url 'famille_update' fam.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
-            <a href="{% url 'famille_delete' fam.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+            <a href="{% url 'famille_detail' uuid=fam.uuid slug=fam.slug %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'famille_update' uuid=fam.uuid slug=fam.slug %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'famille_delete' uuid=fam.uuid slug=fam.slug %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
           </div>
         </td>
       </tr>
@@ -99,5 +99,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'partials/_pagination.html' with page_obj=familles filtres=filtres %}
 </div>
 {% endblock %}

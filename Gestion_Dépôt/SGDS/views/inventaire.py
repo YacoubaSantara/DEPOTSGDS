@@ -172,13 +172,13 @@ def inventaire_initial_saisir(request):
 # ─────────────────────────────────────────────────────────────
 
 @login_required
-def inventaire_initial_supprimer(request, pk):
+def inventaire_initial_supprimer(request, uuid):
     """Supprime un stock initial après confirmation (POST)."""
     if not request.user.is_staff:
         messages.error(request, "Accès réservé aux administrateurs.")
         return redirect('inventaire_initial_liste')
 
-    inv = get_object_or_404(InventaireInitialMarketeur, pk=pk)
+    inv = get_object_or_404(InventaireInitialMarketeur, uuid=uuid)
 
     if request.method == 'POST':
         label = str(inv)

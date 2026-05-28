@@ -30,7 +30,7 @@
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem;">
         <a href="{% url 'coulage_liste' %}" style="color:#64748b;text-decoration:none;font-size:.85rem;">Coulage</a>
         <span style="color:#94a3b8;">›</span>
-        <a href="{% url 'coulage_detail' periode_id=periode.pk %}" style="color:#64748b;text-decoration:none;font-size:.85rem;">{{ periode.libelle }}</a>
+        <a href="{% url 'coulage_detail' periode_uuid=periode.uuid periode_slug=periode.slug %}" style="color:#64748b;text-decoration:none;font-size:.85rem;">{{ periode.libelle }}</a>
         <span style="color:#94a3b8;">›</span>
         <span style="color:var(--ink);font-size:.85rem;font-weight:600;">Frais de passage</span>
       </div>
@@ -49,7 +49,7 @@
         &nbsp;·&nbsp; Motif : {{ rapport.parametres.motif }}
       </p>
     </div>
-    <a href="{% url 'frais_passage_export' periode_id=periode.pk %}" class="fp-export-btn">
+    <a href="{% url 'frais_passage_export' periode_uuid=periode.uuid periode_slug=periode.slug %}" class="fp-export-btn">
       ↓ Exporter Excel
     </a>
   </div>

@@ -5,7 +5,7 @@
 {% block breadcrumb %}
 <a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
 <a href="{% url 'parametre_list' %}">Paramètres jaugeage</a><span class="breadcrumb-sep">›</span>
-<a href="{% url 'parametre_detail' parametre.pk %}">{{ parametre.cuve.numero }}</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'parametre_detail' uuid=parametre.uuid slug=parametre.slug %}">{{ parametre.cuve.numero }}</a><span class="breadcrumb-sep">›</span>
 <span class="breadcrumb-current">Supprimer</span>
 {% endblock %}
 
@@ -52,7 +52,7 @@
       </div>
     </div>
     <div class="confirm-footer">
-      <a href="{% url 'parametre_detail' parametre.pk %}" class="btn btn-secondary">Annuler</a>
+      <a href="{% url 'parametre_detail' uuid=parametre.uuid slug=parametre.slug %}" class="btn btn-secondary">Annuler</a>
       <form method="post" style="display:inline">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger" style="background:var(--red);color:#fff">

@@ -714,7 +714,7 @@ def etat_carte_stock_redirect(request):
         return redirect('client_carte_stock')
     mkt = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale').first()
     if mkt:
-        return redirect('etat_carte_stock', marketeur_pk=mkt.pk)
+        return redirect('etat_carte_stock', marketeur_uuid=mkt.uuid, marketeur_slug=mkt.slug)
     messages.warning(request, "Aucun marketeur actif trouvé.")
     return redirect('marketeur_list')
 
@@ -724,7 +724,7 @@ def etat_carte_stock_redirect(request):
 # ─────────────────────────────────────────────────────────────
 
 @login_required
-def carte_stock_admin(request, marketeur_pk):
+def carte_stock_admin(request, marketeur_uuid, marketeur_slug):
     """
     Carte de stock d'un marketeur spécifique, vue depuis l'interface admin.
     URL : /etat/carte-stock/<marketeur_pk>/
@@ -737,7 +737,7 @@ def carte_stock_admin(request, marketeur_pk):
         messages.error(request, "Accès non autorisé.")
         return redirect('client_carte_stock')
 
-    mkt      = get_object_or_404(Marketeur, pk=marketeur_pk)
+    mkt      = get_object_or_404(Marketeur, uuid=marketeur_uuid)
     produits = _produits_avec_activite(mkt)
 
     # Liste de tous les marketeurs pour la navigation (dropdown)
@@ -1774,7 +1774,7 @@ def carte_stock_export(request):
 # ─────────────────────────────────────────────────────────────
 
 @login_required
-def carte_stock_export_admin(request, marketeur_pk):
+def carte_stock_export_admin(request, marketeur_uuid, marketeur_slug):
     """Export Excel carte de stock — vue admin."""
     from SGDS.models import Produit, Marketeur, Societe
     from django.http import HttpResponse
@@ -1783,7 +1783,7 @@ def carte_stock_export_admin(request, marketeur_pk):
         messages.error(request, "Accès non autorisé.")
         return redirect('client_carte_stock')
 
-    mkt        = get_object_or_404(Marketeur, pk=marketeur_pk)
+    mkt        = get_object_or_404(Marketeur, uuid=marketeur_uuid)
     filtres    = _get_filtres(request)
     produit_id = filtres['produit_id']
     regime     = filtres['regime'] if filtres['regime'] in (REGIME_SD, REGIME_AC, REGIME_TOUS) else REGIME_SD
@@ -1792,13 +1792,13 @@ def carte_stock_export_admin(request, marketeur_pk):
 
     if not produit_id:
         messages.warning(request, "Sélectionnez un produit avant d'exporter.")
-        return redirect('etat_carte_stock', marketeur_pk=marketeur_pk)
+        return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)
 
     try:
         produit = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
     except (Produit.DoesNotExist, ValueError):
         messages.error(request, "Produit introuvable.")
-        return redirect('etat_carte_stock', marketeur_pk=marketeur_pk)
+        return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)
 
     if regime == REGIME_TOUS:
         carte = _calculer_carte_stock_tous(mkt, produit, date_debut, date_fin)
@@ -1810,7 +1810,7 @@ def carte_stock_export_admin(request, marketeur_pk):
         contenu = _generer_xlsx_carte(mkt, produit, regime, carte, societe, date_debut, date_fin)
     except ImportError as e:
         messages.error(request, str(e))
-        return redirect('etat_carte_stock', marketeur_pk=marketeur_pk)
+        return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)
 
     nom_fichier = (
         f"carte_stock_{mkt.sigle or 'mkt'}_{produit.nom.replace(' ', '_')}"

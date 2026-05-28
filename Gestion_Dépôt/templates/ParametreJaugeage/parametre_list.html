@@ -116,10 +116,10 @@
         <td>
           <div class="actions">
             {% if p %}
-            <a href="{% url 'parametre_detail' p.pk %}" class="btn btn-secondary" style="padding:5px 10px;font-size:.78rem">Voir</a>
+            <a href="{% url 'parametre_detail' uuid=p.uuid slug=p.slug %}" class="btn btn-secondary" style="padding:5px 10px;font-size:.78rem">Voir</a>
             {% endif %}
             {% if not request.user.is_marketeur_role %}
-            <a href="{% url 'parametre_create_update' cuve.pk %}" class="btn btn-primary" style="padding:5px 10px;font-size:.78rem">
+            <a href="{% url 'parametre_create_update' cuve_uuid=cuve.uuid cuve_slug=cuve.slug %}" class="btn btn-primary" style="padding:5px 10px;font-size:.78rem">
               {% if p %}Modifier{% else %}Configurer{% endif %}
             </a>
             {% endif %}

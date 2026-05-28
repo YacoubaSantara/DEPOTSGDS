@@ -93,7 +93,7 @@
     </thead>
     <tbody>
       {% for cuve in cuves %}
-      <tr class="clickable" onclick="window.location='{% url 'cuve_detail' cuve.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'cuve_detail' uuid=cuve.uuid slug=cuve.slug %}'">
         <td><code class="mono" style="background:var(--info-soft);padding:3px 8px;border-radius:5px;font-size:12px;font-weight:700;color:var(--info)">{{ cuve.numero }}</code></td>
         <td>
           <div style="font-weight:600">{{ cuve.designation }}</div>
@@ -101,7 +101,7 @@
         </td>
         <td>
           {% if cuve.produit %}
-          <a href="{% url 'produit_detail' cuve.produit.pk %}" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink)" onclick="event.stopPropagation()">
+          <a href="{% url 'produit_detail' uuid=cuve.produit.uuid slug=cuve.produit.slug %}" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink)" onclick="event.stopPropagation()">
             {% if cuve.produit.famille.couleur %}<span style="width:7px;height:7px;border-radius:50%;background:{{ cuve.produit.famille.couleur }};display:inline-block;flex-shrink:0"></span>{% endif %}
             {{ cuve.produit.nom }}
           </a>
@@ -128,13 +128,13 @@
         </td>
         <td onclick="event.stopPropagation()">
           <div style="display:flex;gap:5px">
-            <a href="{% url 'cuve_detail' cuve.pk %}" class="btn btn-sm btn-ghost" title="Voir">
+            <a href="{% url 'cuve_detail' uuid=cuve.uuid slug=cuve.slug %}" class="btn btn-sm btn-ghost" title="Voir">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </a>
-            <a href="{% url 'cuve_update' cuve.pk %}" class="btn btn-sm btn-ghost" title="Modifier">
+            <a href="{% url 'cuve_update' uuid=cuve.uuid slug=cuve.slug %}" class="btn btn-sm btn-ghost" title="Modifier">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </a>
-            <a href="{% url 'cuve_delete' cuve.pk %}" class="btn btn-sm" style="background:var(--err-soft,#fef2f2);color:var(--err)" title="Supprimer">
+            <a href="{% url 'cuve_delete' uuid=cuve.uuid slug=cuve.slug %}" class="btn btn-sm" style="background:var(--err-soft,#fef2f2);color:var(--err)" title="Supprimer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
             </a>
           </div>
@@ -147,5 +147,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'partials/_pagination.html' with page_obj=cuves filtres=filtres %}
 </div>
 {% endblock %}

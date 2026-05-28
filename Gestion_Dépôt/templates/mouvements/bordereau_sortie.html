@@ -1,0 +1,111 @@
+{% load static sgds_filters %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Bordereau Sortie {{ mouvement.numero_enregistrement }} — SGDS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="{% static 'css/bordereau.css' %}"/>
+</head>
+<body class="{% if bw %}bw{% endif %}">
+
+{% include "mouvements/_bordereau_toolbar.html" %}
+
+<div class="sheet {% if compact %}compact{% endif %}">
+
+  {% include "mouvements/_bordereau_header.html" with type_class="SORTIE" type_kind="Livraison camion" doc_title="Bordereau de sortie" doc_num=mouvement.numero_enregistrement logo_class="" %}
+
+  <div class="id-strip">
+    <div class="id-cell"><div class="lbl">Type</div><div class="val"><span class="type-pill SORTIE">SORTIE</span></div></div>
+    <div class="id-cell"><div class="lbl">Date enlèvement</div><div class="val mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</div></div>
+    <div class="id-cell"><div class="lbl">Régime</div><div class="val">{{ mouvement.get_regime_douanier_display }}</div></div>
+    <div class="id-cell"><div class="lbl">Produit</div><div class="val">{{ mouvement.produit.nom }}</div></div>
+    <div class="id-cell"><div class="lbl">Enlèveur</div><div class="val sm">{{ mouvement.marketeur.raison_sociale }}</div></div>
+    <div class="id-cell"><div class="lbl">Statut</div><div class="val"><span class="bdg ok">Enregistré</span></div></div>
+  </div>
+
+  <section class="section">
+    <div class="section-h"><h3>1 · Bon d'enlèvement &amp; destination</h3><span class="marker">§1</span></div>
+    <div class="grid-4">
+      <div class="kv"><span class="k">N° bon d'enlèvement (BL)</span><span class="v mono">{{ mouvement.bl_client|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Réf. client externe</span><span class="v mono">{{ mouvement.reference_client_externe|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Date mouvement</span><span class="v mono">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span></div>
+      <div class="kv"><span class="k">N° autorisation Marketeur</span><span class="v mono">{{ mouvement.numero_autorisation_marketeur|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant Sortie</span><span class="v mono lg accent">{{ mouvement.volume_ambiant_sortie|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. @15°C sortie</span><span class="v mono accent">{{ mouvement.volume_15c_sortie|frnum }} L</span></div>
+      <div class="kv"><span class="k">Mode de règlement</span><span class="v">{{ mouvement.get_mode_reglement_display|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Destination</span><span class="v">{{ mouvement.destination|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Code destination</span><span class="v">{{ mouvement.code_destination|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Notes / Observations</span><span class="v" style="font-size:9pt;font-weight:500">{{ mouvement.notes|default:"—"|truncatechars:60 }}</span></div>
+      <div class="kv"><span class="k">Collaborateur</span><span class="v mono">{{ mouvement.collaborateur|default:"—" }}</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-h"><h3>2 · Chargement au dépôt</h3><span class="marker">§2</span></div>
+    <div class="grid-4">
+      {% with ligne=mouvement.lignes.first %}<div class="kv"><span class="k">Cuve source</span><span class="v">{% if ligne and ligne.cuve %}{{ ligne.cuve.numero }} · {{ ligne.cuve.produit.nom|default:"—" }}{% elif mouvement.cuve %}{{ mouvement.cuve.numero }} · {{ mouvement.cuve.produit.nom|default:"—" }}{% else %}—{% endif %}</span></div>{% endwith %}
+      <div class="kv"><span class="k">Camion</span><span class="v mono">{{ mouvement.camion.immatriculation|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Capacité / Compartiments</span><span class="v">{{ mouvement.camion.capacite_totale|frnum }} L / {{ mouvement.camion.nombre_compartiments|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Chauffeur</span><span class="v">{{ mouvement.chauffeur.nom_complet|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Température sortie</span><span class="v mono">{{ mouvement.temperature_sortie|default:"—" }} °C</span></div>
+      <div class="kv"><span class="k">Densité @15°C sortie</span><span class="v mono">{{ mouvement.densite_15c_sortie|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Vol. ambiant chargé</span><span class="v mono lg accent">{{ mouvement.volume_ambiant_sortie|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vol. @15°C chargé</span><span class="v mono accent">{{ mouvement.volume_15c_sortie|frnum }} L</span></div>
+      <div class="kv"><span class="k">Vcf (coef. 15°C)</span><span class="v mono">{{ mouvement.coefficient_conversion_sortie|default:"—" }}</span></div>
+      <div class="kv"><span class="k">Poids sortie</span><span class="v mono">{{ mouvement.poids_sortie_kg|frnum }} kg</span></div>
+      <div class="kv"><span class="k">Date saisie</span><span class="v mono">{{ mouvement.date_saisie|date:"d/m/Y H:i" }}</span></div>
+    </div>
+  </section>
+
+  <div class="recap">
+    <div class="recap-cell"><div class="lbl">Vol. ambiant chargé</div><div class="val">{{ mouvement.volume_ambiant_sortie|frnum }} L</div><div class="sub">à la température mesurée</div></div>
+    <div class="recap-cell"><div class="lbl">Vol. chargé @15°C</div><div class="val">{{ mouvement.volume_15c_sortie|frnum }} L</div><div class="sub">après correction Vcf</div></div>
+    <div class="recap-cell"><div class="lbl">Poids total</div><div class="val">{{ mouvement.poids_sortie_kg|frnum }} kg</div><div class="sub">densité {{ mouvement.densite_15c_sortie|default:"—" }}</div></div>
+    <div class="recap-cell"><div class="lbl">À facturer</div><div class="val">{{ mouvement.volume_ambiant_sortie|frnum }} L</div><div class="sub">@Ambiant · {{ mouvement.get_regime_douanier_display|lower }}</div></div>
+  </div>
+
+  {% if show_sigs %}
+  <section class="sigs">
+    <div class="sig">
+      <div><div class="role">Validé · Chef de dépôt</div><div class="name">—</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date</span><span>Signature</span></div>
+    </div>
+    <div class="sig">
+      <div><div class="role">Chauffeur — Réception BL</div><div class="name">{{ mouvement.chauffeur.nom_complet|default:"—" }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>{{ mouvement.camion.immatriculation|default:"—" }}</span><span>Signature</span></div>
+    </div>
+    <div class="sig">
+      <div><div class="role">Réceptionnaire — Station</div><div class="name">{{ mouvement.destination|default:"—" }}</div></div>
+      <div class="box"></div>
+      <div class="footline"><span>Date / Heure</span><span>Cachet</span></div>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if show_stamp %}
+  <div class="stamp accent">
+    <div class="inner">
+      <div class="big">LIVRÉ</div>
+      <div class="sm">SGDS · {{ societe.sigle|default:"SANKE SA" }}</div>
+      <div class="dt">{{ mouvement.date_mouvement|date:"d / m / Y" }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <footer class="ftr">
+    <div class="legal">Document généré par <b>SGDS — Système de Gestion de Dépôt de Stockage</b>. Le présent bordereau accompagne obligatoirement le camion jusqu'à la station destinataire. Conserver l'original signé pour archivage 10 ans.</div>
+    <div style="text-align:right">
+      <div>P. 1 / 1</div>
+      <div>SGDS · {{ now|date:"d/m/Y H:i" }}</div>
+      <div style="margin-top:2px"><span style="color:var(--accent)">●</span> {{ mouvement.numero_enregistrement }}</div>
+    </div>
+  </footer>
+</div>
+
+{% include "mouvements/_bordereau_scripts.html" %}
+</body>
+</html>

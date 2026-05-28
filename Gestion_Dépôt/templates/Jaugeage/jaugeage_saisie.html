@@ -6,7 +6,7 @@
 {% block breadcrumb %}
 <a href="#">Accueil</a><span class="breadcrumb-sep">›</span>
 <a href="{% url 'jaugeage_list' %}">Jaugeages</a><span class="breadcrumb-sep">›</span>
-<a href="{% url 'jaugeage_detail' jaugeage.pk %}">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</a><span class="breadcrumb-sep">›</span>
+<a href="{% url 'jaugeage_detail' uuid=jaugeage.uuid slug=jaugeage.slug %}">{{ jaugeage.date_jaugeage|date:"d/m/Y" }}</a><span class="breadcrumb-sep">›</span>
 <span class="breadcrumb-current">Saisie</span>
 {% endblock %}
 
@@ -430,11 +430,11 @@ fieldset[disabled] .hint-hd{opacity:.6}
     <div class="rjj-sub">{{ jaugeage.depot }} · Opérateur : {{ jaugeage.operateur|default:"—" }} · T°réf. {{ jaugeage.temperature_reference }}°C</div>
   </div>
   <div class="rjj-hero-right">
-    <a href="{% url 'jaugeage_rapport' jaugeage.pk %}" class="btn btn-hero-print" target="_blank">
+    <a href="{% url 'jaugeage_rapport' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn btn-hero-print" target="_blank">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
       Imprimer / PDF
     </a>
-    <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-hero-back">
+    <a href="{% url 'jaugeage_detail' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn btn-hero-back">
       <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
       Retour au détail
     </a>
@@ -923,7 +923,7 @@ fieldset[disabled] .hint-hd{opacity:.6}
   {# ── Barre d'actions sticky ────────────────────────────────── #}
   <div class="form-actions">
     {# Bouton Fermer — toujours présent #}
-    <a href="{% url 'jaugeage_detail' jaugeage.pk %}" class="btn btn-secondary">
+    <a href="{% url 'jaugeage_detail' uuid=jaugeage.uuid slug=jaugeage.slug %}" class="btn btn-secondary">
       <svg viewBox="0 0 24 24" stroke-width="2" style="width:15px;height:15px;stroke:currentColor;fill:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       Fermer
     </a>
@@ -935,7 +935,7 @@ fieldset[disabled] .hint-hd{opacity:.6}
         Enregistrer toutes les mesures
       </button>
       {% if user.is_staff %}
-      <form method="post" action="{% url 'jaugeage_valider' jaugeage.pk %}" style="margin:0">
+      <form method="post" action="{% url 'jaugeage_valider' uuid=jaugeage.uuid slug=jaugeage.slug %}" style="margin:0">
         {% csrf_token %}
         <button type="submit" class="btn btn-valider"
           onclick="return confirm('Êtes-vous sûr de vouloir valider ce jaugeage ?\nUne fois validé, les mesures ne pourront plus être modifiées.')">
@@ -947,7 +947,7 @@ fieldset[disabled] .hint-hd{opacity:.6}
     {% else %}
       {# Jaugeage validé : bouton Déverrouiller (staff uniquement) #}
       {% if user.is_staff %}
-      <form method="post" action="{% url 'jaugeage_devalider' jaugeage.pk %}" style="margin:0">
+      <form method="post" action="{% url 'jaugeage_devalider' uuid=jaugeage.uuid slug=jaugeage.slug %}" style="margin:0">
         {% csrf_token %}
         <button type="submit" class="btn btn-deverrouiller"
           onclick="return confirm('Êtes-vous sûr de vouloir déverrouiller ce jaugeage ?\nIl pourra de nouveau être modifié.')">

@@ -1,16 +1,18 @@
 from django.urls import path
 from . import views
 
+# Django fournit nativement <uuid:...> et <slug:...> — aucun register_converter nécessaire.
+
 urlpatterns = [
 
     # Tableau de bord admin
     path('tableau-de-bord/',  views.admin_dashboard, name='admin_dashboard'),
 
     # Inventaire initial marketeur
-    path('inventaire-initial/',                          views.inventaire_initial_liste,    name='inventaire_initial_liste'),
-    path('inventaire-initial/saisir/',                   views.inventaire_initial_saisir,   name='inventaire_initial_saisir'),
-    path('inventaire-initial/saisie-masse/',             views.inventaire_initial_masse,    name='inventaire_initial_masse'),
-    path('inventaire-initial/<int:pk>/supprimer/',       views.inventaire_initial_supprimer, name='inventaire_initial_supprimer'),
+    path('inventaire-initial/',                                    views.inventaire_initial_liste,    name='inventaire_initial_liste'),
+    path('inventaire-initial/saisir/',                             views.inventaire_initial_saisir,   name='inventaire_initial_saisir'),
+    path('inventaire-initial/saisie-masse/',                       views.inventaire_initial_masse,    name='inventaire_initial_masse'),
+    path('inventaire-initial/<uuid:uuid>/supprimer/',              views.inventaire_initial_supprimer, name='inventaire_initial_supprimer'),
 
 
     # Espace Marketeur (client)
@@ -32,9 +34,9 @@ urlpatterns = [
     path('mon-espace/mensuel/frais-passage/export/',       views.etat_frais_passage_mensuel_marketeur_export, name='client_mensuel_frais_passage_export'),
 
     # Etats (admin)
-    path('etat/carte-stock/',                           views.etat_carte_stock_redirect,  name='etat_carte_stock_list'),
-    path('etat/carte-stock/<int:marketeur_pk>/',        views.carte_stock_admin,          name='etat_carte_stock'),
-    path('etat/carte-stock/<int:marketeur_pk>/export/', views.carte_stock_export_admin,   name='etat_carte_stock_export'),
+    path('etat/carte-stock/',                                                      views.etat_carte_stock_redirect,  name='etat_carte_stock_list'),
+    path('etat/carte-stock/<uuid:marketeur_uuid>/<slug:marketeur_slug>/',          views.carte_stock_admin,          name='etat_carte_stock'),
+    path('etat/carte-stock/<uuid:marketeur_uuid>/<slug:marketeur_slug>/export/',   views.carte_stock_export_admin,   name='etat_carte_stock_export'),
     path('etat/stock-global/',                          views.stock_global_admin,         name='etat_stock_global'),
     path('etat/stock-global/export/',                   views.stock_global_admin_export,  name='etat_stock_global_export'),
 
@@ -60,100 +62,107 @@ urlpatterns = [
     path('administration/societe/', views.societe_detail, name='societe_detail'),
 
     # Marketeurs
-    path('marketeurs/',                        views.marketeur_list,   name='marketeur_list'),
-    path('marketeurs/nouveau/',                views.marketeur_create, name='marketeur_create'),
-    path('marketeurs/<int:pk>/',               views.marketeur_detail, name='marketeur_detail'),
-    path('marketeurs/<int:pk>/modifier/',      views.marketeur_update, name='marketeur_update'),
-    path('marketeurs/<int:pk>/supprimer/',     views.marketeur_delete, name='marketeur_delete'),
+    path('marketeurs/',                                               views.marketeur_list,   name='marketeur_list'),
+    path('marketeurs/nouveau/',                                       views.marketeur_create, name='marketeur_create'),
+    path('marketeurs/<uuid:uuid>/<slug:slug>/',                       views.marketeur_detail, name='marketeur_detail'),
+    path('marketeurs/<uuid:uuid>/<slug:slug>/modifier/',              views.marketeur_update, name='marketeur_update'),
+    path('marketeurs/<uuid:uuid>/<slug:slug>/supprimer/',             views.marketeur_delete, name='marketeur_delete'),
 
     # Camions
-    path('camions/',                           views.camion_list,   name='camion_list'),
-    path('camions/nouveau/',                   views.camion_create, name='camion_create'),
-    path('camions/<int:pk>/',                  views.camion_detail, name='camion_detail'),
-    path('camions/<int:pk>/modifier/',         views.camion_update, name='camion_update'),
-    path('camions/<int:pk>/supprimer/',        views.camion_delete, name='camion_delete'),
+    path('camions/',                                                  views.camion_list,   name='camion_list'),
+    path('camions/nouveau/',                                          views.camion_create, name='camion_create'),
+    path('camions/<uuid:uuid>/<slug:slug>/',                          views.camion_detail, name='camion_detail'),
+    path('camions/<uuid:uuid>/<slug:slug>/modifier/',                 views.camion_update, name='camion_update'),
+    path('camions/<uuid:uuid>/<slug:slug>/supprimer/',                views.camion_delete, name='camion_delete'),
 
     # Chauffeurs
-    path('chauffeurs/',                        views.chauffeur_list,   name='chauffeur_list'),
-    path('chauffeurs/nouveau/',                views.chauffeur_create, name='chauffeur_create'),
-    path('chauffeurs/<int:pk>/',               views.chauffeur_detail, name='chauffeur_detail'),
-    path('chauffeurs/<int:pk>/modifier/',      views.chauffeur_update, name='chauffeur_update'),
-    path('chauffeurs/<int:pk>/supprimer/',     views.chauffeur_delete, name='chauffeur_delete'),
-    path('chauffeurs/<int:pk>/badge/',         views.chauffeur_badge,  name='chauffeur_badge'),
+    path('chauffeurs/',                                               views.chauffeur_list,   name='chauffeur_list'),
+    path('chauffeurs/nouveau/',                                       views.chauffeur_create, name='chauffeur_create'),
+    path('chauffeurs/<uuid:uuid>/<slug:slug>/',                       views.chauffeur_detail, name='chauffeur_detail'),
+    path('chauffeurs/<uuid:uuid>/<slug:slug>/modifier/',              views.chauffeur_update, name='chauffeur_update'),
+    path('chauffeurs/<uuid:uuid>/<slug:slug>/supprimer/',             views.chauffeur_delete, name='chauffeur_delete'),
+    path('chauffeurs/<uuid:uuid>/<slug:slug>/badge/',                 views.chauffeur_badge,  name='chauffeur_badge'),
 
     # Familles
-    path('familles/',                          views.famille_list,   name='famille_list'),
-    path('familles/nouvelle/',                 views.famille_create, name='famille_create'),
-    path('familles/<int:pk>/',                 views.famille_detail, name='famille_detail'),
-    path('familles/<int:pk>/modifier/',        views.famille_update, name='famille_update'),
-    path('familles/<int:pk>/supprimer/',       views.famille_delete, name='famille_delete'),
+    path('familles/',                                                 views.famille_list,   name='famille_list'),
+    path('familles/nouvelle/',                                        views.famille_create, name='famille_create'),
+    path('familles/<uuid:uuid>/<slug:slug>/',                         views.famille_detail, name='famille_detail'),
+    path('familles/<uuid:uuid>/<slug:slug>/modifier/',                views.famille_update, name='famille_update'),
+    path('familles/<uuid:uuid>/<slug:slug>/supprimer/',               views.famille_delete, name='famille_delete'),
 
     # Produits
-    path('produits/',                          views.produit_list,   name='produit_list'),
-    path('produits/nouveau/',                  views.produit_create, name='produit_create'),
-    path('produits/<int:pk>/',                 views.produit_detail, name='produit_detail'),
-    path('produits/<int:pk>/modifier/',        views.produit_update, name='produit_update'),
-    path('produits/<int:pk>/supprimer/',       views.produit_delete, name='produit_delete'),
+    path('produits/',                                                 views.produit_list,   name='produit_list'),
+    path('produits/nouveau/',                                         views.produit_create, name='produit_create'),
+    path('produits/<uuid:uuid>/<slug:slug>/',                         views.produit_detail, name='produit_detail'),
+    path('produits/<uuid:uuid>/<slug:slug>/modifier/',                views.produit_update, name='produit_update'),
+    path('produits/<uuid:uuid>/<slug:slug>/supprimer/',               views.produit_delete, name='produit_delete'),
 
     # Cuves
-    path('cuves/',                             views.cuve_list,   name='cuve_list'),
-    path('cuves/nouvelle/',                    views.cuve_create, name='cuve_create'),
-    path('cuves/<int:pk>/',                    views.cuve_detail, name='cuve_detail'),
-    path('cuves/<int:pk>/modifier/',           views.cuve_update, name='cuve_update'),
-    path('cuves/<int:pk>/supprimer/',          views.cuve_delete, name='cuve_delete'),
+    path('cuves/',                                                    views.cuve_list,   name='cuve_list'),
+    path('cuves/nouvelle/',                                           views.cuve_create, name='cuve_create'),
+    path('cuves/<uuid:uuid>/<slug:slug>/',                            views.cuve_detail, name='cuve_detail'),
+    path('cuves/<uuid:uuid>/<slug:slug>/modifier/',                   views.cuve_update, name='cuve_update'),
+    path('cuves/<uuid:uuid>/<slug:slug>/supprimer/',                  views.cuve_delete, name='cuve_delete'),
 
     # Parametres de jaugeage
-    path('parametres-jaugeage/',                              views.parametre_list,          name='parametre_list'),
-    path('parametres-jaugeage/<int:pk>/',                     views.parametre_detail,        name='parametre_detail'),
-    path('cuves/<int:cuve_pk>/parametres-jaugeage/',          views.parametre_create_update, name='parametre_create_update'),
-    path('parametres-jaugeage/<int:pk>/supprimer/',           views.parametre_delete,        name='parametre_delete'),
+    path('parametres-jaugeage/',                                      views.parametre_list,          name='parametre_list'),
+    path('parametres-jaugeage/<uuid:uuid>/<slug:slug>/',              views.parametre_detail,        name='parametre_detail'),
+    path('cuves/<uuid:cuve_uuid>/<slug:cuve_slug>/parametres-jaugeage/', views.parametre_create_update, name='parametre_create_update'),
+    path('parametres-jaugeage/<uuid:uuid>/<slug:slug>/supprimer/',    views.parametre_delete,        name='parametre_delete'),
 
     # Jaugeages
-    path('jaugeages/',                         views.jaugeage_list,    name='jaugeage_list'),
-    path('jaugeages/nouveau/',                 views.jaugeage_create,  name='jaugeage_create'),
-    path('jaugeages/<int:pk>/',                views.jaugeage_detail,  name='jaugeage_detail'),
-    path('jaugeages/<int:pk>/modifier/',       views.jaugeage_update,  name='jaugeage_update'),
-    path('jaugeages/<int:pk>/supprimer/',      views.jaugeage_delete,  name='jaugeage_delete'),
-    path('jaugeages/<int:pk>/saisie/',         views.jaugeage_saisie,    name='jaugeage_saisie'),
-    path('jaugeages/<int:pk>/rapport/',        views.jaugeage_rapport,   name='jaugeage_rapport'),
-    path('jaugeages/<int:pk>/valider/',        views.valider_jaugeage,   name='jaugeage_valider'),
-    path('jaugeages/<int:pk>/devalider/',      views.devalider_jaugeage, name='jaugeage_devalider'),
+    path('jaugeages/',                                                views.jaugeage_list,    name='jaugeage_list'),
+    path('jaugeages/nouveau/',                                        views.jaugeage_create,  name='jaugeage_create'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/',                        views.jaugeage_detail,  name='jaugeage_detail'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/modifier/',               views.jaugeage_update,  name='jaugeage_update'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/supprimer/',              views.jaugeage_delete,  name='jaugeage_delete'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/saisie/',                 views.jaugeage_saisie,    name='jaugeage_saisie'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/rapport/',                views.jaugeage_rapport,   name='jaugeage_rapport'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/valider/',                views.valider_jaugeage,   name='jaugeage_valider'),
+    path('jaugeages/<uuid:uuid>/<slug:slug>/devalider/',              views.devalider_jaugeage, name='jaugeage_devalider'),
 
     # Parametres metrologiques
     path('parametres-metrologiques/',          views.parametres_metrologiques, name='parametres_metrologiques'),
 
+    # Documents justificatifs
+    path('mouvements/<uuid:mouvement_uuid>/<slug:mouvement_slug>/documents/upload/', views.mouvement_documents_upload,   name='mouvement_documents_upload'),
+    path('documents/<uuid:document_uuid>/supprimer/',                                views.mouvement_document_supprimer, name='mouvement_document_supprimer'),
+    path('documents/<uuid:document_uuid>/voir/',                                     views.mouvement_document_voir,      name='mouvement_document_voir'),
+
     # Mouvements
-    path('mouvements/',                        views.mouvement_liste,          name='mouvement_liste'),
-    path('mouvements/export-pdf/',             views.mouvements_liste_pdf,     name='mouvements_liste_pdf'),
-    path('mouvements/nouveau/',                views.mouvement_creer,          name='mouvement_creer'),
-    path('mouvements/calcul-preview/',         views.mouvement_calcul_preview, name='mouvement_calcul_preview'),
-    path('mouvements/<int:pk>/',               views.mouvement_detail,         name='mouvement_detail'),
-    path('mouvements/<int:pk>/pdf/',           views.mouvement_detail_pdf,     name='mouvement_detail_pdf'),
-    path('mouvements/<int:pk>/modifier/',      views.mouvement_modifier,       name='mouvement_modifier'),
-    path('mouvements/<int:pk>/supprimer/',     views.mouvement_supprimer,      name='mouvement_supprimer'),
+    path('mouvements/',                                               views.mouvement_liste,          name='mouvement_liste'),
+    path('mouvements/export-pdf/',                                    views.mouvements_liste_pdf,     name='mouvements_liste_pdf'),
+    path('mouvements/nouveau/',                                       views.mouvement_creer,          name='mouvement_creer'),
+    path('mouvements/calcul-preview/',                                views.mouvement_calcul_preview, name='mouvement_calcul_preview'),
+    path('mouvements/<uuid:uuid>/<slug:slug>/',                       views.mouvement_detail,         name='mouvement_detail'),
+    path('mouvements/<uuid:uuid>/<slug:slug>/pdf/',                   views.mouvement_detail_pdf,     name='mouvement_detail_pdf'),
+    path('mouvements/<uuid:uuid>/<slug:slug>/bordereau/',             views.mouvement_bordereau,      name='mouvement_bordereau'),
+    path('mouvements/<uuid:uuid>/<slug:slug>/bordereau.pdf',          views.mouvement_bordereau_pdf,  name='mouvement_bordereau_pdf'),
+    path('mouvements/<uuid:uuid>/<slug:slug>/modifier/',              views.mouvement_modifier,       name='mouvement_modifier'),
+    path('mouvements/<uuid:uuid>/<slug:slug>/supprimer/',             views.mouvement_supprimer,      name='mouvement_supprimer'),
 
     # Espace marketeur — export mouvements PDF
     path('mon-espace/mouvements/export-pdf/', views.client_mouvements_pdf,    name='client_mouvements_pdf'),
 
     # Notifications marketeur
-    path('espace/notifications/<int:notif_id>/lue/', views.notif_marquer_lue,    name='notif_marquer_lue'),
-    path('espace/notifications/tout-lire/',          views.notif_tout_marquer_lu, name='notif_tout_marquer_lu'),
+    path('espace/notifications/<uuid:notif_uuid>/lue/', views.notif_marquer_lue,    name='notif_marquer_lue'),
+    path('espace/notifications/tout-lire/',             views.notif_tout_marquer_lu, name='notif_tout_marquer_lu'),
 
     # Periodes comptables
     path('periodes/',         views.ListePeriodesView.as_view(),  name='periode_liste'),
     path('periodes/ouvrir/',  views.OuvrirPeriodeView.as_view(),  name='periode_ouvrir'),
 
     # Coulage - Repartition mensuelle
-    path('coulage/',                                         views.ListePeriodesCoulageView.as_view(), name='coulage_liste'),
-    path('coulage/<int:periode_id>/',                        views.RepartitionCoulageView.as_view(),   name='coulage_detail'),
-    path('coulage/<int:periode_id>/cloturer/',               views.ClotureCoulageView.as_view(),       name='coulage_cloture'),
-    path('coulage/<int:periode_id>/export/',                 views.ExportCoulageExcelView.as_view(),   name='coulage_export'),
+    path('coulage/',                                                                          views.ListePeriodesCoulageView.as_view(), name='coulage_liste'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/',                                  views.RepartitionCoulageView.as_view(),   name='coulage_detail'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/cloturer/',                         views.ClotureCoulageView.as_view(),       name='coulage_cloture'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/export/',                           views.ExportCoulageExcelView.as_view(),   name='coulage_export'),
 
     # Suivi evolution journalier
-    path('coulage/<int:periode_id>/suivi/<int:produit_id>/',        views.SuiviEvolutionView.as_view(),       name='suivi_evolution'),
-    path('coulage/<int:periode_id>/suivi/<int:produit_id>/export/', views.ExportSuiviExcelView.as_view(),     name='suivi_export'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/suivi/<uuid:produit_uuid>/<slug:produit_slug>/',        views.SuiviEvolutionView.as_view(),   name='suivi_evolution'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/suivi/<uuid:produit_uuid>/<slug:produit_slug>/export/', views.ExportSuiviExcelView.as_view(), name='suivi_export'),
 
     # Frais de passage
-    path('coulage/<int:periode_id>/frais-passage/',                 views.FraisPassageView.as_view(),            name='frais_passage'),
-    path('coulage/<int:periode_id>/frais-passage/export/',          views.ExportFraisPassageExcelView.as_view(), name='frais_passage_export'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/frais-passage/',                    views.FraisPassageView.as_view(),            name='frais_passage'),
+    path('coulage/<uuid:periode_uuid>/<slug:periode_slug>/frais-passage/export/',             views.ExportFraisPassageExcelView.as_view(), name='frais_passage_export'),
 ]

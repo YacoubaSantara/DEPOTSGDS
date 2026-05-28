@@ -1,9 +1,21 @@
+/**
+ * MouvementDetailScreen — Refonte "Bordereau officiel" (Variant A)
+ *
+ * Remplace l'ancien écran détail avec :
+ *   • Top nav navy : référence en monospace + badge statut VALIDÉ/EN ATTENTE
+ *   • Bandeau coloré selon le type (Entrée vert / Sortie rouge / Cession violet)
+ *   • Sections numérotées 01-04 style document officiel
+ *   • Table Ambiant vs 15°C avec la valeur ambiant en grand et colorée
+ *   • Section transport sur 2 cartes côte à côte (Camion / Chauffeur)
+ *   • Section signatures (Saisi par / Validé par)
+ *   • Action bar collante en bas : IMPRIMER + Télécharger + Partager
+ */
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as Print from 'expo-print';
@@ -11,7 +23,7 @@ import * as Sharing from 'expo-sharing';
 import dayjs from 'dayjs';
 
 import { mouvementsApi, MouvementDetail } from '../../api/mouvements';
-import { Colors, Radius, Spacing, TypeMeta } from '../../constants/colors';
+import { Colors, TypeMeta } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
 import { getErrorMessage } from '../../utils/format';
@@ -20,20 +32,46 @@ import type { MouvementsStackParams } from '../../navigation/AppNavigator';
 
 type Route = RouteProp<MouvementsStackParams, 'MouvementDetail'>;
 
-function fmtN(n: any, dec = 0): string {
+// ── Helpers ───────────────────────────────────────────────────────
+
+function fmtN(n: any): string {
   const v = Number(n);
   if (isNaN(v)) return '—';
-  return v.toLocaleString('fr-FR', { maximumFractionDigits: dec, minimumFractionDigits: dec });
+  return v.toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 }
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return '—';
+  const d = dayjs(iso);
+  return d.isValid()
+    ? d.format('DD MMMM YYYY').replace(/^./, c => c.toUpperCase())
+    : '—';
+}
+
+function fmtTime(iso?: string | null): string {
+  if (!iso || !iso.includes('T')) return '';
+  const d = dayjs(iso);
+  return d.isValid() ? d.format('HH:mm') : '';
+}
+
+const typeIcon = (type: string): any => {
+  if (type === 'ENTREE') return 'arrow-down';
+  if (type === 'SORTIE') return 'arrow-up';
+  if (type === 'CESSION') return 'swap-horizontal';
+  return 'checkmark';
+};
+
+// ── Composant principal ───────────────────────────────────────────
 
 export function MouvementDetailScreen() {
   const navigation = useNavigation();
   const route      = useRoute<Route>();
   const { id }     = route.params;
 
-  const [mvt, setMvt]       = useState<MouvementDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [mvt, setMvt]                     = useState<MouvementDetail | null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     mouvementsApi.detail(id)
@@ -46,335 +84,514 @@ export function MouvementDetailScreen() {
   if (error)   return <ErrorMessage message={error} />;
   if (!mvt)    return null;
 
-  const meta    = TypeMeta[mvt.type] ?? { label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·' };
-  const d       = mvt.date ? dayjs(mvt.date) : null;
-  const dateStr = d?.isValid() ? d.format('DD/MM/YYYY') : (mvt.date ?? '—');
-  const hasTime = !!mvt.date?.includes('T');
-  const time    = (d?.isValid() && hasTime) ? d.format('HH:mm') : '';
+  const meta   = TypeMeta[mvt.type] ?? {
+    label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·',
+  };
+  const statut   = (mvt as any).statut ?? ((mvt as any).valide_par ? 'VALIDÉ' : 'EN ATTENTE');
+  const isValide = statut === 'VALIDÉ';
 
-  const handleExportPdf = async () => {
+  // ── Génération PDF ───────────────────────────────────────────────
+
+  const buildHtml = () => buildMouvementPdf({
+    reference:              mvt.reference,
+    date:                   mvt.date ?? '',
+    type:                   mvt.type,
+    produit:                mvt.produit,
+    produit_sigle:          mvt.produit_sigle,
+    regime:                 mvt.regime,
+    quantite_ambiant:       mvt.quantite_ambiant,
+    quantite_15:            mvt.quantite_15,
+    provenance:             mvt.provenance,
+    bl_expediteur:          mvt.bl_expediteur,
+    bl_client:              mvt.bl_client,
+    camion_immatriculation: mvt.camion_immatriculation,
+    chauffeur_nom:          mvt.chauffeur_nom,
+    destination:            mvt.destination,
+    numero_permis_sortie:   mvt.numero_permis_sortie,
+    mode_reglement:         mvt.mode_reglement,
+    cession_destinataire:   mvt.cession_destinataire,
+    cession_motif:          mvt.cession_motif,
+    observation:            mvt.observation,
+    generatedAt:            dayjs().format('DD/MM/YYYY à HH:mm'),
+  });
+
+  const handlePrint = async () => {
+    setGeneratingPdf(true);
     try {
-      const html = buildMouvementPdf({
-        reference:             mvt.reference,
-        date:                  mvt.date ?? '',
-        type:                  mvt.type,
-        produit:               mvt.produit,
-        produit_sigle:         mvt.produit_sigle,
-        regime:                mvt.regime,
-        quantite_ambiant:      mvt.quantite_ambiant,
-        quantite_15:           mvt.quantite_15,
-        provenance:            mvt.provenance,
-        bl_expediteur:         mvt.bl_expediteur,
-        bl_client:             mvt.bl_client,
-        camion_immatriculation: mvt.camion_immatriculation,
-        chauffeur_nom:         mvt.chauffeur_nom,
-        destination:           (mvt as any).destination,
-        numero_permis_sortie:  mvt.numero_permis_sortie,
-        mode_reglement:        mvt.mode_reglement,
-        cession_destinataire:  mvt.cession_destinataire,
-        cession_motif:         mvt.cession_motif,
-        observation:           mvt.observation,
-        generatedAt:           dayjs().format('DD/MM/YYYY à HH:mm'),
-      });
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: `Fiche — ${mvt.reference}`,
-        UTI: 'com.adobe.pdf',
-      });
+      await Print.printAsync({ html: buildHtml() });
     } catch {
-      Alert.alert('Erreur', 'Impossible de générer le PDF.');
+      // L'utilisateur a annulé volontairement — pas d'alerte
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
+  const handleDownload = async () => {
+    setGeneratingPdf(true);
+    try {
+      const { uri } = await Print.printToFileAsync({ html: buildHtml() });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Enregistrer ${mvt.reference}.pdf`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('PDF généré', `Fichier créé : ${mvt.reference}.pdf`);
+      }
+    } catch {
+      Alert.alert('Erreur', 'Impossible de générer le PDF.');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handleShare = async () => {
+    setGeneratingPdf(true);
+    try {
+      const { uri } = await Print.printToFileAsync({ html: buildHtml() });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `Partager — ${mvt.reference}`,
+        UTI: 'com.adobe.pdf',
+      });
+    } catch {
+      Alert.alert('Erreur', 'Impossible de partager le document.');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  // ── Logistique : lignes conditionnelles ─────────────────────────
+
+  type KVRow = { label: string; value: string; icon?: any; mono?: boolean };
+
+  const logistiqueRows: KVRow[] = [
+    mvt.provenance           ? { label: 'Provenance',       value: mvt.provenance,           icon: 'business-outline' } : null,
+    mvt.destination          ? { label: 'Destination',      value: mvt.destination,           icon: 'location-outline' } : null,
+    mvt.cession_destinataire ? { label: 'Destinataire',     value: mvt.cession_destinataire,  icon: 'location-outline' } : null,
+    mvt.bl_expediteur        ? { label: 'BL Expéditeur',    value: mvt.bl_expediteur,          mono: true }             : null,
+    mvt.bl_client            ? { label: 'BL Client',        value: mvt.bl_client,              mono: true }             : null,
+    mvt.numero_permis_sortie ? { label: 'N° Permis sortie', value: mvt.numero_permis_sortie,   mono: true }             : null,
+    mvt.mode_reglement       ? { label: 'Mode règlement',   value: mvt.mode_reglement }                                  : null,
+    mvt.cession_motif        ? { label: 'Motif',            value: mvt.cession_motif }                                   : null,
+  ].filter(Boolean) as KVRow[];
+
+  const hasTransport  = !!(mvt.camion_immatriculation || mvt.chauffeur_nom);
+  const hasLogistique = logistiqueRows.length > 0;
+
+  // ── Rendu ────────────────────────────────────────────────────────
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        {/* ── HERO ──────────────────────────────────────────── */}
-        <LinearGradient
-          colors={[meta.color, meta.color + 'dd']}
-          style={styles.hero}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.heroBlob} />
-
-          {/* Nav bar */}
-          <View style={styles.heroNav}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
+        {/* ─────────────────── TOP NAV (navy) ─────────────────── */}
+        <View style={styles.topNav}>
+          <View style={styles.topNavRow}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBtn}>
               <Ionicons name="chevron-back" size={18} color={Colors.white} />
             </TouchableOpacity>
-            <View style={styles.navActions}>
-              <TouchableOpacity style={styles.navBtn} onPress={handleExportPdf}>
-                <Ionicons name="download-outline" size={16} color={Colors.white} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.navBtn}>
-                <Ionicons name="ellipsis-horizontal" size={18} color={Colors.white} />
-              </TouchableOpacity>
+            <View style={styles.topNavCenter}>
+              <Text style={styles.topNavTitle}>Bordereau</Text>
+              <Text style={styles.topNavSub}>FICHE MOUVEMENT</Text>
             </View>
+            <TouchableOpacity style={styles.navBtn}>
+              <Ionicons name="ellipsis-horizontal" size={18} color={Colors.white} />
+            </TouchableOpacity>
           </View>
 
-          {/* Titre */}
-          <View style={styles.heroContent}>
-            <View style={styles.heroTopRow}>
-              <Text style={styles.heroGlyph}>{meta.glyph}</Text>
-              <Text style={styles.heroType}>{meta.label}</Text>
-              <View style={styles.heroDot} />
-              <Text style={styles.heroRef}>{mvt.reference}</Text>
+          <View style={styles.refRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.refLabel}>RÉFÉRENCE</Text>
+              <Text style={styles.refValue}>{mvt.reference}</Text>
             </View>
-            <Text style={styles.heroQte}>
-              {fmtN(mvt.quantite_ambiant)}
-              <Text style={styles.heroQteUnit}> L</Text>
-            </Text>
-            <Text style={styles.heroProduit}>
-              [{mvt.produit_sigle ?? ''}] {mvt.produit}
-            </Text>
-            <View style={styles.heroDateRow}>
-              <Ionicons name="calendar-outline" size={14} color={Colors.white} />
-              <Text style={styles.heroDateText} numberOfLines={1}>{dateStr}</Text>
-              {time !== '' && (
-                <>
-                  <View style={styles.heroDot} />
-                  <Ionicons name="time-outline" size={14} color={Colors.white} />
-                  <Text style={styles.heroDateText}>{time}</Text>
-                </>
+            <View style={[
+              styles.statutBadge,
+              { backgroundColor: isValide ? Colors.green : Colors.amber },
+            ]}>
+              {isValide && (
+                <Ionicons name="checkmark" size={12} color={Colors.white} style={{ marginRight: 4 }} />
               )}
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* ── QUANTITÉS ─────────────────────────────────────── */}
-        <View style={styles.pad}>
-          <View style={styles.qteCard}>
-            <View style={styles.qteBox}>
-              <Text style={styles.qteLabel}>AMBIANT</Text>
-              <Text style={[styles.qteValue, { color: meta.color }]}>{fmtN(mvt.quantite_ambiant)}</Text>
-              <Text style={styles.qteUnit}>litres</Text>
-            </View>
-            <View style={styles.qteDivider} />
-            <View style={styles.qteBox}>
-              <Text style={styles.qteLabel}>15°C</Text>
-              <Text style={[styles.qteValue, { color: meta.color }]}>{fmtN(mvt.quantite_15)}</Text>
-              <Text style={styles.qteUnit}>litres</Text>
+              <Text style={styles.statutText}>{statut}</Text>
             </View>
           </View>
         </View>
 
-        {/* ── INFORMATIONS ──────────────────────────────────── */}
-        <SectionHeader title="Informations" />
-        <View style={styles.pad}>
-          <DetailCard rows={[
-            ['Régime',      mvt.regime],
-            ['Référence',   mvt.reference],
-            ['Destination', (mvt as any).destination ?? (mvt as any).provenance],
-            ['Observation', mvt.observation ?? null],
-          ]} />
+        {/* ─────────────── BANDEAU TYPE (couleur) ─────────────── */}
+        <View style={[styles.typeBanner, { backgroundColor: meta.color }]}>
+          <View style={styles.typeBannerIcon}>
+            <Ionicons name={typeIcon(mvt.type)} size={16} color={Colors.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.typeBannerLabel}>TYPE DE MOUVEMENT</Text>
+            <Text style={styles.typeBannerTitle} numberOfLines={1}>
+              {meta.label.toUpperCase()} · {mvt.regime}
+            </Text>
+          </View>
         </View>
 
-        {/* Détails spécifiques ENTREE */}
-        {mvt.type === 'ENTREE' && (
-          <>
-            <SectionHeader title="Logistique" />
-            <View style={styles.pad}>
-              <DetailCard rows={[
-                ['Provenance',     mvt.provenance],
-                ['BL Expéditeur',  mvt.bl_expediteur],
-                ['BL Client',      mvt.bl_client],
-                ['Camion',         mvt.camion_immatriculation],
-                ['Chauffeur',      mvt.chauffeur_nom],
-              ]} />
-            </View>
-          </>
-        )}
+        {/* ─────────────── BODY ─────────────── */}
+        <View style={styles.body}>
 
-        {mvt.type === 'SORTIE' && (
-          <>
-            <SectionHeader title="Logistique" />
-            <View style={styles.pad}>
-              <DetailCard rows={[
-                ['Destination',     (mvt as any).destination],
-                ['N° Permis',        mvt.numero_permis_sortie],
-                ['Mode règlement',   mvt.mode_reglement],
-                ['Camion',           mvt.camion_immatriculation],
-                ['Chauffeur',        mvt.chauffeur_nom],
-              ]} />
+          {/* Section 01 — Produit & quantités */}
+          <Section num="01" title="Produit & quantités">
+            <View style={styles.produitRow}>
+              <View style={styles.sigleBox}>
+                <Text style={styles.sigleText}>{mvt.produit_sigle}</Text>
+              </View>
+              <View>
+                <Text style={styles.miniLabel}>PRODUIT</Text>
+                <Text style={styles.produitName}>{mvt.produit}</Text>
+              </View>
             </View>
-          </>
-        )}
 
-        {mvt.type === 'CESSION' && (
-          <>
-            <SectionHeader title="Cession" />
-            <View style={styles.pad}>
-              <DetailCard rows={[
-                ['Destinataire', mvt.cession_destinataire],
-                ['Motif',        mvt.cession_motif],
-              ]} />
+            <View style={styles.qteTable}>
+              <View style={styles.qteHeader}>
+                <Text style={styles.qteHeaderCell}>QTÉ AMBIANT</Text>
+                <Text style={[styles.qteHeaderCell, { textAlign: 'right' }]}>QTÉ 15°C</Text>
+              </View>
+              <View style={styles.qteValues}>
+                <Text style={[styles.qteValueBig, { color: meta.color }]}>
+                  {fmtN(mvt.quantite_ambiant)}
+                  <Text style={styles.qteUnit}> L</Text>
+                </Text>
+                <Text style={styles.qteValue15}>
+                  {fmtN(mvt.quantite_15)}
+                  <Text style={styles.qteUnit}> L</Text>
+                </Text>
+              </View>
             </View>
-          </>
-        )}
+          </Section>
 
-        {/* ── SUIVI ─────────────────────────────────────────── */}
-        <SectionHeader title="Suivi" />
-        <View style={styles.pad}>
-          <View style={styles.timelineCard}>
-            {[
-              { label: 'Saisie initiale',          sub: `${dateStr} · ${time}`, done: true },
-              { label: 'Validation responsable',   sub: mvt.produit ?? 'Responsable dépôt',   done: true },
-              { label: 'Comptabilisation',         sub: 'En attente de clôture',              done: false },
-            ].map((step, i, arr) => (
-              <View key={i} style={styles.timelineItem}>
-                <View style={styles.timelineTrack}>
-                  <View style={[
-                    styles.timelineDot,
-                    step.done
-                      ? { backgroundColor: meta.color }
-                      : { borderWidth: 2, borderColor: Colors.mist, backgroundColor: 'transparent' },
-                  ]}>
-                    {step.done && <Ionicons name="checkmark" size={11} color={Colors.white} />}
+          {/* Section 02 — Logistique (conditionnelle) */}
+          {hasLogistique && (
+            <Section num="02" title="Logistique">
+              <KeyValTable rows={logistiqueRows} />
+            </Section>
+          )}
+
+          {/* Section 03 — Transport (conditionnelle) */}
+          {hasTransport && (
+            <Section num="03" title="Transport">
+              <View style={styles.transportRow}>
+                {mvt.camion_immatriculation && (
+                  <View style={styles.transportCard}>
+                    <View style={styles.transportHeader}>
+                      <Ionicons name="car-outline" size={14} color={Colors.navy} />
+                      <Text style={styles.transportLabel}>CAMION</Text>
+                    </View>
+                    <Text style={[styles.transportValue, styles.monoText]}>
+                      {mvt.camion_immatriculation}
+                    </Text>
                   </View>
-                  {i < arr.length - 1 && (
-                    <View style={[
-                      styles.timelineLine,
-                      { backgroundColor: step.done ? meta.color + '44' : Colors.cloud },
-                    ]} />
-                  )}
+                )}
+                {mvt.chauffeur_nom && (
+                  <View style={styles.transportCard}>
+                    <View style={styles.transportHeader}>
+                      <Ionicons name="person-outline" size={14} color={Colors.navy} />
+                      <Text style={styles.transportLabel}>CHAUFFEUR</Text>
+                    </View>
+                    <Text style={styles.transportValue}>{mvt.chauffeur_nom}</Text>
+                  </View>
+                )}
+              </View>
+            </Section>
+          )}
+
+          {/* Section 04 — Émission & validation */}
+          <Section num="04" title="Émission & validation">
+            <View style={styles.signCard}>
+              <View style={styles.dateRow}>
+                <Ionicons name="calendar-outline" size={14} color={Colors.slate} />
+                <Text style={styles.dateText}>{fmtDate(mvt.date)}</Text>
+                {!!fmtTime(mvt.date) && (
+                  <>
+                    <Text style={styles.dot}>•</Text>
+                    <Ionicons name="time-outline" size={13} color={Colors.slate} />
+                    <Text style={styles.dateText}>{fmtTime(mvt.date)}</Text>
+                  </>
+                )}
+              </View>
+              <View style={styles.signDivider} />
+              <View style={styles.signRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.signLabel}>SAISI PAR</Text>
+                  <Text style={styles.signValue}>{(mvt as any).saisi_par ?? '—'}</Text>
                 </View>
-                <View style={styles.timelineBody}>
-                  <Text style={[styles.timelineLabel, !step.done && { color: Colors.slate }]}>
-                    {step.label}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.signLabel}>VALIDÉ PAR</Text>
+                  <Text style={[
+                    styles.signValue,
+                    !(mvt as any).valide_par && { color: Colors.silver },
+                  ]}>
+                    {(mvt as any).valide_par ?? 'En attente'}
                   </Text>
-                  <Text style={styles.timelineSub}>{step.sub}</Text>
                 </View>
               </View>
-            ))}
-          </View>
+            </View>
+          </Section>
+
+          {/* Observation */}
+          {!!mvt.observation && (
+            <View style={styles.observation}>
+              <Ionicons name="information-circle-outline" size={16} color={Colors.amber} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.obsLabel}>OBSERVATION</Text>
+                <Text style={styles.obsText}>{mvt.observation}</Text>
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
+
+      {/* ─────────────── ACTION BAR STICKY ─────────────── */}
+      <View style={styles.actionBar}>
+        <TouchableOpacity
+          style={[styles.printBtn, generatingPdf && { opacity: 0.6 }]}
+          onPress={handlePrint}
+          disabled={generatingPdf}
+          activeOpacity={0.8}
+        >
+          {generatingPdf
+            ? <ActivityIndicator size="small" color={Colors.white} />
+            : <Ionicons name="print-outline" size={18} color={Colors.white} />
+          }
+          <Text style={styles.printBtnText}>Imprimer</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.iconAction, generatingPdf && { opacity: 0.6 }]}
+          onPress={handleDownload}
+          disabled={generatingPdf}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="download-outline" size={20} color={Colors.navy} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.iconAction, generatingPdf && { opacity: 0.6 }]}
+          onPress={handleShare}
+          disabled={generatingPdf}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="share-outline" size={20} color={Colors.navy} />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
-// ── Sous-composants ────────────────────────────────────────────
+// ── Sous-composants ───────────────────────────────────────────────
 
-function SectionHeader({ title }: { title: string }) {
+function Section({
+  num, title, children,
+}: { num: string; title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionNum}>{num}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.sectionLine} />
+      </View>
+      {children}
     </View>
   );
 }
 
-function DetailCard({ rows }: { rows: [string, string | null | undefined][] }) {
-  const filtered = rows.filter(r => r[1] != null && r[1] !== '');
-  if (filtered.length === 0) return null;
+type KVRow = { label: string; value: string; icon?: any; mono?: boolean };
+
+function KeyValTable({ rows }: { rows: KVRow[] }) {
   return (
-    <View style={styles.detailCard}>
-      {filtered.map(([label, value], i) => (
+    <View style={styles.kvTable}>
+      {rows.map((r, i) => (
         <View
           key={i}
-          style={[styles.detailRow, i < filtered.length - 1 && styles.detailRowBorder]}
+          style={[styles.kvRow, i < rows.length - 1 && styles.kvRowBorder]}
         >
-          <Text style={styles.detailLabel}>{label}</Text>
-          <Text style={styles.detailValue}>{value}</Text>
+          {r.icon && <Ionicons name={r.icon} size={14} color={Colors.slate} />}
+          <Text style={styles.kvLabel} numberOfLines={1}>{r.label}</Text>
+          <Text style={[styles.kvValue, r.mono && styles.monoText]} numberOfLines={2}>
+            {r.value}
+          </Text>
         </View>
       ))}
     </View>
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.paper },
 
-  // Hero
-  hero: {
-    paddingTop: 14, paddingHorizontal: 16, paddingBottom: 24,
-    position: 'relative', overflow: 'hidden',
+  // ── Top nav (navy) ─────────────────────────
+  topNav: {
+    backgroundColor: Colors.navy,
+    paddingHorizontal: 16, paddingTop: 4, paddingBottom: 18,
   },
-  heroBlob: {
-    position: 'absolute', top: -40, right: -40,
-    width: 160, height: 160, borderRadius: 80,
-    backgroundColor: Colors.white + '1a',
-  },
-  heroNav: {
+  topNavRow: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 18,
+    justifyContent: 'space-between', marginBottom: 14,
   },
   navBtn: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: Colors.white + '26',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
-  navActions: { flexDirection: 'row', gap: 8 },
-  heroContent: {},
-  heroTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  heroGlyph: { color: Colors.white + 'cc', fontSize: 14, fontWeight: '800' },
-  heroType:  { color: Colors.white + 'cc', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  heroDot:   { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.white + '80' },
-  heroRef:   { color: Colors.white + 'cc', fontSize: 11 },
-  heroQte:   { color: Colors.white, fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
-  heroQteUnit: { fontSize: 14, fontWeight: '600', opacity: 0.8 },
-  heroProduit: { color: Colors.white + 'cc', fontSize: 13, marginTop: 2 },
-  heroDateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
-  heroDateText: { color: Colors.white + 'cc', fontSize: 12, textTransform: 'capitalize' },
+  topNavCenter: { alignItems: 'center', flex: 1 },
+  topNavTitle: { color: Colors.white, fontSize: 13, fontWeight: '700' },
+  topNavSub: {
+    color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '600', letterSpacing: 0.5,
+  },
 
-  // Quantités
-  pad: { paddingHorizontal: 16, paddingTop: 16 },
-  qteCard: {
+  refRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+  },
+  refLabel: {
+    color: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4,
+  },
+  refValue: {
+    color: Colors.white, fontSize: 18, fontWeight: '800', letterSpacing: 0.5,
+    fontFamily: 'Menlo',
+  },
+  statutBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+  },
+  statutText: { color: Colors.white, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+
+  // ── Bandeau type ─────────────────────────────
+  typeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, paddingHorizontal: 16,
+  },
+  typeBannerIcon: {
+    width: 30, height: 30, borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  typeBannerLabel: {
+    color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: '700', letterSpacing: 1,
+  },
+  typeBannerTitle: { color: Colors.white, fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+
+  // ── Body ─────────────────────────────────────
+  body: { paddingHorizontal: 14, paddingTop: 14 },
+
+  section: { marginBottom: 16 },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginBottom: 10, paddingHorizontal: 4,
+  },
+  sectionNum: {
+    fontSize: 9, fontWeight: '800', color: Colors.orange, letterSpacing: 1,
+    fontFamily: 'Menlo',
+  },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: Colors.ink, letterSpacing: -0.2 },
+  sectionLine:  { flex: 1, height: 1, backgroundColor: Colors.mist, marginLeft: 4 },
+
+  // Produit
+  produitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  sigleBox: {
+    width: 42, height: 42, borderRadius: 10,
+    backgroundColor: Colors.navyTint,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sigleText:   { fontSize: 11, fontWeight: '800', color: Colors.navy },
+  miniLabel:   { fontSize: 9, color: Colors.slate, fontWeight: '700', letterSpacing: 0.8 },
+  produitName: { fontSize: 15, fontWeight: '700', color: Colors.ink },
+
+  // Quantité table
+  qteTable: {
+    borderWidth: 1, borderColor: Colors.mist, borderRadius: 10, overflow: 'hidden',
+  },
+  qteHeader: {
+    flexDirection: 'row', backgroundColor: Colors.cloud,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  qteHeaderCell: {
+    flex: 1, fontSize: 9, fontWeight: '800', color: Colors.slate, letterSpacing: 0.8,
+  },
+  qteValues: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 12,
+    justifyContent: 'space-between',
+  },
+  qteValueBig: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  qteValue15:  { fontSize: 22, fontWeight: '700', color: Colors.graphite, letterSpacing: -0.5, textAlign: 'right' },
+  qteUnit:     { fontSize: 12, color: Colors.slate, fontWeight: '600' },
+
+  // Key/Val table
+  kvTable: {
     backgroundColor: Colors.white,
-    borderRadius: Radius.lg, padding: 0,
-    shadowColor: Colors.ink,
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
-    flexDirection: 'row', overflow: 'hidden',
+    borderWidth: 1, borderColor: Colors.mist, borderRadius: 10, overflow: 'hidden',
   },
-  qteBox: {
-    flex: 1, padding: 14, backgroundColor: Colors.cloud,
-    alignItems: 'center', gap: 4,
+  kvRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
   },
-  qteDivider: { width: 1, backgroundColor: Colors.mist },
-  qteLabel: {
-    fontSize: 10, fontWeight: '700', color: Colors.slate,
-    letterSpacing: 0.5, textTransform: 'uppercase',
+  kvRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.cloud },
+  kvLabel: {
+    fontSize: 11, color: Colors.slate, fontWeight: '600', width: 110, flexShrink: 0,
   },
-  qteValue: { fontSize: 18, fontWeight: '800' },
-  qteUnit:  { fontSize: 10, color: Colors.slate },
+  kvValue: { flex: 1, fontSize: 12, color: Colors.ink, fontWeight: '700', textAlign: 'right' },
 
-  // Section header
-  sectionHeader: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 10 },
-  sectionTitle:  { fontSize: 14, fontWeight: '800', color: Colors.ink, letterSpacing: -0.2 },
+  // Transport
+  transportRow: { flexDirection: 'row', gap: 8 },
+  transportCard: {
+    flex: 1, backgroundColor: Colors.white,
+    borderWidth: 1, borderColor: Colors.mist, borderRadius: 10, padding: 12,
+  },
+  transportHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  transportLabel:  { fontSize: 9, fontWeight: '800', color: Colors.slate, letterSpacing: 0.8 },
+  transportValue:  { fontSize: 13, fontWeight: '700', color: Colors.ink },
 
-  // Detail card
-  detailCard: {
-    backgroundColor: Colors.white, borderRadius: Radius.lg,
-    paddingHorizontal: 16,
-    shadowColor: Colors.ink,
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+  // Signatures
+  signCard: {
+    backgroundColor: Colors.white,
+    borderWidth: 1, borderColor: Colors.mist, borderRadius: 10, padding: 12,
   },
-  detailRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'flex-start', gap: 12,
-    paddingVertical: 12,
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateText: { fontSize: 13, color: Colors.ink, fontWeight: '600' },
+  dot:      { color: Colors.mist },
+  signDivider: { height: 1, backgroundColor: Colors.cloud, marginVertical: 10 },
+  signRow:  { flexDirection: 'row', gap: 16 },
+  signLabel: {
+    fontSize: 9, color: Colors.slate, fontWeight: '700', letterSpacing: 0.6, marginBottom: 2,
   },
-  detailRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.cloud },
-  detailLabel: { fontSize: 11, color: Colors.slate, fontWeight: '600', letterSpacing: 0.2 },
-  detailValue: { fontSize: 13, color: Colors.ink, fontWeight: '600', textAlign: 'right', flex: 1 },
+  signValue: { fontSize: 12, color: Colors.ink, fontWeight: '700' },
 
-  // Timeline
-  timelineCard: {
-    backgroundColor: Colors.white, borderRadius: Radius.lg,
-    padding: 16,
-    shadowColor: Colors.ink,
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+  // Observation
+  observation: {
+    flexDirection: 'row', gap: 10,
+    backgroundColor: Colors.amberSoft,
+    borderWidth: 1, borderColor: Colors.amber + '40',
+    borderRadius: 10, padding: 12, marginTop: 4,
   },
-  timelineItem:  { flexDirection: 'row', gap: 12 },
-  timelineTrack: { alignItems: 'center', flexShrink: 0 },
-  timelineDot: {
-    width: 18, height: 18, borderRadius: 9,
+  obsLabel: {
+    fontSize: 9, color: Colors.amber, fontWeight: '800', letterSpacing: 0.8, marginBottom: 3,
+  },
+  obsText: { fontSize: 12, color: Colors.graphite, lineHeight: 18 },
+
+  // ── Action bar sticky ──────────────────────
+  actionBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1, borderTopColor: Colors.mist,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 28,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  printBtn: {
+    flex: 1, height: 46, borderRadius: 12,
+    backgroundColor: Colors.navy,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  printBtnText: { color: Colors.white, fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
+  iconAction: {
+    width: 46, height: 46, borderRadius: 12,
+    backgroundColor: Colors.cloud,
     alignItems: 'center', justifyContent: 'center',
   },
-  timelineLine: { width: 2, flex: 1, marginTop: 2 },
-  timelineBody: { flex: 1, paddingBottom: 14 },
-  timelineLabel: { fontSize: 13, fontWeight: '700', color: Colors.ink },
-  timelineSub:   { fontSize: 11, color: Colors.slate, marginTop: 1 },
+
+  monoText: { fontFamily: 'Menlo', letterSpacing: 0.3 },
 });

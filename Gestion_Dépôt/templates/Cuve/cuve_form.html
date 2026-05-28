@@ -29,7 +29,7 @@
 {% block breadcrumb %}
 <a href="{% url 'cuve_list' %}">Cuves</a>
 <span class="breadcrumb-sep">/</span>
-{% if cuve %}<a href="{% url 'cuve_detail' cuve.pk %}">{{ cuve.numero }}</a><span class="breadcrumb-sep">/</span>{% endif %}
+{% if cuve %}<a href="{% url 'cuve_detail' uuid=cuve.uuid slug=cuve.slug %}">{{ cuve.numero }}</a><span class="breadcrumb-sep">/</span>{% endif %}
 <span class="breadcrumb-current">{% if cuve %}Modifier{% else %}Nouvelle cuve{% endif %}</span>
 {% endblock %}
 
@@ -165,7 +165,7 @@
           <svg viewBox="0 0 24 24" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           {% if cuve %}Enregistrer les modifications{% else %}Créer la cuve{% endif %}
         </button>
-        <a href="{% if cuve %}{% url 'cuve_detail' cuve.pk %}{% else %}{% url 'cuve_list' %}{% endif %}" class="btn btn-secondary">Annuler</a>
+        <a href="{% if cuve %}{% url 'cuve_detail' uuid=cuve.uuid slug=cuve.slug %}{% else %}{% url 'cuve_list' %}{% endif %}" class="btn btn-secondary">Annuler</a>
       </div>
     </div>
 

@@ -371,7 +371,7 @@ select.inv-field-input { height:auto; }
                   onclick="ouvrirModalEdition(this)">
                   ✏️ Modifier
                 </button>
-                <form method="post" action="{% url 'inventaire_initial_supprimer' inv.pk %}"
+                <form method="post" action="{% url 'inventaire_initial_supprimer' uuid=inv.uuid %}"
                       onsubmit="return confirm('Supprimer ce stock initial ?\n{{ inv.produit.code }} — {{ inv.get_regime_douanier_display }}')">
                   {% csrf_token %}
                   <button type="submit" class="btn-del">🗑 Supprimer</button>

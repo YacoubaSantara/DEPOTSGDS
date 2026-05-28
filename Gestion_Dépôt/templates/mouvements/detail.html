@@ -11,6 +11,39 @@
 .dcheader-acquittement{background:#6a1b9a}
 .dcheader-notes{background:var(--ink-2)}
 
+/* ── Bouton PDF ── */
+.btn-hero-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  height: 36px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+  color: #fff;
+  border: 1.5px solid #7f1d1d;
+  text-decoration: none;
+  letter-spacing: .02em;
+  box-shadow: 0 2px 8px rgba(185,28,28,.3), inset 0 1px 0 rgba(255,255,255,.12);
+  transition: transform .12s, box-shadow .12s;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.btn-hero-pdf:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(185,28,28,.45), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.btn-hero-pdf:active { transform: translateY(0); }
+.btn-hero-pdf svg { flex-shrink: 0; }
+[data-theme="dark"] .btn-hero-pdf {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border-color: #991b1b;
+  box-shadow: 0 2px 8px rgba(220,38,38,.35);
+}
+
 /* ── Dark mode ── */
 [data-theme="dark"] .dcheader-entree{background:rgba(34,197,94,.12)}
 [data-theme="dark"] .dcheader-sortie{background:rgba(239,68,68,.12)}
@@ -73,12 +106,14 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
         Retour
       </a>
-      <a href="{% url 'mouvement_detail_pdf' mouvement.pk %}" class="btn-hero" style="background:#1F9D55;color:#fff;border-color:#1F9D55" title="Télécharger la fiche PDF">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-        PDF
+      <a href="{% url 'mouvement_bordereau' uuid=mouvement.uuid slug=mouvement.slug %}" class="btn-hero-pdf" target="_blank" title="Bordereau papier A4 imprimable" style="background:linear-gradient(135deg,#b8541a 0%,#8f3d12 100%);border-color:#6b2d0d">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Imprimer
       </a>
       {% if not request.user.is_marketeur_role %}
-      <a href="{% url 'mouvement_modifier' mouvement.pk %}" class="btn-hero btn-hero-modifier">
+      <a href="{% url 'mouvement_modifier' uuid=mouvement.uuid slug=mouvement.slug %}" class="btn-hero btn-hero-modifier">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         Modifier
       </a>
@@ -401,6 +436,23 @@
       </div>
     </div>
 
+    <!-- SS5 : Horaires -->
+    <p class="ss-title">Horaires</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Heure d'arrivée</span>
+        <span class="detail-value {% if not mouvement.heure_arrivee %}tiret{% endif %}">{{ mouvement.heure_arrivee|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de dépotage</span>
+        <span class="detail-value {% if not mouvement.heure_depotage %}tiret{% endif %}">{{ mouvement.heure_depotage|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de fin</span>
+        <span class="detail-value {% if not mouvement.heure_fin %}tiret{% endif %}">{{ mouvement.heure_fin|default:"—" }}</span>
+      </div>
+    </div>
+
   </div>
 </div>
 {% endif %}
@@ -452,7 +504,7 @@
     </div>
 
     <p class="ss-title">Volumes & Densité</p>
-    <div class="dg-3">
+    <div class="dg-4">
       <div class="detail-field">
         <span class="detail-label">Vol. ambiant sortie (L)</span>
         <span class="detail-value {% if mouvement.volume_ambiant_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_sortie %}{{ mouvement.volume_ambiant_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
@@ -465,6 +517,10 @@
         <span class="detail-label">Température sortie (°C)</span>
         <span class="detail-value {% if mouvement.temperature_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_sortie %}{{ mouvement.temperature_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
       </div>
+      <div class="detail-field">
+        <span class="detail-label">D<sub>OBS</sub> sortie (kg/m³)</span>
+        <span class="detail-value {% if mouvement.densite_observee_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.densite_observee_sortie %}{{ mouvement.densite_observee_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
     </div>
     {% if mouvement.mode_reglement %}
     <div class="dg-2" style="margin-top:12px">
@@ -474,6 +530,38 @@
       </div>
     </div>
     {% endif %}
+
+    <p class="ss-title">Données opérationnelles</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">N° autorisation Marketeur</span>
+        <span class="detail-value {% if not mouvement.numero_autorisation_marketeur %}tiret{% endif %}">{{ mouvement.numero_autorisation_marketeur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° bon d'enlèvement</span>
+        <span class="detail-value {% if not mouvement.numero_bon_enlevement %}tiret{% endif %}">{{ mouvement.numero_bon_enlevement|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Compartiments chargés</span>
+        <span class="detail-value {% if not mouvement.compartiments_charges %}tiret{% endif %}">{{ mouvement.compartiments_charges|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Horaires</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Heure d'arrivée</span>
+        <span class="detail-value {% if not mouvement.heure_arrivee %}tiret{% endif %}">{{ mouvement.heure_arrivee|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de chargement</span>
+        <span class="detail-value {% if not mouvement.heure_depotage %}tiret{% endif %}">{{ mouvement.heure_depotage|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de fin</span>
+        <span class="detail-value {% if not mouvement.heure_fin %}tiret{% endif %}">{{ mouvement.heure_fin|default:"—" }}</span>
+      </div>
+    </div>
 
     <p class="ss-title">Contrôle automatique (API MPMS)</p>
     <div class="calc-band">
@@ -533,7 +621,66 @@
         <span class="detail-label">Motif de la cession</span>
         <span class="detail-value {% if not mouvement.cession_motif %}tiret{% endif %}">{{ mouvement.cession_motif|default:"—" }}</span>
       </div>
+      <div class="detail-field">
+        <span class="detail-label">Cuve (cession)</span>
+        {% if mouvement.cession_cuve %}
+          <span class="detail-value">{{ mouvement.cession_cuve.numero }} — {{ mouvement.cession_cuve.designation }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
     </div>
+
+    <!-- Autorisation Direction -->
+    <p class="ss-title">Autorisation & Contrat</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">N° autorisation Direction</span>
+        <span class="detail-value {% if not mouvement.cession_numero_autorisation_direction %}tiret{% endif %}">{{ mouvement.cession_numero_autorisation_direction|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date autorisation</span>
+        <span class="detail-value {% if not mouvement.cession_date_autorisation %}tiret{% endif %}">{{ mouvement.cession_date_autorisation|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Référence contrat</span>
+        <span class="detail-value {% if not mouvement.cession_reference_contrat %}tiret{% endif %}">{{ mouvement.cession_reference_contrat|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Période d'imputation</span>
+        <span class="detail-value {% if not mouvement.cession_periode_imputation %}tiret{% endif %}">{{ mouvement.cession_periode_imputation|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Visa direction</span>
+        <span class="detail-value {% if not mouvement.cession_visa_direction %}tiret{% endif %}">{{ mouvement.cession_visa_direction|default:"—" }}</span>
+      </div>
+    </div>
+
+    <!-- Contrôle MPMS Cession -->
+    <p class="ss-title">Contrôle automatique (API MPMS)</p>
+    <div class="calc-band">
+      <div class="calc-band-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Données labo & calculs via API MPMS (TVCF_15)
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">D<sub>OBS</sub> cession (kg/m³)</span>
+        {% if mouvement.cession_densite_observee %}<span class="calc-val">{{ mouvement.cession_densite_observee|floatformat:2 }} kg/m³</span>{% else %}<span class="calc-val empty">— non saisi —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Température cession (°C)</span>
+        {% if mouvement.cession_temperature %}<span class="calc-val">{{ mouvement.cession_temperature|floatformat:2 }} °C</span>{% else %}<span class="calc-val empty">— non saisi —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Densité @15°C cession (kg/m³)</span>
+        {% if mouvement.cession_densite_15c %}<span class="calc-val">{{ mouvement.cession_densite_15c|floatformat:2 }} kg/m³</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">K<sub>conv</sub> (Vcf) cession</span>
+        {% if mouvement.cession_coefficient_vcf %}<span class="calc-val">{{ mouvement.cession_coefficient_vcf }}</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+    </div>
+
   </div>
 </div>
 {% endif %}
@@ -541,32 +688,121 @@
 
 <!-- ═══════════ SECTION ACQUITTEMENT ══════════════════════════ -->
 {% if mouvement.type_mouvement == 'ACQUITTEMENT' %}
+
+<!-- Données du BL d'origine (récupérées depuis l'entrée source) -->
+{% if mouvement.entree_source %}
+<div class="detail-card">
+  <div class="detail-card-header" style="background:#4a148c">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <h3>Données du BL d'origine</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Mouvement d'entrée source</span>
+        <span class="detail-value {% if not mouvement.entree_source %}tiret{% endif %}">
+          {% if mouvement.entree_source %}<a href="{% url 'mouvement_detail' uuid=mouvement.entree_source.uuid slug=mouvement.entree_source.slug %}" style="color:var(--accent)">{{ mouvement.entree_source.numero_enregistrement }}</a>{% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Provenance origine</span>
+        <span class="detail-value {% if not mouvement.entree_source.provenance %}tiret{% endif %}">{{ mouvement.entree_source.provenance|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">BL d'origine</span>
+        <span class="detail-value {% if not mouvement.entree_source.bl_expediteur %}tiret{% endif %}">{{ mouvement.entree_source.bl_expediteur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Cuve concernée</span>
+        {% with src_lignes=mouvement.entree_source.lignes.all %}
+        <span class="detail-value {% if not src_lignes %}tiret{% endif %}">
+          {% if src_lignes %}{{ src_lignes.0.cuve|default:"—" }}{% else %}—{% endif %}
+        </span>
+        {% endwith %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. entré Ambiant (L)</span>
+        <span class="detail-value {% if mouvement.entree_source.volume_ambiant_recu %}num{% else %}tiret{% endif %}">{% if mouvement.entree_source.volume_ambiant_recu %}{{ mouvement.entree_source.volume_ambiant_recu|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. déjà acquitté (L)</span>
+        <span class="detail-value {% if mouvement.entree_source.volume_acquitte_total %}num{% else %}tiret{% endif %}">{% if mouvement.entree_source.volume_acquitte_total %}{{ mouvement.entree_source.volume_acquitte_total|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. restant sous douane (L)</span>
+        <span class="detail-value {% if mouvement.entree_source.volume_restant_sous_douane is not None %}num{% else %}tiret{% endif %}">
+          {% if mouvement.entree_source.volume_restant_sous_douane is not None %}{{ mouvement.entree_source.volume_restant_sous_douane|floatformat:2 }}{% else %}—{% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Volumes acquittés -->
 <div class="detail-card">
   <div class="detail-card-header dcheader-acquittement">
     <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
     <h3>Données d'acquittement</h3>
   </div>
   <div class="detail-card-body">
-    <div class="dg-2">
+    <div class="dg-3">
       <div class="detail-field">
-        <span class="detail-label">Vol. ambiant acquitté (L)</span>
+        <span class="detail-label">Vol. ambiant à acquitter (L)</span>
         <span class="detail-value {% if mouvement.acquittement_volume_ambiant %}num{% else %}tiret{% endif %}">{% if mouvement.acquittement_volume_ambiant %}{{ mouvement.acquittement_volume_ambiant|floatformat:2 }}{% else %}—{% endif %}</span>
       </div>
       <div class="detail-field">
-        <span class="detail-label">Vol. @15°C acquitté (L)</span>
+        <span class="detail-label">Vol. @15°C à acquitter (L) <span style="font-size:10px;opacity:.7">⚙ auto</span></span>
         <span class="detail-value {% if mouvement.acquittement_volume_15c %}num{% else %}tiret{% endif %}">{% if mouvement.acquittement_volume_15c %}{{ mouvement.acquittement_volume_15c|floatformat:2 }}{% else %}—{% endif %}</span>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Déclaration douanière -->
+<div class="detail-card">
+  <div class="detail-card-header" style="background:#1565c0">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <h3>Déclaration douanière</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
       <div class="detail-field">
-        <span class="detail-label">Référence déclaration douanière</span>
+        <span class="detail-label">Référence déclaration</span>
         <span class="detail-value {% if not mouvement.acquittement_reference_declaration %}tiret{% endif %}">{{ mouvement.acquittement_reference_declaration|default:"—" }}</span>
       </div>
       <div class="detail-field">
         <span class="detail-label">Date de la déclaration</span>
         <span class="detail-value {% if not mouvement.acquittement_date_declaration %}tiret{% endif %}">{{ mouvement.acquittement_date_declaration|date:"d/m/Y"|default:"—" }}</span>
       </div>
+      <div class="detail-field">
+        <span class="detail-label">Bureau de douane</span>
+        <span class="detail-value {% if not mouvement.acquittement_bureau_douane %}tiret{% endif %}">{{ mouvement.acquittement_bureau_douane|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Code bureau</span>
+        <span class="detail-value {% if not mouvement.acquittement_code_bureau %}tiret{% endif %}">{{ mouvement.acquittement_code_bureau|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° quittance</span>
+        <span class="detail-value {% if not mouvement.acquittement_numero_quittance %}tiret{% endif %}">{{ mouvement.acquittement_numero_quittance|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date paiement</span>
+        <span class="detail-value {% if not mouvement.acquittement_date_paiement %}tiret{% endif %}">{{ mouvement.acquittement_date_paiement|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Commissionnaire en douane</span>
+        <span class="detail-value {% if not mouvement.acquittement_commissionnaire %}tiret{% endif %}">{{ mouvement.acquittement_commissionnaire|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Agent dédouaneur</span>
+        <span class="detail-value {% if not mouvement.acquittement_agent_dedouaneur %}tiret{% endif %}">{{ mouvement.acquittement_agent_dedouaneur|default:"—" }}</span>
+      </div>
     </div>
   </div>
 </div>
+
 {% endif %}
 
 
@@ -600,8 +836,132 @@
   </div>
 </div>
 
+<!-- ═══════════ DOCUMENTS JUSTIFICATIFS ═══════════════════════ -->
+<div class="detail-card" id="section-documents">
+  <div class="detail-card-header" style="background:#0f4c8a">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18">
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+    </svg>
+    <h3>Documents justificatifs
+      {% with nb=documents|length %}
+        {% if nb > 0 %}<span style="font-size:12px;font-weight:600;background:rgba(255,255,255,.2);border-radius:20px;padding:1px 9px;margin-left:8px">{{ nb }}</span>{% endif %}
+      {% endwith %}
+    </h3>
+  </div>
+  <div class="detail-card-body">
+
+    <!-- Liste des documents -->
+    {% if documents %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px">
+      {% for doc in documents %}
+      <div style="border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden;background:var(--surface,#fff)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface-2,#f8fafc);border-bottom:1px solid var(--border,#e5e7eb)">
+          {% if doc.est_pdf %}
+          <div style="width:32px;height:32px;background:#fef2f2;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          {% else %}
+          <div style="width:32px;height:32px;background:#eff6ff;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          {% endif %}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink,#0f172a);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ doc.nom_original }}">{{ doc.nom_original }}</div>
+            <div style="font-size:11px;color:var(--muted,#6b7280)">{{ doc.taille_lisible }}</div>
+          </div>
+          <span style="
+            font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;
+            {% if doc.type_document == 'BL_EXPEDITEUR' %}background:#dbeafe;color:#1e40af
+            {% elif doc.type_document == 'BL_CLIENT' %}background:#d1fae5;color:#065f46
+            {% elif doc.type_document == 'PERMIS_SORTIE' %}background:#fef3c7;color:#92400e
+            {% elif doc.type_document == 'BON_LIVRAISON' %}background:#f3e8ff;color:#6b21a8
+            {% elif doc.type_document == 'ORDRE_CESSION' %}background:#ffe4e6;color:#9f1239
+            {% elif doc.type_document == 'DECLARATION_DOUANE' %}background:#e0e7ff;color:#3730a3
+            {% else %}background:#f1f5f9;color:#475569{% endif %}
+          ">{{ doc.get_type_document_display }}</span>
+        </div>
+        <div style="padding:10px 14px">
+          {% if doc.description %}
+          <p style="font-size:12px;color:var(--muted,#6b7280);margin:0 0 8px">{{ doc.description }}</p>
+          {% endif %}
+          <div style="font-size:11px;color:var(--muted,#94a3b8);margin-bottom:10px">
+            {{ doc.date_upload|date:"d/m/Y à H:i" }}
+            {% if doc.uploader %}&nbsp;· {{ doc.uploader.get_full_name|default:doc.uploader.username }}{% endif %}
+          </div>
+          <div style="display:flex;gap:8px">
+            <a href="{% url 'mouvement_document_voir' document_uuid=doc.uuid %}" target="_blank"
+               style="flex:1;text-align:center;padding:6px 10px;font-size:12px;font-weight:600;border-radius:6px;background:#0f4c8a;color:#fff;text-decoration:none;cursor:pointer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="vertical-align:middle;margin-right:3px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Voir
+            </a>
+            {% if request.user.is_staff or request.user.profile.est_chef_depot %}
+            <form method="post" action="{% url 'mouvement_document_supprimer' document_uuid=doc.uuid %}"
+                  onsubmit="return confirm('Supprimer le document « {{ doc.nom_original }} » ?')"
+                  style="flex:1">
+              {% csrf_token %}
+              <button type="submit"
+                style="width:100%;padding:6px 10px;font-size:12px;font-weight:600;border-radius:6px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;cursor:pointer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="vertical-align:middle;margin-right:3px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                Supprimer
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:28px 16px;color:var(--muted,#94a3b8)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="display:block;margin:0 auto 8px;opacity:.4">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+      </svg>
+      <span style="font-size:13px">Aucun document justificatif attaché</span>
+    </div>
+    {% endif %}
+
+    <!-- Formulaire d'upload (non visible pour MARKETEUR) -->
+    {% if not request.user.is_marketeur_role %}
+    <div>
+      <button type="button" id="btn-toggle-upload"
+        onclick="document.getElementById('upload-panel').style.display=document.getElementById('upload-panel').style.display==='none'?'block':'none'"
+        style="display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:12.5px;font-weight:600;border-radius:8px;background:var(--surface-2,#f1f5f9);border:1px solid var(--border,#e5e7eb);color:var(--ink-2,#374151);cursor:pointer;margin-bottom:10px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Attacher un document
+      </button>
+
+      <div id="upload-panel" style="display:none;border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:18px;background:var(--surface-2,#f8fafc)">
+        <form method="post" action="{% url 'mouvement_documents_upload' mouvement_uuid=mouvement.uuid mouvement_slug=mouvement.slug %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--ink-2,#374151)">Type de document *</label>
+              {{ doc_form.type_document }}
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--ink-2,#374151)">Fichier * <span style="font-weight:400;color:var(--muted)">(PDF, PNG, JPG — max 10 Mo)</span></label>
+              {{ doc_form.fichier }}
+            </div>
+          </div>
+          <div style="margin-bottom:14px">
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--ink-2,#374151)">Description (optionnel)</label>
+            {{ doc_form.description }}
+          </div>
+          <button type="submit" style="padding:9px 20px;font-size:13px;font-weight:600;border-radius:8px;background:#0f4c8a;color:#fff;border:none;cursor:pointer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:middle;margin-right:5px"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+            Attacher le document
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+
 {% if request.user.is_staff %}
-<form id="form-supprimer" method="post" action="{% url 'mouvement_supprimer' mouvement.pk %}" style="display:none">
+<form id="form-supprimer" method="post" action="{% url 'mouvement_supprimer' uuid=mouvement.uuid slug=mouvement.slug %}" style="display:none">
   {% csrf_token %}
 </form>
 

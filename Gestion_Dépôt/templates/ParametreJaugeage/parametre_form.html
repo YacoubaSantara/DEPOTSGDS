@@ -161,7 +161,7 @@
       <div style="display:flex;gap:8px">
         <a href="{% url 'parametre_list' %}" class="btn btn-secondary">Annuler</a>
         {% if instance %}
-        <a href="{% url 'parametre_delete' instance.pk %}" class="btn btn-danger">Supprimer</a>
+        <a href="{% url 'parametre_delete' uuid=instance.uuid slug=instance.slug %}" class="btn btn-danger">Supprimer</a>
         {% endif %}
       </div>
       <button type="submit" class="btn btn-primary">

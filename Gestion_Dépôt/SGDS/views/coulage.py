@@ -46,7 +46,7 @@ class RepartitionCoulageView(LoginRequiredMixin, TemplateView):
         from SGDS.services.coulage_repartition import calculer_repartition_coulage
 
         ctx  = super().get_context_data(**kwargs)
-        periode = get_object_or_404(PeriodeComptable, pk=self.kwargs['periode_id'])
+        periode = get_object_or_404(PeriodeComptable, uuid=self.kwargs['periode_uuid'])
 
         # Utiliser le snapshot si période clôturée et snapshot disponible
         if periode.statut == 'CLOTUREE' and hasattr(periode, 'cloture_coulage'):
@@ -74,10 +74,10 @@ class RepartitionCoulageView(LoginRequiredMixin, TemplateView):
         )
         produits = [pc.produit for pc in produits_qs]
 
-        coefficients = {pc.produit_id: pc.coefficient for pc in produits_qs}
-        pertes_gains  = {pc.produit_id: pc.pertes_gains for pc in produits_qs}
+        coefficients = {pc.produit_uuid: pc.coefficient for pc in produits_qs}
+        pertes_gains  = {pc.produit_uuid: pc.pertes_gains for pc in produits_qs}
         cumuls = {
-            pc.produit_id: {
+            pc.produit_uuid: {
                 'brut_entree': pc.cumul_entree,
                 'coul_entree': Decimal('0'),
                 'entree':      pc.cumul_entree,
@@ -107,7 +107,7 @@ class RepartitionCoulageView(LoginRequiredMixin, TemplateView):
             mkt_obj[mkt_id] = l.marketeur
             pu_mkt[mkt_id]  = l.prix_unitaire
             motif_mkt[mkt_id] = l.motif
-            par_mkt[mkt_id][l.produit_id] = {
+            par_mkt[mkt_id][l.produit_uuid] = {
                 'brut_entree':  l.brut_entree,
                 'coul_entree':  l.coul_entree,
                 'entree_nette': l.entree_nette,
@@ -183,14 +183,14 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         return self.request.user.is_staff
 
-    def post(self, request, periode_id):
+    def post(self, request, periode_uuid, periode_slug):
         from SGDS.models import PeriodeComptable, JaugeageJour
 
-        periode = get_object_or_404(PeriodeComptable, pk=periode_id)
+        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
 
         if periode.statut != 'OUVERTE':
             messages.warning(request, f"La période {periode} n'est pas ouverte.")
-            return redirect('coulage_detail', periode_id=periode_id)
+            return redirect('coulage_detail', periode_uuid=periode.uuid, periode_slug=periode.slug)
 
         if not JaugeageJour.objects.filter(
             date_jaugeage__gte=periode.date_debut,
@@ -200,7 +200,7 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
                 request,
                 f"Impossible de clôturer : aucun jaugeage trouvé pour {periode}."
             )
-            return redirect('coulage_detail', periode_id=periode_id)
+            return redirect('coulage_detail', periode_uuid=periode.uuid, periode_slug=periode.slug)
 
         notes = request.POST.get('notes', '').strip() or None
 
@@ -211,7 +211,7 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
             cloture = cloturer_periode(periode, user=request.user, notes=notes)
         except ValidationError as e:
             messages.error(request, e.message)
-            return redirect('coulage_detail', periode_id=periode_id)
+            return redirect('coulage_detail', periode_uuid=periode.uuid, periode_slug=periode.slug)
 
         from SGDS.services.periode_comptable import mois_suivant as _ms
         m_s, a_s = _ms(periode.mois, periode.annee)
@@ -222,22 +222,22 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
             f"Pour commencer le mois suivant, ouvrez la période {m_s}/{a_s} "
             "depuis la liste des périodes."
         )
-        return redirect('coulage_detail', periode_id=periode_id)
+        return redirect('coulage_detail', periode_uuid=periode.uuid, periode_slug=periode.slug)
 
 
 # ─────────────────────────────────────────────────────────────
 #  EXPORT EXCEL
 # ─────────────────────────────────────────────────────────────
 class ExportCoulageExcelView(LoginRequiredMixin, View):
-    def get(self, request, periode_id):
+    def get(self, request, periode_uuid):
         from SGDS.models import PeriodeComptable
         from SGDS.services.coulage_repartition import calculer_repartition_coulage
 
-        periode = get_object_or_404(PeriodeComptable, pk=periode_id)
+        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
 
         if periode.statut == 'CLOTUREE' and hasattr(periode, 'cloture_coulage'):
             vue = RepartitionCoulageView()
-            vue.kwargs = {'periode_id': periode_id}
+            vue.kwargs = {'periode_uuid': periode_uuid}
             vue.request = request
             rapport = vue._rapport_depuis_snapshot(periode.cloture_coulage)
         else:
@@ -468,12 +468,12 @@ def _generer_xlsx_coulage(rapport) -> bytes:
 class SuiviEvolutionView(LoginRequiredMixin, View):
     """Tableau journalier stock/mouvements pour un produit sur une période."""
 
-    def get(self, request, periode_id, produit_id):
+    def get(self, request, periode_uuid, periode_slug, produit_uuid, produit_slug):
         from SGDS.models import PeriodeComptable, Produit
         from SGDS.services.suivi_evolution import calculer_suivi_evolution
 
-        periode  = get_object_or_404(PeriodeComptable, pk=periode_id)
-        produit  = get_object_or_404(Produit, pk=produit_id)
+        periode  = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        produit  = get_object_or_404(Produit, uuid=produit_uuid)
         produits = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
         rapport  = calculer_suivi_evolution(periode, produit)
 
@@ -489,13 +489,13 @@ class SuiviEvolutionView(LoginRequiredMixin, View):
 class ExportSuiviExcelView(LoginRequiredMixin, View):
     """Export Excel du suivi évolution journalier."""
 
-    def get(self, request, periode_id, produit_id):
+    def get(self, request, periode_uuid, periode_slug, produit_uuid, produit_slug):
         from SGDS.models import PeriodeComptable, Produit
         from SGDS.services.suivi_evolution import calculer_suivi_evolution
         from SGDS.services.export_excel import exporter_suivi_xlsx
 
-        periode = get_object_or_404(PeriodeComptable, pk=periode_id)
-        produit = get_object_or_404(Produit, pk=produit_id)
+        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        produit = get_object_or_404(Produit, uuid=produit_uuid)
         rapport = calculer_suivi_evolution(periode, produit)
 
         contenu = exporter_suivi_xlsx(rapport)
@@ -515,11 +515,11 @@ class ExportSuiviExcelView(LoginRequiredMixin, View):
 class FraisPassageView(LoginRequiredMixin, View):
     """Document de facturation mensuel — frais de passage par marketeur."""
 
-    def get(self, request, periode_id):
+    def get(self, request, periode_uuid, periode_slug):
         from SGDS.models import PeriodeComptable
         from SGDS.services.frais_passage import calculer_frais_passage
 
-        periode = get_object_or_404(PeriodeComptable, pk=periode_id)
+        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
         rapport = calculer_frais_passage(periode)
 
         from django.shortcuts import render
@@ -532,12 +532,12 @@ class FraisPassageView(LoginRequiredMixin, View):
 class ExportFraisPassageExcelView(LoginRequiredMixin, View):
     """Export Excel des frais de passage."""
 
-    def get(self, request, periode_id):
+    def get(self, request, periode_uuid, periode_slug):
         from SGDS.models import PeriodeComptable
         from SGDS.services.frais_passage import calculer_frais_passage
         from SGDS.services.export_excel import exporter_frais_passage_xlsx
 
-        periode = get_object_or_404(PeriodeComptable, pk=periode_id)
+        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
         rapport = calculer_frais_passage(periode)
 
         contenu = exporter_frais_passage_xlsx(rapport)

@@ -19,6 +19,33 @@
 [data-theme="dark"] .fcheader-sortie{background:rgba(239,68,68,.12)}
 [data-theme="dark"] .fcheader-cession{background:rgba(59,130,246,.12)}
 [data-theme="dark"] .fcheader-acquittement{background:rgba(168,85,247,.12)}
+
+/* ── Champs auto-calculés (grisés, lecture seule) ── */
+input.auto-calc {
+  background: var(--surface-2, #f1f5f9) !important;
+  color: var(--muted, #64748b) !important;
+  cursor: not-allowed !important;
+  border-color: var(--border, #e2e8f0) !important;
+  font-style: italic;
+}
+input.auto-calc::placeholder { color: var(--muted, #94a3b8); opacity:.7; }
+[data-theme="dark"] input.auto-calc {
+  background: rgba(255,255,255,.04) !important;
+  color: rgba(255,255,255,.35) !important;
+  border-color: rgba(255,255,255,.1) !important;
+}
+/* Libellé avec badge « auto » */
+.label-auto-calc {
+  display:inline-flex;align-items:center;gap:6px;
+}
+.label-auto-calc::after {
+  content:"auto";
+  font-size:9.5px;font-weight:700;letter-spacing:.04em;
+  padding:1px 6px;border-radius:20px;
+  background:var(--info-soft,#eff6ff);color:var(--info,#2563eb);
+  border:1px solid rgba(37,99,235,.2);
+  font-style:normal;
+}
 </style>
 {% endblock %}
 
@@ -234,7 +261,9 @@
           <div style="display:grid;grid-template-columns:28px 1fr 136px 136px 34px;background:var(--surface-2);border-bottom:1px solid var(--border);padding:7px 10px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;gap:6px">
             <span style="text-align:center">#</span><span>Cuve</span>
             <span style="text-align:center">Vol. ambiant (L)</span>
-            <span style="text-align:center">Vol. @15°C (L)</span>
+            <span style="text-align:center">Vol. @15°C (L)
+              <span style="font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:20px;background:var(--info-soft);color:var(--info);border:1px solid rgba(37,99,235,.2);margin-left:3px;font-style:normal;text-transform:none;letter-spacing:0">auto</span>
+            </span>
             <span></span>
           </div>
           <div id="lignes-cuves-container">
@@ -259,13 +288,14 @@
               <div>
                 <input type="number" name="{{ lform.volume_ambiant.html_name }}" step="0.01" min="0"
                        class="form-control vol-ambiant-input" style="font-size:12px;padding:5px 8px;text-align:right"
-                       value="{{ lform.volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" oninput="updateTotalVolume()">
+                       value="{{ lform.volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" oninput="updateTotalVolume();updateCuvesVol15cFromRow(this)">
                 {% if lform.volume_ambiant.errors %}<span class="field-error">{{ lform.volume_ambiant.errors|join:" " }}</span>{% endif %}
               </div>
               <div>
                 <input type="number" name="{{ lform.volume_15c.html_name }}" step="0.01" min="0"
-                       class="form-control" style="font-size:12px;padding:5px 8px;text-align:right"
-                       value="{{ lform.volume_15c.value|default_if_none:'' }}" placeholder="0.00">
+                       class="form-control auto-calc vol-15c-input" style="font-size:12px;padding:5px 8px;text-align:right"
+                       value="{{ lform.volume_15c.value|default_if_none:'' }}" placeholder="—" readonly
+                       title="Calculé automatiquement : Vol. ambiant × Kconv @15°C">
                 {% if lform.volume_15c.errors %}<span class="field-error">{{ lform.volume_15c.errors|join:" " }}</span>{% endif %}
               </div>
               <div style="padding-top:2px;text-align:center">
@@ -315,6 +345,22 @@
       <div class="field-group"><label>N° Permis</label><input type="text" name="numero_permis_sortie" value="{{ form.numero_permis_sortie.value|default_if_none:'' }}" placeholder="Ex: 2026/DGD/001"></div>
       <div class="field-group"><label>N° S</label><input type="text" name="numero_s" value="{{ form.numero_s.value|default_if_none:'' }}"></div>
       <div class="field-group"><label>N° C</label><input type="text" name="numero_c" value="{{ form.numero_c.value|default_if_none:'' }}"></div>
+    </div>
+
+    <p class="subsection-title">Horaires d'opération</p>
+    <div class="fields-grid-3">
+      <div class="field-group">
+        <label>Heure d'arrivée</label>
+        <input type="time" name="heure_arrivee" value="{{ form.heure_arrivee.value|default_if_none:'' }}">
+      </div>
+      <div class="field-group">
+        <label>Heure de dépotage</label>
+        <input type="time" name="heure_depotage" value="{{ form.heure_depotage.value|default_if_none:'' }}">
+      </div>
+      <div class="field-group">
+        <label>Heure de fin</label>
+        <input type="time" name="heure_fin" value="{{ form.heure_fin.value|default_if_none:'' }}">
+      </div>
     </div>
 
     <p class="subsection-title">Données BL Expéditeur</p>
@@ -443,12 +489,40 @@
       <div class="field-group"><label>N° C</label><input type="text" name="numero_c" value="{{ form.numero_c.value|default_if_none:'' }}"></div>
     </div>
 
-    <p class="subsection-title">Volumes & Densité</p>
+    <p class="subsection-title">Documents & Autorisations</p>
+    <div class="fields-grid">
+      <div class="field-group"><label>N° BL Client</label><input type="text" name="bl_client" value="{{ form.bl_client.value|default_if_none:'' }}" placeholder="Ex: BL-CLT-001"></div>
+      <div class="field-group"><label>N° autorisation Marketeur</label><input type="text" name="numero_autorisation_marketeur" value="{{ form.numero_autorisation_marketeur.value|default_if_none:'' }}" placeholder="Ex: AUTH-MKT-2026-001"></div>
+      <div class="field-group"><label>N° bon d'enlèvement</label><input type="text" name="numero_bon_enlevement" value="{{ form.numero_bon_enlevement.value|default_if_none:'' }}" placeholder="Ex: BE-2026-0042"></div>
+      <div class="field-group col-full"><label>Compartiments chargés</label><input type="text" name="compartiments_charges" value="{{ form.compartiments_charges.value|default_if_none:'' }}" placeholder="Ex: C1=5000L, C2=8000L, C3=7000L"></div>
+    </div>
+
+    <p class="subsection-title">Horaires d'opération</p>
     <div class="fields-grid-3">
+      <div class="field-group">
+        <label>Heure d'arrivée</label>
+        <input type="time" name="heure_arrivee" value="{{ form.heure_arrivee.value|default_if_none:'' }}">
+      </div>
+      <div class="field-group">
+        <label>Heure de dépotage</label>
+        <input type="time" name="heure_depotage" value="{{ form.heure_depotage.value|default_if_none:'' }}">
+      </div>
+      <div class="field-group">
+        <label>Heure de fin</label>
+        <input type="time" name="heure_fin" value="{{ form.heure_fin.value|default_if_none:'' }}">
+      </div>
+    </div>
+
+    <p class="subsection-title">Volumes & Densité</p>
+    <div class="fields-grid-4">
       <div class="field-group">
         <label>Vol. ambiant sortie (L) <span class="req">*</span></label>
         <input type="number" step="0.01" min="0" name="volume_ambiant_sortie" value="{{ form.volume_ambiant_sortie.value|default_if_none:'' }}" placeholder="0.00" {% if form.volume_ambiant_sortie.errors %}class="is-invalid"{% endif %}>
         {% if form.volume_ambiant_sortie.errors %}<span class="field-error">{{ form.volume_ambiant_sortie.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Densité observée (kg/m³)</label>
+        <input type="number" step="0.01" min="0" name="densite_observee_sortie" value="{{ form.densite_observee_sortie.value|default_if_none:'' }}" placeholder="Ex: 742.00">
       </div>
       <div class="field-group">
         <label>Densité @15°C sortie (kg/m³) <span class="req">*</span></label>
@@ -494,6 +568,7 @@
     <h3>Données de cession</h3>
   </div>
   <div class="form-card-body">
+
     <p class="subsection-title">Données de la cession</p>
     <div class="fields-grid">
       <div class="field-group">
@@ -509,13 +584,95 @@
         {% if form.cession_marketeur_destinataire.errors %}<span class="field-error">{{ form.cession_marketeur_destinataire.errors|join:" " }}</span>{% endif %}
       </div>
       <div class="field-group">
+        <label>Cuve</label>
+        <select name="cession_cuve">
+          <option value="">— Optionnel —</option>
+          {% for cuve in form.cession_cuve.field.queryset %}
+          <option value="{{ cuve.pk }}" {% if form.cession_cuve.value|stringformat:"s" == cuve.pk|stringformat:"s" %}selected{% endif %}>
+            {{ cuve.numero }} — {{ cuve.designation }}{% if cuve.produit %} ({{ cuve.produit.nom }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field-group">
         <label>Vol. ambiant cédé (L) <span class="req">*</span></label>
         <input type="number" step="0.01" min="0" name="cession_volume_ambiant" value="{{ form.cession_volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" {% if form.cession_volume_ambiant.errors %}class="is-invalid"{% endif %}>
         {% if form.cession_volume_ambiant.errors %}<span class="field-error">{{ form.cession_volume_ambiant.errors|join:" " }}</span>{% endif %}
       </div>
-      <div class="field-group"><label>Vol. @15°C cédé (L)</label><input type="number" step="0.01" min="0" name="cession_volume_15c" value="{{ form.cession_volume_15c.value|default_if_none:'' }}" placeholder="0.00"></div>
       <div class="field-group col-full"><label>Motif de la cession</label><input type="text" name="cession_motif" value="{{ form.cession_motif.value|default_if_none:'' }}" placeholder="Ex: Transfert de stock inter-dépôts"></div>
     </div>
+
+    <p class="subsection-title">Autorisation & Références</p>
+    <div class="fields-grid">
+      <div class="field-group"><label>N° autorisation Direction</label><input type="text" name="cession_numero_autorisation_direction" value="{{ form.cession_numero_autorisation_direction.value|default_if_none:'' }}" placeholder="Ex: DIR-2026-001"></div>
+      <div class="field-group"><label>Date autorisation</label><input type="date" name="cession_date_autorisation" value="{{ form.cession_date_autorisation.value|date:'Y-m-d'|default_if_none:'' }}"></div>
+      <div class="field-group"><label>Référence contrat</label><input type="text" name="cession_reference_contrat" value="{{ form.cession_reference_contrat.value|default_if_none:'' }}" placeholder="Ex: CTR-2026-042"></div>
+      <div class="field-group"><label>Période d'imputation</label><input type="text" name="cession_periode_imputation" value="{{ form.cession_periode_imputation.value|default_if_none:'' }}" placeholder="Ex: Mai 2026"></div>
+      <div class="field-group"><label>Visa direction</label>
+        <select name="cession_visa_direction">
+          <option value="">— Sélectionner —</option>
+          <option value="Approuvé" {% if form.cession_visa_direction.value == "Approuvé" %}selected{% endif %}>Approuvé</option>
+          <option value="Refusé" {% if form.cession_visa_direction.value == "Refusé" %}selected{% endif %}>Refusé</option>
+          <option value="En attente" {% if form.cession_visa_direction.value == "En attente" %}selected{% endif %}>En attente</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="subsection-title">Densité & Température — Calcul API MPMS</p>
+    <div style="border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
+      <div style="padding:16px 20px">
+        <div class="fields-grid-4">
+          <div class="field-group">
+            <label>Vol. ambiant cédé (L) — rappel</label>
+            <div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);font-size:13px;font-weight:600;color:var(--ink)">
+              <span id="cession-vol-ambiant-display">{{ form.cession_volume_ambiant.value|default_if_none:'—' }}</span>
+            </div>
+          </div>
+          <div class="field-group">
+            <label>D<sub>OBS</sub> (kg/m³)</label>
+            <input type="number" step="0.01" min="0" name="cession_densite_observee"
+                   value="{{ form.cession_densite_observee.value|default_if_none:'' }}"
+                   placeholder="Ex: 742.00" id="id_cession_densite_observee">
+          </div>
+          <div class="field-group">
+            <label>Température (°C)</label>
+            <input type="number" step="0.01" name="cession_temperature"
+                   value="{{ form.cession_temperature.value|default_if_none:'' }}"
+                   placeholder="Ex: 30.00" id="id_cession_temperature">
+          </div>
+          <div class="field-group">
+            <label class="label-auto-calc">Vol. @15°C cédé (L)</label>
+            <input type="number" step="0.01" min="0" name="cession_volume_15c"
+                   value="{{ form.cession_volume_15c.value|default_if_none:'' }}"
+                   placeholder="—" id="id_cession_volume_15c"
+                   class="form-control auto-calc" readonly
+                   title="Calculé automatiquement : Vol. ambiant × Kconv @15°C (API MPMS)">
+          </div>
+        </div>
+      </div>
+      <div style="border-top:2px dashed var(--border);background:var(--surface-2);padding:14px 20px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--muted);fill:none;stroke-width:2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Contrôle automatique (API MPMS) — calculés à l'enregistrement
+        </div>
+        <div class="calc-zone" style="margin:0">
+          <div class="calc-zone-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Calculés via API MPMS (TRH_15 + TVCF_15)</div>
+          <div class="calc-row">
+            <span class="calc-label">Densité @15°C calculée (kg/m³)</span>
+            <span class="calc-value">{% if mouvement and mouvement.type_mouvement == 'CESSION' and mouvement.cession_densite_15c %}{{ mouvement.cession_densite_15c }} kg/m³{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-label">K<sub>conv</sub> @15°C cession</span>
+            <span class="calc-value">{% if mouvement and mouvement.type_mouvement == 'CESSION' and mouvement.cession_coefficient_vcf %}{{ mouvement.cession_coefficient_vcf }}{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+          </div>
+          <div class="calc-row">
+            <span class="calc-label">Volume @15°C calculé (L)</span>
+            <span class="calc-value">{% if mouvement and mouvement.type_mouvement == 'CESSION' and mouvement.cession_volume_15c %}{{ mouvement.cession_volume_15c|floatformat:0 }} L{% else %}<span class="calc-pending">— sera calculé —</span>{% endif %}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -529,18 +686,28 @@
     <div class="info-band">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       <p>Un acquittement <strong>libère la douane</strong> sur un volume SOUS DOUANE et <strong>l'ajoute au stock disponible</strong>.
-         Sélectionnez l'entrée Sous douane d'origine via son N° BL, puis précisez la/les cuve(s) à créditer dans la section « Cuves à créditer » ci-dessous.
+         Sélectionnez l'entrée Sous douane d'origine via son N° BL — les données du BL se remplissent automatiquement.
          <strong>Le régime douanier est forcé sur ACQUITTÉ.</strong></p>
     </div>
 
+    <!-- ── Sélection de l'entrée source ── -->
     <p class="subsection-title">Entrée Sous douane source</p>
     <div class="fields-grid">
       <div class="field-group col-full">
         <label>Entrée Sous douane associée (N° BL Dépôt Chargeur)</label>
-        <select name="entree_source" class="form-control" {% if form.entree_source.errors %}class="is-invalid"{% endif %}>
-          <option value="">— Aucune (acquittement de stock initial) —</option>
+        <select id="id_entree_source" name="entree_source" class="form-control" {% if form.entree_source.errors %}class="is-invalid"{% endif %}>
+          <option value="" data-provenance="" data-bl="" data-cuve="" data-vol-entree="" data-vol-acquitte="" data-vcf="">
+            — Aucune (acquittement de stock initial) —
+          </option>
           {% for entree in form.entree_source.field.queryset %}
           <option value="{{ entree.pk }}"
+                  data-provenance="{{ entree.provenance|default_if_none:'' }}"
+                  data-bl="{{ entree.bl_expediteur|default_if_none:'' }}"
+                  data-cuve="{% with lignes=entree.lignes.all %}{% if lignes %}{{ lignes.0.cuve|default_if_none:'' }}{% endif %}{% endwith %}"
+                  data-vol-entree="{{ entree.volume_ambiant_recu|default_if_none:'' }}"
+                  data-vol-acquitte="{{ entree.volume_acquitte_total|default_if_none:'' }}"
+                  data-vcf="{{ entree.coefficient_conversion_15c|default_if_none:'' }}"
+                  data-numero="{{ entree.numero_enregistrement|default_if_none:'' }}"
                   {% if form.entree_source.value|stringformat:"s" == entree.pk|stringformat:"s" %}selected{% endif %}>
             {{ entree.numero_enregistrement }} — {{ entree.date_mouvement|date:"d/m/Y" }}
             {% if entree.bl_expediteur %} | BL : {{ entree.bl_expediteur }}{% endif %}
@@ -556,17 +723,71 @@
       </div>
     </div>
 
-    <p class="subsection-title">Déclaration douanière</p>
+    <!-- ── Données récupérées du BL lié (lecture seule) ── -->
+    <p class="subsection-title" id="acq-bl-titre" style="display:none">
+      Données du BL d'origine
+      <span style="font-size:11px;font-weight:400;color:var(--muted)">(récupérées automatiquement)</span>
+    </p>
+    <div class="fields-grid" id="acq-bl-info" style="display:none">
+      <div class="field-group">
+        <label>Mouvement d'entrée source</label>
+        <input type="text" id="acq_info_entree" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+      <div class="field-group">
+        <label>Provenance origine</label>
+        <input type="text" id="acq_info_provenance" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+      <div class="field-group">
+        <label>BL d'origine</label>
+        <input type="text" id="acq_info_bl" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+      <div class="field-group">
+        <label>Cuve concernée</label>
+        <input type="text" id="acq_info_cuve" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+      <div class="field-group">
+        <label>Vol. entré Ambiant (L)</label>
+        <input type="text" id="acq_info_vol_entree" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+      <div class="field-group">
+        <label>Vol. déjà acquitté (L)</label>
+        <input type="text" id="acq_info_vol_acquitte" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+      <div class="field-group">
+        <label>Vol. restant sous douane (L)</label>
+        <input type="text" id="acq_info_vol_restant" class="form-control auto-calc" readonly placeholder="—">
+      </div>
+    </div>
+
+    <!-- ── Volumes à acquitter ── -->
+    <p class="subsection-title">Volumes à acquitter</p>
     <div class="fields-grid">
       <div class="field-group">
         <label>Vol. ambiant à acquitter (L) <span class="req">*</span></label>
-        <input type="number" step="0.01" min="0" name="acquittement_volume_ambiant" value="{{ form.acquittement_volume_ambiant.value|default_if_none:'' }}" placeholder="0.00" {% if form.acquittement_volume_ambiant.errors %}class="is-invalid"{% endif %}>
+        <input type="number" step="0.01" min="0" id="id_acquittement_volume_ambiant"
+               name="acquittement_volume_ambiant"
+               value="{{ form.acquittement_volume_ambiant.value|default_if_none:'' }}"
+               placeholder="0.00"
+               {% if form.acquittement_volume_ambiant.errors %}class="is-invalid"{% endif %}>
         {% if form.acquittement_volume_ambiant.errors %}<span class="field-error">{{ form.acquittement_volume_ambiant.errors|join:" " }}</span>{% endif %}
       </div>
       <div class="field-group">
-        <label>Vol. @15°C à acquitter (L) <span class="req">*</span></label>
-        <input type="number" step="0.01" min="0" name="acquittement_volume_15c" value="{{ form.acquittement_volume_15c.value|default_if_none:'' }}" placeholder="0.00">
+        <label>
+          Vol. @15°C à acquitter (L)
+          <span style="font-size:10px;background:var(--surface-2);border-radius:4px;padding:1px 6px;margin-left:4px;color:var(--muted)">⚙ calculé auto</span>
+        </label>
+        <input type="text" id="id_acquittement_volume_15c" class="auto-calc" readonly
+               value="{{ form.instance.acquittement_volume_15c|default_if_none:'' }}"
+               placeholder="— calculé automatiquement (Vol. ambiant × Vcf BL) —"
+               title="Calculé automatiquement : Vol. ambiant × Vcf de l'entrée source">
+        <input type="hidden" name="acquittement_volume_15c" id="id_acquittement_volume_15c_hidden"
+               value="{{ form.instance.acquittement_volume_15c|default_if_none:'' }}">
       </div>
+    </div>
+
+    <!-- ── Déclaration douanière ── -->
+    <p class="subsection-title">Déclaration douanière</p>
+    <div class="fields-grid">
       <div class="field-group">
         <label>Référence déclaration douanière <span class="req">*</span></label>
         <input type="text" name="acquittement_reference_declaration" value="{{ form.acquittement_reference_declaration.value|default_if_none:'' }}" placeholder="Ex: D48 N°12345/2026">
@@ -576,6 +797,30 @@
         <label>Date de la déclaration <span class="req">*</span></label>
         <input type="date" name="acquittement_date_declaration" value="{{ form.acquittement_date_declaration.value|date:'Y-m-d'|default_if_none:'' }}">
         {% if form.acquittement_date_declaration.errors %}<span class="field-error">{{ form.acquittement_date_declaration.errors|join:" " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Bureau de douane</label>
+        <input type="text" name="acquittement_bureau_douane" value="{{ form.acquittement_bureau_douane.value|default_if_none:'' }}" placeholder="Ex: Bureau principal d'Abidjan">
+      </div>
+      <div class="field-group">
+        <label>Code bureau</label>
+        <input type="text" name="acquittement_code_bureau" value="{{ form.acquittement_code_bureau.value|default_if_none:'' }}" placeholder="Ex: ABJ-001">
+      </div>
+      <div class="field-group">
+        <label>N° quittance</label>
+        <input type="text" name="acquittement_numero_quittance" value="{{ form.acquittement_numero_quittance.value|default_if_none:'' }}" placeholder="Ex: QUI-2026-00123">
+      </div>
+      <div class="field-group">
+        <label>Date paiement</label>
+        <input type="date" name="acquittement_date_paiement" value="{{ form.acquittement_date_paiement.value|date:'Y-m-d'|default_if_none:'' }}">
+      </div>
+      <div class="field-group">
+        <label>Commissionnaire en douane</label>
+        <input type="text" name="acquittement_commissionnaire" value="{{ form.acquittement_commissionnaire.value|default_if_none:'' }}" placeholder="Nom du commissionnaire">
+      </div>
+      <div class="field-group">
+        <label>Agent dédouaneur</label>
+        <input type="text" name="acquittement_agent_dedouaneur" value="{{ form.acquittement_agent_dedouaneur.value|default_if_none:'' }}" placeholder="Nom de l'agent">
       </div>
     </div>
   </div>
@@ -602,7 +847,7 @@
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     {% if mode == 'modification' and mouvement %}
-    <a href="{% url 'mouvement_detail' mouvement.pk %}" class="btn">
+    <a href="{% url 'mouvement_detail' uuid=mouvement.uuid slug=mouvement.slug %}" class="btn">
       <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:currentColor;fill:none"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
       Retour à la fiche
     </a>
@@ -623,7 +868,7 @@
 </div>
 
 {% if mouvement and request.user.is_staff %}
-<form id="form-supprimer" method="post" action="{% url 'mouvement_supprimer' mouvement.pk %}" style="display:none">{% csrf_token %}</form>
+<form id="form-supprimer" method="post" action="{% url 'mouvement_supprimer' uuid=mouvement.uuid slug=mouvement.slug %}" style="display:none">{% csrf_token %}</form>
 {% endif %}
 
 </form>
@@ -686,8 +931,8 @@
     var h='<div class="ligne-cuve-row" data-idx="'+idx+'" style="display:grid;grid-template-columns:28px 1fr 136px 136px 34px;align-items:start;gap:6px;padding:7px 10px;border-bottom:1px solid var(--surface-2);background:var(--surface)">'
       +'<span class="ligne-num" style="text-align:center;font-size:11px;font-weight:600;color:var(--muted-2);padding-top:8px">'+vc+'</span>'
       +'<div><select name="lignes-'+idx+'-cuve" class="form-control cuve-select" style="font-size:12px;padding:5px 8px">'+optHtml+'</select></div>'
-      +'<div><input type="number" name="lignes-'+idx+'-volume_ambiant" step="0.01" min="0" class="form-control vol-ambiant-input" style="font-size:12px;padding:5px 8px;text-align:right" placeholder="0.00" oninput="updateTotalVolume()"></div>'
-      +'<div><input type="number" name="lignes-'+idx+'-volume_15c" step="0.01" min="0" class="form-control" style="font-size:12px;padding:5px 8px;text-align:right" placeholder="0.00"></div>'
+      +'<div><input type="number" name="lignes-'+idx+'-volume_ambiant" step="0.01" min="0" class="form-control vol-ambiant-input" style="font-size:12px;padding:5px 8px;text-align:right" placeholder="0.00" oninput="updateTotalVolume();updateCuvesVol15cFromRow(this)"></div>'
+      +'<div><input type="number" name="lignes-'+idx+'-volume_15c" step="0.01" min="0" class="form-control auto-calc vol-15c-input" style="font-size:12px;padding:5px 8px;text-align:right" placeholder="—" readonly title="Calculé automatiquement : Vol. ambiant × Kconv @15°C"></div>'
       +'<div style="padding-top:2px;text-align:center"><button type="button" class="btn-suppr-ligne" onclick="supprimerLigne(this)" style="background:var(--err-soft);border:1px solid rgba(168,51,28,.3);border-radius:var(--radius);width:28px;height:28px;cursor:pointer;color:var(--err);display:inline-flex;align-items:center;justify-content:center;padding:0"><svg viewBox="0 0 24 24" stroke-width="2" style="width:12px;height:12px;stroke:currentColor;fill:none"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div>'
       +'</div>';
     container.insertAdjacentHTML('beforeend',h);totalForms.value=idx+1;
@@ -722,8 +967,46 @@ window.confirmerSuppression=function(){
   var previewTimer=null;
   var TRIGGER_ENTREE=['volume_ambiant_recu','volume_ambiant_expediteur','temperature_labo','densite_observee_labo','temperature_reception','densite_15c_expediteur'];
   var TRIGGER_SORTIE=['volume_ambiant_sortie','densite_15c_sortie','temperature_sortie'];
+  var TRIGGER_CESSION=['cession_volume_ambiant','cession_densite_observee','cession_temperature'];
+
+  // Kconv courant (mis à jour à chaque preview ENTREE)
+  var _kconvEntree = null;
 
   function getVal(n){var e=document.querySelector('[name="'+n+'"]');return e&&e.value!==''?e.value:null;}
+
+  // ── Met à jour les Vol.@15°C de toutes les lignes cuves à partir du kconv
+  window.updateCuvesVol15c=function(kconv){
+    _kconvEntree=kconv;
+    document.querySelectorAll('.ligne-cuve-row').forEach(function(row){
+      if(row.style.display==='none')return;
+      var ambInput=row.querySelector('.vol-ambiant-input');
+      var v15Input=row.querySelector('.vol-15c-input');
+      if(!ambInput||!v15Input)return;
+      var amb=parseFloat(ambInput.value);
+      if(!isNaN(amb)&&amb>0&&kconv)
+        v15Input.value=Math.round(amb*kconv*100)/100;
+      else
+        v15Input.value='';
+    });
+  };
+
+  // ── Recalcul d'une seule ligne (appelé depuis oninput du vol-ambiant)
+  window.updateCuvesVol15cFromRow=function(ambInput){
+    var row=ambInput.closest('.ligne-cuve-row');
+    if(!row)return;
+    var v15Input=row.querySelector('.vol-15c-input');
+    if(!v15Input)return;
+    var amb=parseFloat(ambInput.value);
+    if(!isNaN(amb)&&amb>0&&_kconvEntree)
+      v15Input.value=Math.round(amb*_kconvEntree*100)/100;
+    else
+      v15Input.value='';
+  };
+
+  // ── Patch sur les lignes existantes : brancher updateCuvesVol15cFromRow
+  document.querySelectorAll('.vol-ambiant-input').forEach(function(inp){
+    inp.addEventListener('input',function(){updateCuvesVol15cFromRow(inp);});
+  });
 
   function fmtPgReception(v){if(v===undefined||v===null)return'<div class="calc-pending" style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px dashed var(--border);border-radius:var(--radius)">— sera calculé à l\'enregistrement —</div>';var n=parseFloat(v),color=n<0?'var(--err)':'var(--ok)';return'<div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;font-weight:600;color:'+color+'">'+(n>0?'+':'')+n.toFixed(2)+' L</div>';}
   function fmtDensite(v){if(v===undefined||v===null)return'<div class="calc-pending" style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px dashed var(--border);border-radius:var(--radius)">— sera calculé à l\'enregistrement —</div>';return'<div style="padding:0 11px;height:34px;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;font-weight:600;color:var(--ink)">'+parseFloat(v).toFixed(2)+' kg/m³</div>';}
@@ -737,9 +1020,13 @@ window.confirmerSuppression=function(){
   function doPreview(){
     var type=document.getElementById('id_type_mouvement').value;
     var csrf=document.querySelector('[name=csrfmiddlewaretoken]').value;
+
     if(type==='ENTREE'){
       var payload={type_mouvement:'ENTREE'};TRIGGER_ENTREE.forEach(function(f){payload[f]=getVal(f);});
-      if(!payload.volume_ambiant_recu&&!payload.densite_observee_labo){clearCalc(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']);return;}
+      if(!payload.volume_ambiant_recu&&!payload.densite_observee_labo){
+        clearCalc(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']);
+        return;
+      }
       setLoading(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']);
       fetch(PREVIEW_URL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)})
         .then(r=>r.json()).then(d=>{
@@ -751,7 +1038,11 @@ window.confirmerSuppression=function(){
           el=document.getElementById('pv-volume-15c');if(el)el.innerHTML=d.volume_15c_recu!==undefined?'<span class="calc-value">'+Math.round(d.volume_15c_recu).toLocaleString('fr-FR')+' L</span>':PENDING_HTML;
           el=document.getElementById('pv-pg-15c');if(el)el.innerHTML=fmtSigned(d.perte_gain_15c,2,'L');
           el=document.getElementById('pv-poids');if(el)el.innerHTML=d.poids_kg!==undefined?'<span class="calc-value">'+Math.round(d.poids_kg).toLocaleString('fr-FR')+' kg</span>':PENDING_HTML;
+          // ── Mise à jour automatique des Vol.@15°C des cuves
+          if(d.coefficient_conversion_15c!==undefined)
+            updateCuvesVol15c(d.coefficient_conversion_15c);
         }).catch(()=>clearCalc(['pv-pg-reception','pv-densite-15c','pv-ecart-densite','pv-vcf','pv-volume-15c','pv-pg-15c','pv-poids']));
+
     } else if(type==='SORTIE'){
       var payload={type_mouvement:'SORTIE'};TRIGGER_SORTIE.forEach(function(f){payload[f]=getVal(f);});
       if(!payload.volume_ambiant_sortie&&!payload.densite_15c_sortie){clearCalc(['pv-sortie-vcf','pv-sortie-volume-15c','pv-sortie-poids']);return;}
@@ -763,14 +1054,111 @@ window.confirmerSuppression=function(){
           el=document.getElementById('pv-sortie-volume-15c');if(el)el.innerHTML=d.volume_15c_sortie!==undefined?'<span class="calc-value">'+Math.round(d.volume_15c_sortie).toLocaleString('fr-FR')+' L</span>':PENDING_HTML;
           el=document.getElementById('pv-sortie-poids');if(el)el.innerHTML=d.poids_sortie_kg!==undefined?'<span class="calc-value">'+Math.round(d.poids_sortie_kg).toLocaleString('fr-FR')+' kg</span>':PENDING_HTML;
         }).catch(()=>clearCalc(['pv-sortie-vcf','pv-sortie-volume-15c','pv-sortie-poids']));
+
+    } else if(type==='CESSION'){
+      var payload={type_mouvement:'CESSION'};TRIGGER_CESSION.forEach(function(f){payload[f]=getVal(f);});
+      if(!payload.cession_densite_observee&&!payload.cession_temperature){return;}
+      fetch(PREVIEW_URL,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf},body:JSON.stringify(payload)})
+        .then(r=>r.json()).then(d=>{
+          // Mise à jour de la calc-zone CESSION
+          var spans=document.querySelectorAll('#section-cession .calc-row .calc-value');
+          // D@15°C
+          if(spans[0])spans[0].innerHTML=d.cession_densite_15c!==undefined?d.cession_densite_15c.toFixed(2)+' kg/m³':'<span class="calc-pending">— sera calculé —</span>';
+          // Kconv
+          if(spans[1])spans[1].innerHTML=d.cession_coefficient_vcf!==undefined?d.cession_coefficient_vcf.toFixed(4):'<span class="calc-pending">— sera calculé —</span>';
+          // Vol.@15°C — dans calc-zone
+          if(spans[2])spans[2].innerHTML=d.cession_volume_15c!==undefined?Math.round(d.cession_volume_15c).toLocaleString('fr-FR')+' L':'<span class="calc-pending">— sera calculé —</span>';
+          // ── Pré-remplir l'input Vol.@15°C cédé (grisé)
+          var inp=document.getElementById('id_cession_volume_15c');
+          if(inp)inp.value=d.cession_volume_15c!==undefined?Math.round(d.cession_volume_15c*100)/100:'';
+        }).catch(function(){});
     }
   }
 
   function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(doPreview,600);}
-  TRIGGER_ENTREE.concat(TRIGGER_SORTIE).forEach(function(n){var e=document.querySelector('[name="'+n+'"]');if(e)e.addEventListener('input',schedulePreview);});
+  TRIGGER_ENTREE.concat(TRIGGER_SORTIE).concat(TRIGGER_CESSION).forEach(function(n){
+    var e=document.querySelector('[name="'+n+'"]');if(e)e.addEventListener('input',schedulePreview);
+  });
   var ti=document.getElementById('id_type_mouvement').value;
-  if(ti==='ENTREE'||ti==='SORTIE')doPreview();
+  if(ti==='ENTREE'||ti==='SORTIE'||ti==='CESSION')doPreview();
   document.querySelectorAll('.type-btn').forEach(b=>b.addEventListener('click',function(){clearTimeout(previewTimer);previewTimer=setTimeout(doPreview,200);}));
+
+  // ── AUTO-FILL ACQUITTEMENT depuis entree_source ────────────────────────────
+  (function(){
+    var selEntree   = document.getElementById('id_entree_source');
+    var volAmb      = document.getElementById('id_acquittement_volume_ambiant');
+    var vol15cDisp  = document.getElementById('id_acquittement_volume_15c');
+    var vol15cHid   = document.getElementById('id_acquittement_volume_15c_hidden');
+    var blTitre     = document.getElementById('acq-bl-titre');
+    var blInfo      = document.getElementById('acq-bl-info');
+    var currentVcf  = null;
+
+    function fmt2(v){return v!==''&&v!==null&&!isNaN(v)?parseFloat(v).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';}
+
+    function fillFromOption(opt){
+      if(!opt||!opt.value){
+        // Aucune entrée sélectionnée — masquer le bloc info
+        if(blTitre)blTitre.style.display='none';
+        if(blInfo)blInfo.style.display='none';
+        currentVcf=null;
+        calcVol15c();
+        return;
+      }
+      var numero    = opt.dataset.numero    ||'—';
+      var prov      = opt.dataset.provenance||'—';
+      var bl        = opt.dataset.bl        ||'—';
+      var cuve      = opt.dataset.cuve      ||'—';
+      var volE      = opt.dataset.volEntree ||'';
+      var volAcq    = opt.dataset.volAcquitte||'';
+      var vcf       = opt.dataset.vcf       ||'';
+
+      document.getElementById('acq_info_entree').value     = numero;
+      document.getElementById('acq_info_provenance').value = prov;
+      document.getElementById('acq_info_bl').value         = bl;
+      document.getElementById('acq_info_cuve').value       = cuve;
+      document.getElementById('acq_info_vol_entree').value = fmt2(volE);
+
+      // Vol. déjà acquitté & restant
+      var acqNum = parseFloat(volAcq)||0;
+      var entNum = parseFloat(volE)||0;
+      document.getElementById('acq_info_vol_acquitte').value = fmt2(acqNum||'');
+      var restant = (entNum>0)?Math.max(0,entNum-acqNum):null;
+      document.getElementById('acq_info_vol_restant').value = restant!==null?fmt2(restant):'—';
+
+      if(blTitre)blTitre.style.display='';
+      if(blInfo)blInfo.style.display='';
+
+      currentVcf = vcf!==''?parseFloat(vcf):null;
+      calcVol15c();
+    }
+
+    function calcVol15c(){
+      var ambVal = volAmb?parseFloat(volAmb.value):NaN;
+      if(!isNaN(ambVal)&&ambVal>0&&currentVcf){
+        var v15 = Math.round(ambVal*currentVcf*100)/100;
+        if(vol15cDisp)vol15cDisp.value=v15.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+        if(vol15cHid)vol15cHid.value=v15;
+      } else {
+        if(vol15cDisp)vol15cDisp.value='';
+        if(vol15cHid)vol15cHid.value='';
+      }
+    }
+
+    if(selEntree){
+      selEntree.addEventListener('change',function(){
+        fillFromOption(this.options[this.selectedIndex]);
+      });
+      // Sur chargement de la page (mode édition) : auto-fill si une entrée est déjà sélectionnée
+      if(selEntree.value){
+        fillFromOption(selEntree.options[selEntree.selectedIndex]);
+      }
+    }
+    if(volAmb){
+      volAmb.addEventListener('input',calcVol15c);
+    }
+  })();
+  // ── Fin AUTO-FILL ACQUITTEMENT ─────────────────────────────────────────────
+
 })();
 </script>
 {% endblock %}

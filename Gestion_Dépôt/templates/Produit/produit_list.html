@@ -83,7 +83,7 @@
     </thead>
     <tbody>
       {% for prod in produits %}
-      <tr class="clickable" onclick="window.location='{% url 'produit_detail' prod.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'produit_detail' uuid=prod.uuid slug=prod.slug %}'">
         <td>
           <div style="font-weight:600">{{ prod.nom }}</div>
           {% if prod.description %}<div style="font-size:.73rem;color:var(--muted);margin-top:2px">{{ prod.description|truncatechars:50 }}</div>{% endif %}
@@ -113,9 +113,9 @@
         </td>
         <td onclick="event.stopPropagation()">
           <div style="display:flex;gap:5px">
-            <a href="{% url 'produit_detail' prod.pk %}" class="btn btn-sm btn-ghost">Voir</a>
-            <a href="{% url 'produit_update' prod.pk %}" class="btn btn-sm btn-ghost">Modifier</a>
-            <a href="{% url 'produit_delete' prod.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
+            <a href="{% url 'produit_detail' uuid=prod.uuid slug=prod.slug %}" class="btn btn-sm btn-ghost">Voir</a>
+            <a href="{% url 'produit_update' uuid=prod.uuid slug=prod.slug %}" class="btn btn-sm btn-ghost">Modifier</a>
+            <a href="{% url 'produit_delete' uuid=prod.uuid slug=prod.slug %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer</a>
           </div>
         </td>
       </tr>
@@ -124,5 +124,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'partials/_pagination.html' with page_obj=produits filtres=filtres %}
 </div>
 {% endblock %}

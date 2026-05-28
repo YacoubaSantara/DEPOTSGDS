@@ -1,0 +1,50 @@
+{% comment %}
+Bloc de pagination réutilisable.
+Usage : {% include 'partials/_pagination.html' with page_obj=camions filtres=filtres %}
+- page_obj : l'objet Page Django (résultat de paginator.get_page())
+- filtres  : dict des paramètres GET à conserver (ex: {'q': q, 'statut': statut})
+{% endcomment %}
+
+<div class="pagination-bar">
+  <span class="pagination-count">
+    {% if page_obj.paginator.count == 0 %}
+      Aucun résultat
+    {% else %}
+      {{ page_obj.start_index }}–{{ page_obj.end_index }}
+      <span style="color:var(--muted);font-weight:400"> sur </span>
+      {{ page_obj.paginator.count }}
+    {% endif %}
+  </span>
+
+  {% if page_obj.has_other_pages %}
+  <div class="pagination">
+    {% if page_obj.has_previous %}
+      <a class="page-link" href="?{% for k, v in filtres.items %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>
+    {% else %}
+      <span class="page-link disabled">‹</span>
+    {% endif %}
+
+    {% for i in page_obj.paginator.page_range %}
+      {% if page_obj.number == i %}
+        <span class="page-link current">{{ i }}</span>
+      {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
+        <a class="page-link" href="?{% for k, v in filtres.items %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ i }}">{{ i }}</a>
+      {% elif i == 1 or i == page_obj.paginator.num_pages %}
+        <a class="page-link" href="?{% for k, v in filtres.items %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ i }}">{{ i }}</a>
+      {% elif i == page_obj.number|add:"-3" or i == page_obj.number|add:"3" %}
+        <span class="page-link disabled" style="border:none;background:transparent;padding:0 2px">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+      <a class="page-link" href="?{% for k, v in filtres.items %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>
+    {% else %}
+      <span class="page-link disabled">›</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <span class="pagination-page-info">
+    Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+  </span>
+</div>

@@ -532,7 +532,7 @@
   {% if cuves_data %}
   <div class="db-cuves-grid">
     {% for c in cuves_data %}
-    <a href="{% url 'cuve_detail' c.obj.pk %}" class="cuve-tile {{ c.alerte }}">
+    <a href="{% url 'cuve_detail' uuid=c.obj.uuid slug=c.obj.slug %}" class="cuve-tile {{ c.alerte }}">
       <div class="cuve-status-bar"></div>
       <div class="cuve-id">{{ c.obj.numero }}</div>
       <div class="cuve-produit-name">{{ c.produit }}</div>
@@ -581,7 +581,7 @@
       </thead>
       <tbody>
       {% for m in derniers_mvts %}
-      <tr class="clickable" onclick="window.location='{% url 'mouvement_detail' m.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'mouvement_detail' uuid=m.uuid slug=m.slug %}'">
         <td class="mono" style="font-size:11.5px">{{ m.date_mouvement|date:"d/m/Y" }}</td>
         <td>
           {% if m.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
@@ -614,7 +614,7 @@
       </thead>
       <tbody>
       {% for j in jaugeages_recents %}
-      <tr class="clickable" onclick="window.location='{% url 'jaugeage_detail' j.pk %}'">
+      <tr class="clickable" onclick="window.location='{% url 'jaugeage_detail' uuid=j.uuid slug=j.slug %}'">
         <td class="mono" style="font-weight:600;font-size:11.5px">{{ j.date_jaugeage|date:"d/m/Y" }}</td>
         <td style="font-size:11.5px;color:var(--muted)">{{ j.get_type_jaugeage_display }}</td>
         <td>

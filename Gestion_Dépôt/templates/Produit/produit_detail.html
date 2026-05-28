@@ -17,7 +17,7 @@
       <div class="hero-eyebrow">{{ produit.code }}</div>
       <div class="hero-title">{{ produit.nom }}</div>
       <div class="hero-meta">
-        <a href="{% url 'famille_detail' produit.famille.pk %}" style="display:inline-flex;align-items:center;gap:5px;color:inherit">
+        <a href="{% url 'famille_detail' uuid=produit.famille.uuid slug=produit.famille.slug %}" style="display:inline-flex;align-items:center;gap:5px;color:inherit">
           <span style="width:8px;height:8px;border-radius:50%;background:{{ produit.famille.couleur }};display:inline-block"></span>
           {{ produit.famille.nom }}
         </a>
@@ -34,7 +34,7 @@
     </div>
     <div class="hero-actions">
       <a href="{% url 'produit_list' %}" class="hero-btn">← Retour</a>
-      <a href="{% url 'produit_update' produit.pk %}" class="hero-btn primary">Modifier</a>
+      <a href="{% url 'produit_update' uuid=produit.uuid slug=produit.slug %}" class="hero-btn primary">Modifier</a>
     </div>
   </div>
 </div>
@@ -89,7 +89,7 @@
       {% if cuves %}
       <div style="display:flex;flex-direction:column;gap:10px">
         {% for cuve in cuves %}
-        <a href="{% url 'cuve_detail' cuve.pk %}" style="text-decoration:none;display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+        <a href="{% url 'cuve_detail' uuid=cuve.uuid slug=cuve.slug %}" style="text-decoration:none;display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);transition:all .2s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
           <span style="font-family:inherit;font-size:.78rem;font-weight:700;color:var(--navy);background:var(--bg-alt,#e8f0fb);padding:3px 8px;border-radius:6px">{{ cuve.numero }}</span>
           <div style="flex:1">
             <div style="font-size:.85rem;font-weight:600;color:var(--text)">{{ cuve.designation }}</div>
@@ -119,6 +119,6 @@
 </div>
 
 <div style="margin-top:20px">
-  <a href="{% url 'produit_delete' produit.pk %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce produit</a>
+  <a href="{% url 'produit_delete' uuid=produit.uuid slug=produit.slug %}" class="btn btn-sm" style="background:var(--err-soft);color:var(--err)">Supprimer ce produit</a>
 </div>
 {% endblock %}

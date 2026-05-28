@@ -1,0 +1,7 @@
+{% comment %}Toolbar écran commune à tous les bordereaux.{% endcomment %}
+<div class="toolbar">
+  <button onclick="window.print()" class="primary">Imprimer / PDF</button>
+  <a href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}bw={% if bw %}0{% else %}1{% endif %}">Mode N&amp;B</a>
+  <a href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}compact={% if compact %}0{% else %}1{% endif %}">{% if compact %}Aéré{% else %}Compact{% endif %}</a>
+  <a href="{% url 'mouvement_detail' uuid=mouvement.uuid slug=mouvement.slug %}">← Retour</a>
+</div>
