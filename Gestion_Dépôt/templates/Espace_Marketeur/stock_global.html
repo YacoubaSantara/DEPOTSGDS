@@ -110,7 +110,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 <div class="page-header">
   <div>
     <h1 class="page-title">Mon Stock Global</h1>
-    <p class="page-subtitle">{{ mkt.raison_sociale }}{% if produit_sel %} — {{ produit_sel.nom }} — Tous régimes (SD + AC){% endif %}</p>
+    <p class="page-subtitle">{{ mkt.raison_sociale }}{% if produit_sel %} — {{ produit_sel.nom }} — {{ regime_label }}{% endif %}</p>
   </div>
   {% if stock %}
   <div style="display:flex;gap:8px">
@@ -118,7 +118,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Aperçu / Imprimer
     </button>
-    <a href="{% url 'client_stock_global_export' %}?produit={{ produit_sel.pk }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
+    <a href="{% url 'client_stock_global_export' %}?produit={{ produit_sel.uuid }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
        class="btn-export-main">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter Excel
@@ -136,10 +136,18 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
         <select name="produit" required>
           <option value="">— Choisir un produit —</option>
           {% for p in produits %}
-          <option value="{{ p.pk }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
+          <option value="{{ p.uuid }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
             {{ p.nom }}{% if p.famille %} ({{ p.famille.nom }}){% endif %}
           </option>
           {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Régime</label>
+        <select name="regime">
+          <option value="{{ REGIME_TOUS }}" {% if regime == REGIME_TOUS %}selected{% endif %}>Tous (SD + AC)</option>
+          <option value="{{ REGIME_SD }}"   {% if regime == REGIME_SD   %}selected{% endif %}>Sous Douane (SD)</option>
+          <option value="{{ REGIME_AC }}"   {% if regime == REGIME_AC   %}selected{% endif %}>Acquitté (AC)</option>
         </select>
       </div>
       <div class="filter-group">
@@ -183,7 +191,15 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
     </div>
     <div class="ch-item">
       <span class="ch-label">Régime</span>
-      <span class="ch-value"><span class="badge badge-sdac">Tous (SD + AC)</span></span>
+      <span class="ch-value">
+        {% if regime == REGIME_SD %}
+          <span class="badge badge-sd">Sous Douane</span>
+        {% elif regime == REGIME_AC %}
+          <span class="badge badge-ac">Acquitté</span>
+        {% else %}
+          <span class="badge badge-sdac">Tous (SD + AC)</span>
+        {% endif %}
+      </span>
     </div>
     {% if date_debut or date_fin %}
     <div class="ch-item">
@@ -202,7 +218,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 {# ── Chips résumé ── #}
 <div class="cumul-chips">
   <div class="cumul-chip navy">
-    <span class="chip-label">Report</span>
+    <span class="chip-label">Stock Ouverture</span>
     <span class="chip-val">{{ stock.report_amb|floatformat:0|intcomma }} L</span>
   </div>
   <div class="cumul-chip green">
@@ -226,7 +242,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
     <span class="chip-val">{{ stock.cumul_sorties_amb|floatformat:0|intcomma }} L</span>
   </div>
   <div class="cumul-chip navy">
-    <span class="chip-label">Solde Final Amb.</span>
+    <span class="chip-label">Stock Fermeture</span>
     <span class="chip-val">{{ stock.stock_final_amb|floatformat:0|intcomma }} L</span>
   </div>
 </div>
@@ -251,9 +267,9 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
     </thead>
     <tbody>
 
-      {# REPORT #}
+      {# STOCK OUVERTURE #}
       <tr class="row-report">
-        <td class="left" colspan="10" style="font-weight:700;letter-spacing:.04em">REPORT</td>
+        <td class="left" colspan="10" style="font-weight:700;letter-spacing:.04em">STOCK OUVERTURE</td>
         <td class="num num-stock">{{ stock.report_amb|floatformat:0|intcomma }}</td>
       </tr>
 
@@ -308,6 +324,10 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
         <td class="num num-warn">{% if stock.cumul_manquants_amb %}{{ stock.cumul_manquants_amb|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
         <td class="num num-warn">{% if stock.cumul_manquants_15c %}{{ stock.cumul_manquants_15c|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
         <td class="num num-neg">{{ stock.cumul_sorties_amb|floatformat:0|intcomma }}</td>
+        <td class="num num-stock">—</td>
+      </tr>
+      <tr class="row-report">
+        <td class="left" colspan="10" style="font-weight:700;letter-spacing:.04em">STOCK FERMETURE</td>
         <td class="num num-stock">{{ stock.stock_final_amb|floatformat:0|intcomma }}</td>
       </tr>
       {% endif %}
@@ -322,4 +342,6 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 </div>
 {% endif %}
 {% endif %}
+
+{% include 'partials/_print_footer.html' with reference_doc="ETAT-STK-GLOB" sig1="Le Gestionnaire" sig2="Le Douanier" sig3="Le Directeur" %}
 {% endblock %}

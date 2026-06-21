@@ -493,8 +493,8 @@ select.inv-field-input { height:auto; }
           <div>
             <label class="inv-field-label">Volume ambiant (L) <span class="req">*</span></label>
             <input type="number" name="volume_ambiant" id="inp-vamb"
-                   step="0.01" min="0" required value="0"
-                   class="inv-field-input" placeholder="0.00"
+                   step="0.01" required value="0"
+                   class="inv-field-input" placeholder="ex: -352.00"
                    oninput="syncV15c(this)">
           </div>
           <div>
@@ -503,8 +503,8 @@ select.inv-field-input { height:auto; }
               <span class="opt" id="lbl-coeff"></span>
             </label>
             <input type="number" name="volume_15c" id="inp-v15c"
-                   step="0.01" min="0" required value="0"
-                   class="inv-field-input" placeholder="0.00">
+                   step="0.01" required value="0"
+                   class="inv-field-input" placeholder="ex: -352.00">
           </div>
         </div>
 
@@ -697,11 +697,11 @@ document.getElementById('form-saisie').addEventListener('submit', function(e) {
     el.classList.remove('is-invalid');
   });
 
-  if (isNaN(vamb) || vamb < 0) {
+  if (isNaN(vamb)) {
     document.getElementById('inp-vamb').classList.add('is-invalid');
     ok = false;
   }
-  if (isNaN(v15c) || v15c < 0) {
+  if (isNaN(v15c)) {
     document.getElementById('inp-v15c').classList.add('is-invalid');
     ok = false;
   }

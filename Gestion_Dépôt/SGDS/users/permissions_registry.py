@@ -9,11 +9,12 @@ PERMISSIONS_REGISTRY = {
         'libelle': 'Mouvements',
         'icone': '📦',
         'permissions': [
-            ('voir_mouvement',      'Consulter les mouvements'),
-            ('ajouter_mouvement',   'Créer un mouvement'),
-            ('modifier_mouvement',  'Modifier un mouvement'),
-            ('supprimer_mouvement', 'Supprimer un mouvement'),
-            ('exporter_mouvement',  'Exporter les mouvements'),
+            ('voir_mouvement',        'Consulter les mouvements'),
+            ('voir_detail_mouvement', 'Voir le détail d\'un mouvement'),
+            ('ajouter_mouvement',     'Créer un mouvement'),
+            ('modifier_mouvement',    'Modifier un mouvement'),
+            ('supprimer_mouvement',   'Supprimer un mouvement'),
+            ('exporter_mouvement',    'Exporter les mouvements'),
         ],
     },
     'jaugeages': {
@@ -34,6 +35,14 @@ PERMISSIONS_REGISTRY = {
             ('voir_periode',     'Consulter les périodes'),
             ('ouvrir_periode',   'Ouvrir une nouvelle période'),
             ('cloturer_periode', 'Clôturer une période'),
+        ],
+    },
+    'exercices': {
+        'libelle': 'Exercices comptables',
+        'icone': '🗂️',
+        'permissions': [
+            ('voir_exercice',     'Consulter les exercices'),
+            ('cloturer_exercice', 'Clôturer un exercice'),
         ],
     },
     'coulage': {
@@ -60,9 +69,13 @@ PERMISSIONS_REGISTRY = {
             ('voir_produit',      'Consulter les produits'),
             ('modifier_produit',  'Modifier un produit'),
             ('voir_camion',       'Consulter les camions'),
+            ('ajouter_camion',    'Créer un camion'),
             ('modifier_camion',   'Modifier un camion'),
+            ('supprimer_camion',  'Supprimer un camion'),
             ('voir_chauffeur',    'Consulter les chauffeurs'),
+            ('ajouter_chauffeur', 'Créer un chauffeur'),
             ('modifier_chauffeur','Modifier un chauffeur'),
+            ('supprimer_chauffeur','Supprimer un chauffeur'),
         ],
     },
     'administration': {
@@ -87,47 +100,62 @@ ROLES_SYSTEME_PERMISSIONS = {
     'SUPERADMIN': '__ALL__',
 
     'CHEF_DEPOT': [
-        'voir_mouvement', 'ajouter_mouvement', 'modifier_mouvement',
+        'voir_mouvement', 'voir_detail_mouvement',
+        'ajouter_mouvement', 'modifier_mouvement',
         'supprimer_mouvement', 'exporter_mouvement',
         'voir_jaugeage', 'ajouter_jaugeage', 'modifier_jaugeage',
         'valider_jaugeage', 'supprimer_jaugeage',
         'voir_periode', 'ouvrir_periode', 'cloturer_periode',
+        'voir_exercice', 'cloturer_exercice',
         'voir_coulage', 'exporter_coulage',
         'voir_frais_passage', 'exporter_frais_passage',
         'voir_suivi_evolution',
         'voir_marketeur', 'ajouter_marketeur', 'modifier_marketeur',
         'voir_cuve', 'modifier_cuve',
         'voir_produit', 'modifier_produit',
-        'voir_camion', 'modifier_camion',
-        'voir_chauffeur', 'modifier_chauffeur',
+        'voir_camion', 'ajouter_camion', 'modifier_camion', 'supprimer_camion',
+        'voir_chauffeur', 'ajouter_chauffeur', 'modifier_chauffeur', 'supprimer_chauffeur',
         'voir_utilisateur', 'voir_audit',
         'voir_societe', 'modifier_societe',
     ],
 
     'OPERATEUR': [
-        'voir_mouvement', 'ajouter_mouvement', 'modifier_mouvement',
+        'voir_mouvement', 'voir_detail_mouvement',
+        'ajouter_mouvement', 'modifier_mouvement',
         'voir_jaugeage', 'ajouter_jaugeage', 'modifier_jaugeage',
         'valider_jaugeage',
-        'voir_periode',
+        'voir_periode', 'voir_exercice',
         'voir_coulage', 'voir_frais_passage', 'voir_suivi_evolution',
         'voir_marketeur', 'voir_cuve', 'voir_produit',
-        'voir_camion', 'voir_chauffeur',
+        'voir_camion', 'ajouter_camion', 'modifier_camion',
+        'voir_chauffeur', 'ajouter_chauffeur', 'modifier_chauffeur',
     ],
 
     'COMPTABLE': [
-        'voir_mouvement', 'exporter_mouvement',
+        'voir_mouvement', 'voir_detail_mouvement', 'exporter_mouvement',
         'voir_jaugeage',
-        'voir_periode',
+        'voir_periode', 'voir_exercice',
         'voir_coulage', 'exporter_coulage',
         'voir_frais_passage', 'exporter_frais_passage',
         'voir_suivi_evolution',
         'voir_marketeur', 'voir_cuve', 'voir_produit',
+        'voir_camion', 'voir_chauffeur',
     ],
 
     'LECTEUR': [
-        'voir_mouvement', 'voir_jaugeage', 'voir_periode',
+        'voir_mouvement', 'voir_detail_mouvement',
+        'voir_jaugeage', 'voir_periode', 'voir_exercice',
         'voir_coulage', 'voir_frais_passage', 'voir_suivi_evolution',
         'voir_marketeur', 'voir_cuve', 'voir_produit',
         'voir_camion', 'voir_chauffeur',
+    ],
+
+    # Accès espace marketeur : géré par @marketeur_required + user.role=='MARKETEUR'.
+    # Ces permissions sont enregistrées pour traçabilité et affichage dans l'admin.
+    'MARKETEUR': [
+        'voir_mouvement', 'voir_detail_mouvement', 'exporter_mouvement',
+        'voir_camion', 'ajouter_camion', 'modifier_camion', 'supprimer_camion',
+        'voir_chauffeur', 'ajouter_chauffeur', 'modifier_chauffeur', 'supprimer_chauffeur',
+        'voir_coulage', 'voir_frais_passage',
     ],
 }

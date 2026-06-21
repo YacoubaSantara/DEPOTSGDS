@@ -458,9 +458,13 @@ class Produit(models.Model):
     @classmethod
     def mettre_a_jour_stocks(cls, jaugeage):
         """
-        Met à jour stock_actuel de chaque produit à partir des mesures
-        du jaugeage donné (volume_ambiant_depot = stock physique réel).
-        Appelé automatiquement après chaque validation de jaugeage.
+        [DEPRECATED] — Ne plus utiliser.
+        Cette méthode calcule stock_actuel = jaugeage seul, sans tenir compte
+        des mouvements. Elle est remplacée par le signal on_jaugeage_saved
+        dans signals.py qui appelle recalcul_stock.recalculer_stock_produit.
+
+        Ancienne logique conservée pour référence uniquement.
+        BUG connu : remet à 0 les produits sans mesures dans ce jaugeage.
         """
         from django.utils import timezone
 
@@ -1064,6 +1068,11 @@ class Mouvement(models.Model):
         ('SORTIE',        'Sortie'),
         ('CESSION',       'Cession'),
         ('ACQUITTEMENT',  'Acquittement'),
+        # Ajouté : correspond aux lignes Reclassement SD / Reclassement Acquittée
+        # du fichier Excel (lignes 22-23 Entrées et 30-31 Sorties).
+        # Mouvement interne qui transfère du stock du régime SD vers Acquitté
+        # sans déplacement physique de produit.
+        ('RECLASSEMENT',  'Reclassement SD → Acquittée'),
     ]
     REGIME_CHOICES = [
         ('ACQUITTE',    'Acquitté'),
@@ -1645,12 +1654,13 @@ class Notification(models.Model):
     Notification envoyée à un marketeur lors d'un mouvement le concernant.
     """
     TYPE_CHOICES = [
-        ('ENTREE',         'Entrée'),
-        ('SORTIE',         'Sortie'),
-        ('CESSION_EMISE',  'Cession émise'),
-        ('CESSION_RECUE',  'Cession reçue'),
-        ('ACQUITTEMENT',   'Acquittement'),
-        ('DOCUMENT_AJOUTE','Document ajouté'),
+        ('ENTREE',                  'Entrée'),
+        ('SORTIE',                  'Sortie'),
+        ('CESSION_EMISE',           'Cession émise'),
+        ('CESSION_RECUE',           'Cession reçue'),
+        ('ACQUITTEMENT',            'Acquittement'),
+        ('DOCUMENT_AJOUTE',         'Document ajouté'),
+        ('ETAT_MENSUEL_DISPONIBLE', 'État mensuel disponible'),
     ]
 
     marketeur      = models.ForeignKey(
@@ -1662,7 +1672,7 @@ class Notification(models.Model):
         null=True, blank=True,
         related_name='notifications', verbose_name="Mouvement"
     )
-    type_notif     = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    type_notif     = models.CharField(max_length=30, choices=TYPE_CHOICES)
     titre          = models.CharField(max_length=200)
     message        = models.TextField()
     lue            = models.BooleanField(default=False)
@@ -1835,16 +1845,113 @@ class PeriodeComptable(models.Model):
         return PeriodeComptable.objects.filter(mois=mois, annee=annee).first()
 
 
+class Exercice(models.Model):
+    """
+    Exercice comptable annuel — regroupe les 12 PeriodeComptable d'une année
+    civile. Créé automatiquement à l'ouverture de la première période de
+    l'année (cf. ouvrir_periode → ouvrir_exercice_si_necessaire) ; clôturé
+    manuellement une fois que les 12 périodes sont CLOTUREE.
+    """
+    STATUT_CHOICES = [
+        ('OUVERT',  'Ouvert'),
+        ('CLOTURE', 'Clôturé'),
+    ]
+
+    annee  = models.PositiveIntegerField(unique=True, verbose_name="Année")
+    statut = models.CharField(
+        max_length=10, choices=STATUT_CHOICES, default='OUVERT',
+        verbose_name="Statut"
+    )
+    date_ouverture = models.DateTimeField(blank=True, null=True, verbose_name="Date d'ouverture")
+    date_cloture = models.DateTimeField(blank=True, null=True, verbose_name="Date de clôture")
+    cloture_par  = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='exercices_clotures',
+        verbose_name="Clôturé par"
+    )
+    notes = models.TextField(blank=True, null=True, verbose_name="Notes")
+
+    # --- Identifiants URL ---
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=10, unique=True, blank=True, verbose_name="Slug URL")
+
+    class Meta:
+        verbose_name        = "Exercice comptable"
+        verbose_name_plural = "Exercices comptables"
+        ordering            = ['-annee']
+
+    def __str__(self):
+        return self.libelle
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = str(self.annee)
+        super().save(*args, **kwargs)
+
+    @property
+    def est_ouvert(self):
+        return self.statut == 'OUVERT'
+
+    @property
+    def libelle(self):
+        return f"Exercice {self.annee}"
+
+    @property
+    def date_debut(self):
+        from datetime import date
+        return date(self.annee, 1, 1)
+
+    @property
+    def date_fin(self):
+        from datetime import date
+        return date(self.annee, 12, 31)
+
+    @property
+    def periodes(self):
+        return PeriodeComptable.objects.filter(annee=self.annee).order_by('mois')
+
+    @property
+    def periodes_clouturees_count(self):
+        return self.periodes.filter(statut='CLOTUREE').count()
+
+    @property
+    def toutes_periodes_clouturees(self):
+        periodes = list(self.periodes)
+        return len(periodes) == 12 and all(p.statut == 'CLOTUREE' for p in periodes)
+
+    def exercice_precedent(self):
+        return Exercice.objects.filter(annee=self.annee - 1).first()
+
+    def exercice_suivant(self):
+        return Exercice.objects.filter(annee=self.annee + 1).first()
+
+
 # ─────────────────────────────────────────────────────────────
 #  STOCK D'OUVERTURE (agrégat par produit)
 # ─────────────────────────────────────────────────────────────
 class StockOuverture(models.Model):
+    """
+    Stock d'ouverture par période, produit et régime douanier.
+    Correspond aux lignes 12–14 du fichier Excel (STOCK OUVERTURE : SD + Acquittée).
+    """
+
+    REGIME_CHOICES = [
+        ('ACQUITTE',    'Acquitté'),
+        ('SOUS_DOUANE', 'Sous douane'),
+    ]
+
     periode      = models.ForeignKey(
         PeriodeComptable, on_delete=models.CASCADE,
         related_name='stocks_ouverture', verbose_name="Période"
     )
     produit      = models.ForeignKey(
         'Produit', on_delete=models.PROTECT, verbose_name="Produit"
+    )
+    # ── Champ ajouté : distingue SD (Sous douane) vs Acquittée ──
+    regime_douanier = models.CharField(
+        max_length=15, choices=REGIME_CHOICES, default='ACQUITTE',
+        verbose_name="Régime douanier",
+        help_text="SD = Sous douane | Acquittée = produit acquitté en douane"
     )
     volume_ambiant = models.DecimalField(
         max_digits=14, decimal_places=2, default=0,
@@ -1865,11 +1972,14 @@ class StockOuverture(models.Model):
         verbose_name        = "Stock d'ouverture"
         verbose_name_plural = "Stocks d'ouverture"
         constraints = [
-            models.UniqueConstraint(fields=['periode', 'produit'], name='unique_stock_ouv_periode_produit')
+            models.UniqueConstraint(
+                fields=['periode', 'produit', 'regime_douanier'],
+                name='unique_stock_ouv_periode_produit_regime'
+            )
         ]
 
     def __str__(self):
-        return f"SO {self.produit.code} — {self.periode}"
+        return f"SO {self.produit.code} ({self.get_regime_douanier_display()}) — {self.periode}"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1907,6 +2017,317 @@ class StockOuvertureCuve(models.Model):
 
     def __str__(self):
         return f"SO {self.cuve.numero} — {self.periode}"
+
+
+# ─────────────────────────────────────────────────────────────
+#  STOCK D'OUVERTURE PAR MARKETEUR
+# ─────────────────────────────────────────────────────────────
+class StockOuvertureMarketeur(models.Model):
+    """
+    Stock d'ouverture par période, marketeur, produit et régime douanier.
+    Reporte le stock de fermeture du marketeur de la période précédente
+    (stock comptable + quote-part coulage figée), au lieu de rejouer
+    l'historique complet des mouvements à chaque affichage.
+    """
+
+    REGIME_CHOICES = StockOuverture.REGIME_CHOICES
+
+    periode = models.ForeignKey(
+        PeriodeComptable, on_delete=models.CASCADE,
+        related_name='stocks_ouverture_marketeur', verbose_name="Période"
+    )
+    marketeur = models.ForeignKey(
+        'Marketeur', on_delete=models.CASCADE,
+        related_name='stocks_ouverture', verbose_name="Marketeur"
+    )
+    produit = models.ForeignKey(
+        'Produit', on_delete=models.PROTECT, verbose_name="Produit"
+    )
+    regime_douanier = models.CharField(
+        max_length=15, choices=REGIME_CHOICES, default='ACQUITTE',
+        verbose_name="Régime douanier",
+        help_text="SD = Sous douane | Acquittée = produit acquitté en douane"
+    )
+    volume_ambiant = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        verbose_name="Volume ambiant (L)"
+    )
+    volume_15c = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        verbose_name="Volume @15°C (L)"
+    )
+    calcul_auto = models.BooleanField(
+        default=True,
+        verbose_name="Calcul automatique",
+        help_text="Si False, la valeur a été saisie manuellement et ne sera pas écrasée"
+    )
+    date_modification = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = "Stock d'ouverture marketeur"
+        verbose_name_plural = "Stocks d'ouverture marketeur"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['periode', 'marketeur', 'produit', 'regime_douanier'],
+                name='unique_stock_ouv_mkt_periode_marketeur_produit_regime'
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"SO {self.marketeur.sigle or self.marketeur.raison_sociale} "
+            f"— {self.produit.code} ({self.get_regime_douanier_display()}) — {self.periode}"
+        )
+
+
+# ─────────────────────────────────────────────────────────────
+#  PERTE / GAIN INSTALLATION (inventaire physique mensuel)
+# ─────────────────────────────────────────────────────────────
+class PerteGainInstallation(models.Model):
+    """
+    STOCK PERTE/GAIN INSTALLATION AC — ligne 39 du fichier Excel.
+
+    Écart constaté entre le stock physique (mesuré par jaugeage) et le stock
+    comptable à la fin du mois. Saisi manuellement par le responsable dépôt.
+
+    - Valeur positive  → GAIN  (physique > comptable)
+    - Valeur négative  → PERTE (physique < comptable)
+
+    Le RATIO (ligne 41 Excel) = P/G / Sorties du mois est calculé dynamiquement
+    (property) et n'est pas stocké.
+
+    Seul le régime ACQUITTE est concerné par les P/G d'installation ;
+    le régime SD (Sous douane) ne génère pas d'écart d'installation.
+    """
+
+    REGIME_CHOICES = [
+        ('ACQUITTE',    'Acquitté'),
+        ('SOUS_DOUANE', 'Sous douane'),
+    ]
+
+    periode         = models.ForeignKey(
+        PeriodeComptable, on_delete=models.CASCADE,
+        related_name='pertes_gains_installation',
+        verbose_name="Période"
+    )
+    produit         = models.ForeignKey(
+        'Produit', on_delete=models.PROTECT,
+        verbose_name="Produit"
+    )
+    regime_douanier = models.CharField(
+        max_length=15, choices=REGIME_CHOICES, default='ACQUITTE',
+        verbose_name="Régime douanier"
+    )
+    volume_ambiant  = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        verbose_name="Volume ambiant P/G (L)",
+        help_text="Positif = gain, négatif = perte"
+    )
+    volume_15c      = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        verbose_name="Volume @15°C P/G (L)",
+        help_text="Positif = gain, négatif = perte"
+    )
+    saisi_par       = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='pertes_gains_saisis',
+        verbose_name="Saisi par"
+    )
+    notes           = models.TextField(blank=True, null=True, verbose_name="Notes / Observations")
+    date_creation   = models.DateTimeField(auto_now_add=True)
+    date_modification = models.DateTimeField(auto_now=True)
+
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+
+    class Meta:
+        verbose_name        = "Perte/Gain installation"
+        verbose_name_plural = "Pertes/Gains installation"
+        ordering            = ['-periode__annee', '-periode__mois', 'produit__nom']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['periode', 'produit', 'regime_douanier'],
+                name='unique_pg_installation_periode_produit_regime'
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"P/G Installation {self.produit.code} "
+            f"({self.get_regime_douanier_display()}) — {self.periode}"
+        )
+
+    @property
+    def ratio_sur_sorties(self):
+        """
+        RATIO Excel (ligne 41) = P/G ambiant / total sorties Acquittées du mois.
+        Retourne None si les sorties sont nulles (évite la division par zéro).
+        """
+        from django.db.models import Sum
+        sorties = (
+            Mouvement.objects
+            .filter(
+                type_mouvement='SORTIE',
+                produit=self.produit,
+                regime_douanier=self.regime_douanier,
+                date_mouvement__year=self.periode.annee,
+                date_mouvement__month=self.periode.mois,
+            )
+            .aggregate(total=Sum('volume_ambiant_sortie'))['total']
+        )
+        if not sorties or sorties == 0:
+            return None
+        return round(float(self.volume_ambiant) / float(sorties), 6)
+
+
+# ─────────────────────────────────────────────────────────────
+#  STOCK DE CLÔTURE (fermeture mensuelle)
+# ─────────────────────────────────────────────────────────────
+class StockCloture(models.Model):
+    """
+    STOCKS CLÔTURE — lignes 43-45 du fichier Excel.
+
+    Formules Excel :
+      - SD        (ligne 44) = Stock Comptable SD   (sans P/G)
+      - Acquittée (ligne 45) = Stock Comptable Acquittée + PerteGainInstallation
+      - Total     (ligne 43) = SD + Acquittée
+
+    Ce modèle est calculé automatiquement à la clôture de la période
+    (service de clôture ou signal) et stocké ici pour servir de
+    StockOuverture de la période suivante.
+
+    calcul_auto = True  → valeur issue du calcul automatique
+    calcul_auto = False → valeur saisie / corrigée manuellement
+    """
+
+    REGIME_CHOICES = [
+        ('ACQUITTE',    'Acquitté'),
+        ('SOUS_DOUANE', 'Sous douane'),
+    ]
+
+    periode         = models.ForeignKey(
+        PeriodeComptable, on_delete=models.CASCADE,
+        related_name='stocks_cloture',
+        verbose_name="Période"
+    )
+    produit         = models.ForeignKey(
+        'Produit', on_delete=models.PROTECT,
+        verbose_name="Produit"
+    )
+    regime_douanier = models.CharField(
+        max_length=15, choices=REGIME_CHOICES, default='ACQUITTE',
+        verbose_name="Régime douanier"
+    )
+    volume_ambiant  = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        verbose_name="Volume ambiant clôture (L)"
+    )
+    volume_15c      = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        verbose_name="Volume @15°C clôture (L)"
+    )
+    calcul_auto     = models.BooleanField(
+        default=True,
+        verbose_name="Calcul automatique",
+        help_text="Si False, valeur saisie ou corrigée manuellement"
+    )
+    date_modification = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = "Stock de clôture"
+        verbose_name_plural = "Stocks de clôture"
+        ordering            = ['-periode__annee', '-periode__mois', 'produit__nom']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['periode', 'produit', 'regime_douanier'],
+                name='unique_stock_cloture_periode_produit_regime'
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"SC {self.produit.code} "
+            f"({self.get_regime_douanier_display()}) — {self.periode}"
+        )
+
+    @classmethod
+    def calculer_depuis_mouvements(cls, periode, produit, regime_douanier):
+        """
+        Calcule et retourne (sans sauvegarder) les volumes de clôture selon
+        la formule Excel :
+          Stock Clôture = Stock Ouverture + Entrées - Sorties [+ P/G si Acquittée]
+
+        Usage :
+            sc = StockCloture.calculer_depuis_mouvements(periode, produit, 'ACQUITTE')
+            sc.save()
+        """
+        from django.db.models import Sum
+
+        # 1. Stock ouverture
+        try:
+            ouv = StockOuverture.objects.get(
+                periode=periode, produit=produit, regime_douanier=regime_douanier
+            )
+            v_amb_ouv = float(ouv.volume_ambiant)
+            v_15c_ouv = float(ouv.volume_15c)
+        except StockOuverture.DoesNotExist:
+            v_amb_ouv = v_15c_ouv = 0.0
+
+        # 2. Entrées du mois (hors Reclassement, géré séparément)
+        entrees = Mouvement.objects.filter(
+            type_mouvement='ENTREE',
+            produit=produit,
+            regime_douanier=regime_douanier,
+            date_mouvement__year=periode.annee,
+            date_mouvement__month=periode.mois,
+        ).aggregate(
+            v_amb=Sum('volume_ambiant_recu'),
+            v_15c=Sum('volume_15c_recu'),
+        )
+        v_amb_entrees = float(entrees['v_amb'] or 0)
+        v_15c_entrees = float(entrees['v_15c'] or 0)
+
+        # 3. Sorties du mois
+        sorties = Mouvement.objects.filter(
+            type_mouvement='SORTIE',
+            produit=produit,
+            regime_douanier=regime_douanier,
+            date_mouvement__year=periode.annee,
+            date_mouvement__month=periode.mois,
+        ).aggregate(
+            v_amb=Sum('volume_ambiant_sortie'),
+            v_15c=Sum('volume_15c_sortie'),
+        )
+        v_amb_sorties = float(sorties['v_amb'] or 0)
+        v_15c_sorties = float(sorties['v_15c'] or 0)
+
+        # 4. Stock comptable
+        v_amb_comptable = v_amb_ouv + v_amb_entrees - v_amb_sorties
+        v_15c_comptable = v_15c_ouv + v_15c_entrees - v_15c_sorties
+
+        # 5. P/G Installation (uniquement pour Acquittée — ligne 45 Excel)
+        v_amb_pg = v_15c_pg = 0.0
+        if regime_douanier == 'ACQUITTE':
+            try:
+                pg = PerteGainInstallation.objects.get(
+                    periode=periode, produit=produit, regime_douanier=regime_douanier
+                )
+                v_amb_pg = float(pg.volume_ambiant)
+                v_15c_pg = float(pg.volume_15c)
+            except PerteGainInstallation.DoesNotExist:
+                pass
+
+        obj, _ = cls.objects.update_or_create(
+            periode=periode,
+            produit=produit,
+            regime_douanier=regime_douanier,
+            defaults={
+                'volume_ambiant': round(v_amb_comptable + v_amb_pg, 2),
+                'volume_15c':     round(v_15c_comptable + v_15c_pg, 2),
+                'calcul_auto':    True,
+            }
+        )
+        return obj
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2090,13 +2511,13 @@ class InventaireInitialMarketeur(models.Model):
     )
     volume_15c      = models.DecimalField(
         max_digits=14, decimal_places=2, default=0,
-        validators=[MinValueValidator(0)],
-        verbose_name="Volume @15°C (L)"
+        verbose_name="Volume @15°C (L)",
+        help_text="Peut être négatif (solde débiteur du marketeur)"
     )
     volume_ambiant  = models.DecimalField(
         max_digits=14, decimal_places=2, default=0,
-        validators=[MinValueValidator(0)],
-        verbose_name="Volume ambiant (L)"
+        verbose_name="Volume ambiant (L)",
+        help_text="Peut être négatif (solde débiteur du marketeur)"
     )
     date_inventaire = models.DateField(
         verbose_name="Date d'inventaire",

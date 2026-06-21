@@ -99,8 +99,9 @@ tr:last-child td{border-bottom:none}
   .badge-sd { border-color:#92400e !important; color:#92400e !important; }
   .badge-ac { border-color:#166534 !important; color:#166534 !important; }
 
+  /* margin:0 = masque l'URL/date imprimées par le navigateur dans les marges. */
   @page {
-    margin:12mm 10mm 16mm 10mm;
+    margin:0;
     size:A4 landscape;
   }
 }
@@ -129,7 +130,7 @@ tr:last-child td{border-bottom:none}
       Aperçu / Imprimer
     </button>
     {% if periode and rapport.mouvements %}
-    <a href="{% url 'etat_mensuel_global_depot_export' %}?periode_id={{ periode.pk }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.pk }}{% endif %}"
+    <a href="{% url 'etat_mensuel_global_depot_export' %}?periode_id={{ periode.uuid }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.uuid }}{% endif %}"
        class="btn-export-main">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter Excel
@@ -144,14 +145,14 @@ tr:last-child td{border-bottom:none}
       <div class="filter-group">
         <label>Période</label>
         <select name="periode_id">
-          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          {% for p in periodes %}<option value="{{ p.uuid }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
         </select>
       </div>
       <div class="filter-group">
         <label>Marketeur (optionnel)</label>
         <select name="marketeur">
           <option value="">— Tous —</option>
-          {% for m in marketeurs %}<option value="{{ m.pk }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>{{ m.sigle|default:m.raison_sociale }}</option>{% endfor %}
+          {% for m in marketeurs %}<option value="{{ m.uuid }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>{{ m.sigle|default:m.raison_sociale }}</option>{% endfor %}
         </select>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end">

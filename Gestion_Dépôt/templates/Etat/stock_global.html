@@ -217,15 +217,11 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
   .badge-ac     { border-color:#166534 !important; color:#166534 !important; }
   .badge-mkt    { border-color:#0c4a6e !important; color:#0c4a6e !important; }
 
-  /* Pied de page automatique */
+  /* margin:0 = masque l'URL/date imprimées par le navigateur dans les marges.
+     Les marges visuelles viennent du wrapper print-doc (_print_css.html). */
   @page {
-    margin:12mm 10mm 16mm 10mm;
+    margin:0;
     size:A4 landscape;
-    @bottom-center {
-      content:"Page " counter(page) " / " counter(pages);
-      font-size:7pt;
-      color:#64748b;
-    }
   }
 }
 </style>
@@ -252,7 +248,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Aperçu / Imprimer
     </button>
-    <a href="{% url 'etat_stock_global_export' %}?produit={{ produit_sel.pk }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.pk }}{% endif %}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
+    <a href="{% url 'etat_stock_global_export' %}?produit={{ produit_sel.uuid }}&regime={{ regime }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.uuid }}{% endif %}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
        class="btn-export-main">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter Excel
@@ -270,7 +266,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
         <select name="produit" required>
           <option value="">— Choisir un produit —</option>
           {% for p in produits %}
-          <option value="{{ p.pk }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
+          <option value="{{ p.uuid }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
             {{ p.nom }}{% if p.famille %} ({{ p.famille.nom }}){% endif %}
           </option>
           {% endfor %}
@@ -281,10 +277,18 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
         <select name="marketeur">
           <option value="">— Tous les marketeurs —</option>
           {% for m in tous_marketeurs %}
-          <option value="{{ m.pk }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>
+          <option value="{{ m.uuid }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>
             {{ m.sigle|default:m.raison_sociale }}
           </option>
           {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Régime</label>
+        <select name="regime">
+          <option value="{{ REGIME_TOUS }}" {% if regime == REGIME_TOUS %}selected{% endif %}>Tous (SD + AC)</option>
+          <option value="{{ REGIME_SD }}"   {% if regime == REGIME_SD   %}selected{% endif %}>Sous Douane (SD)</option>
+          <option value="{{ REGIME_AC }}"   {% if regime == REGIME_AC   %}selected{% endif %}>Acquitté (AC)</option>
         </select>
       </div>
       <div class="filter-group">
@@ -328,7 +332,15 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
     </div>
     <div class="ch-item">
       <span class="ch-label">Régime</span>
-      <span class="ch-value"><span class="badge badge-sdac">SD + AC</span></span>
+      <span class="ch-value">
+        {% if regime == REGIME_SD %}
+          <span class="badge badge-sd">Sous Douane</span>
+        {% elif regime == REGIME_AC %}
+          <span class="badge badge-ac">Acquitté</span>
+        {% else %}
+          <span class="badge badge-sdac">Tous (SD + AC)</span>
+        {% endif %}
+      </span>
     </div>
     {% if date_debut or date_fin %}
     <div class="ch-item">

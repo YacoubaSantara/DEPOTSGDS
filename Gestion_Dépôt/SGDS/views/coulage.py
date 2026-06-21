@@ -74,10 +74,10 @@ class RepartitionCoulageView(LoginRequiredMixin, TemplateView):
         )
         produits = [pc.produit for pc in produits_qs]
 
-        coefficients = {pc.produit_uuid: pc.coefficient for pc in produits_qs}
-        pertes_gains  = {pc.produit_uuid: pc.pertes_gains for pc in produits_qs}
+        coefficients = {pc.produit_id: pc.coefficient for pc in produits_qs}
+        pertes_gains  = {pc.produit_id: pc.pertes_gains for pc in produits_qs}
         cumuls = {
-            pc.produit_uuid: {
+            pc.produit_id: {
                 'brut_entree': pc.cumul_entree,
                 'coul_entree': Decimal('0'),
                 'entree':      pc.cumul_entree,
@@ -107,7 +107,7 @@ class RepartitionCoulageView(LoginRequiredMixin, TemplateView):
             mkt_obj[mkt_id] = l.marketeur
             pu_mkt[mkt_id]  = l.prix_unitaire
             motif_mkt[mkt_id] = l.motif
-            par_mkt[mkt_id][l.produit_uuid] = {
+            par_mkt[mkt_id][l.produit_id] = {
                 'brut_entree':  l.brut_entree,
                 'coul_entree':  l.coul_entree,
                 'entree_nette': l.entree_nette,
@@ -208,7 +208,7 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
         from django.core.exceptions import ValidationError
 
         try:
-            cloture = cloturer_periode(periode, user=request.user, notes=notes)
+            periode = cloturer_periode(periode, user=request.user, notes=notes)
         except ValidationError as e:
             messages.error(request, e.message)
             return redirect('coulage_detail', periode_uuid=periode.uuid, periode_slug=periode.slug)
@@ -218,7 +218,7 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
         messages.success(
             request,
             f"Période {periode} clôturée. "
-            f"Montant coulage total : {int(cloture.total_montant):,} FCFA. "
+            f"Montant coulage total : {int(periode.cloture_coulage.total_montant):,} FCFA. "
             f"Pour commencer le mois suivant, ouvrez la période {m_s}/{a_s} "
             "depuis la liste des périodes."
         )

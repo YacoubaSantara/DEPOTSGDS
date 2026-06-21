@@ -129,6 +129,8 @@ def ouvrir_periode(mois, annee, user=None):
     """
     from SGDS.models import PeriodeComptable
     from SGDS.services.stock_ouverture import resoudre_stocks_ouverture
+    from SGDS.services.stock_ouverture_marketeur import resoudre_stock_ouverture_marketeur
+    from SGDS.services.exercice import ouvrir_exercice_si_necessaire
 
     verifier_peut_ouvrir_periode(mois, annee)
 
@@ -139,6 +141,9 @@ def ouvrir_periode(mois, annee, user=None):
         date_ouverture=timezone.now(),
     )
 
+    # Crée l'Exercice de l'année si nécessaire (idempotent)
+    ouvrir_exercice_si_necessaire(annee)
+
     # Résoudre les stocks d'ouverture depuis la période précédente
     precedente = periode.periode_precedente()
     if precedente is not None:
@@ -146,6 +151,11 @@ def ouvrir_periode(mois, annee, user=None):
             resoudre_stocks_ouverture(periode)
         except Exception:
             pass  # Non bloquant — les stocks peuvent être saisis manuellement
+
+    try:
+        resoudre_stock_ouverture_marketeur(periode)
+    except Exception:
+        pass  # Non bloquant — les stocks peuvent être saisis manuellement
 
     return periode
 

@@ -9,6 +9,9 @@ __pycache__/
 local_settings.py
 media/
 
+# Variables d'environnement (identifiants email, secrets)
+.env
+
 # Environnement virtuel
 ../env/
 

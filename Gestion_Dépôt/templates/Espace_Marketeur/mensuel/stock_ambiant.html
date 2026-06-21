@@ -1,11 +1,11 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load humanize %}
-{% block title %}Stock Mensuel B{% endblock %}
-{% block nav_client_mensuel_stock_b %}active{% endblock %}
+{% block title %}Stock Ambiant{% endblock %}
+{% block nav_client_mensuel_stock_ambiant %}active{% endblock %}
 
 {% block breadcrumb %}
   <a href="{% url 'client_dashboard' %}">Mon Espace</a><span class="breadcrumb-sep">›</span>
-  <span class="breadcrumb-current">Stock Mensuel Format B</span>
+  <span class="breadcrumb-current">Stock Ambiant</span>
 {% endblock %}
 
 {% block extra_head %}
@@ -13,8 +13,8 @@
 .filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
 .filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .filter-group{display:flex;flex-direction:column;gap:5px;min-width:160px}
-.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
-.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align: left;}
+.filter-group select,.filter-group input[type="date"]{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
 .btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
 .pivot-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow)}
 table{width:100%;border-collapse:collapse;font-size:.82rem}
@@ -36,6 +36,10 @@ tr:hover td{filter:brightness(.96)}
 .num-pos{color:#16a34a;font-weight:700}
 .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
 .subtitle-band{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;font-size:.78rem;color:var(--muted)}
+.badge-na{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--bg);color:var(--muted);border:1px solid var(--border);letter-spacing:.03em}
+.page-subtitle{text-align: left}
+.page-title{text-align: left}
+
 
 /* ── Dark mode ── */
 [data-theme="dark"] tr.row-ouverture td{background:rgba(99,102,241,.08)}
@@ -46,6 +50,7 @@ tr:hover td{filter:brightness(.96)}
 [data-theme="dark"] tr.row-ratio td{background:rgba(255,255,255,.02)}
 [data-theme="dark"] tr.row-fermeture td{background:rgba(34,197,94,.06)}
 [data-theme="dark"] td.row-label{color:var(--accent-ink)}
+[data-theme="dark"] .badge-na{background:var(--surface-2)}
 [data-theme="dark"] .num-neg{color:var(--err)}
 [data-theme="dark"] .num-pos{color:var(--ok)}
 
@@ -55,18 +60,18 @@ tr:hover td{filter:brightness(.96)}
 
 {% block content %}
 
-{% with titre_print="STOCK MENSUEL B — ÉTAT RÉCAPITULATIF" sous_titre_print=periode %}
+{% with titre_print="STOCK AMBIANT — ÉTAT RÉCAPITULATIF" sous_titre_print=periode %}
 {% include 'partials/_print_header.html' %}
 {% endwith %}
 <div class="page-header">
   <div>
-    <h1 class="page-title">Etat Stock Mensuel — Format B (AMB)</h1>
-    <p class="page-subtitle">{% if periode %}{{ periode }}{% endif %}{% if marketeur %} — {{ marketeur.raison_sociale }}{% endif %}</p>
+    <h1 class="page-title">Mon Stock Ambiant</h1>
+    <p class="page-subtitle">{% if periode %}{{ periode }}{% endif %}{% if marketeur %} — {{ marketeur.raison_sociale }}{% endif %}{% if date_filtre %} — Fermeture du {{ date_filtre|date:"d/m/Y" }}{% endif %}</p>
   </div>
   <div style="display:flex;gap:8px" class="no-print">
     <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
-    {% if periode and rapport.produits %}
-    <a href="{% url 'client_mensuel_stock_b_export' %}?periode_id={{ periode.pk }}"
+    {% if periode and rapport.produits and not date_filtre %}
+    <a href="{% url 'client_mensuel_stock_ambiant_export' %}?periode_id={{ periode.uuid }}"
        class="btn-export-main">Excel</a>
     {% endif %}
   </div>
@@ -78,8 +83,13 @@ tr:hover td{filter:brightness(.96)}
       <div class="filter-group">
         <label>Période</label>
         <select name="periode_id">
-          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          {% for p in periodes %}<option value="{{ p.uuid }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
         </select>
+      </div>
+      <div class="filter-group">
+        <label>Jour (optionnel)</label>
+        <input type="date" name="date" value="{{ date_filtre|date:'Y-m-d' }}"
+               {% if periode %}min="{{ periode.date_debut|date:'Y-m-d' }}" max="{{ periode.date_fin|date:'Y-m-d' }}"{% endif %}>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end">
         <button type="submit" class="btn-filter">Afficher</button>
@@ -96,6 +106,7 @@ tr:hover td{filter:brightness(.96)}
 <div class="subtitle-band">
   Période : <strong>{{ rapport.date_ouv }} au {{ rapport.date_ferm }}</strong>
   {% if marketeur %} — Marketeur : <strong>{{ marketeur.raison_sociale }}</strong>{% endif %}
+  {% if date_filtre %} — <strong>Instantané au {{ date_filtre|date:"d/m/Y" }}</strong>{% endif %}
 </div>
 {% endif %}
 
@@ -143,7 +154,7 @@ tr:hover td{filter:brightness(.96)}
         <td class="row-label">PERTES OU GAINS (L)</td>
         {% for v in rapport.pertes_gains %}
         <td class="num {% if v is not None and v < 0 %}num-neg{% elif v is not None and v > 0 %}num-pos{% endif %}">
-          {% if v is not None %}{{ v|floatformat:2|intcomma }}{% else %}—{% endif %}
+          {% if v is not None %}{{ v|floatformat:2|intcomma }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour calculer cette valeur">N/D</span>{% endif %}
         </td>
         {% endfor %}
       </tr>
@@ -152,7 +163,7 @@ tr:hover td{filter:brightness(.96)}
         <td class="row-label">RATIO (%)</td>
         {% for v in rapport.ratios %}
         <td class="num {% if v is not None and v < 0 %}num-neg{% elif v is not None and v > 0 %}num-pos{% endif %}">
-          {% if v is not None %}{{ v|floatformat:4 }}{% else %}—{% endif %}
+          {% if v is not None %}{{ v|floatformat:4 }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour calculer cette valeur">N/D</span>{% endif %}
         </td>
         {% endfor %}
       </tr>
@@ -161,7 +172,7 @@ tr:hover td{filter:brightness(.96)}
         <td class="row-label">STOCKS FERMETURE (L)</td>
         {% for v in rapport.stk_fermeture %}
         <td class="num" style="color:#16a34a">
-          {% if v is not None %}{{ v|floatformat:2|intcomma }}{% else %}—{% endif %}
+          {% if v is not None %}{{ v|floatformat:2|intcomma }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour cette date">N/D</span>{% endif %}
         </td>
         {% endfor %}
       </tr>
@@ -171,5 +182,5 @@ tr:hover td{filter:brightness(.96)}
 </div>
 {% endif %}
 
-{% include 'partials/_print_footer.html' with reference_doc="MKT-STOCK-B" sig1="Le Marketeur" sig2="Le Gestionnaire" %}
+{% include 'partials/_print_footer.html' with reference_doc="MKT-STOCK-AMB" sig1="Le Marketeur" sig2="Le Gestionnaire" %}
 {% endblock %}

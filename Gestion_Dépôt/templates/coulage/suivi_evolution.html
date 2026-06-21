@@ -24,14 +24,14 @@ tr.row-jaugeage{background:#fefce8}
     <div class="ph-sub">{{ periode.libelle }}</div>
   </div>
   <div class="ph-actions">
-    <form method="get" style="display:flex;gap:.4rem;align-items:center">
+    <div style="display:flex;gap:.4rem;align-items:center">
       <label style="font-size:.85rem;color:var(--muted);font-weight:500">Produit :</label>
-      <select name="produit" onchange="this.form.submit()" class="select">
+      <select onchange="if(this.value) window.location=this.value" class="select">
         {% for p in produits %}
-        <option value="{{ p.pk }}" {% if p.pk == produit.pk %}selected{% endif %}>{{ p.nom }}</option>
+        <option value="{% url 'suivi_evolution' periode_uuid=periode.uuid periode_slug=periode.slug produit_uuid=p.uuid produit_slug=p.slug %}" {% if p.pk == produit.pk %}selected{% endif %}>{{ p.nom }}</option>
         {% endfor %}
       </select>
-    </form>
+    </div>
     <a href="{% url 'suivi_export' periode_uuid=periode.uuid periode_slug=periode.slug produit_uuid=produit.uuid produit_slug=produit.slug %}" class="btn btn-ghost">
       <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Excel

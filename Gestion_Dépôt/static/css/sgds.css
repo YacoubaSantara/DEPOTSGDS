@@ -1257,7 +1257,16 @@ form > input[type=hidden]{display:none}
 /* Responsive */
 @media(max-width:700px){.db-banner{flex-direction:column;align-items:flex-start;gap:12px}}
 @media(max-width:768px){.cuves-grid{grid-template-columns:repeat(2,1fr)}}
-@media print{.no-print{display:none!important}}
+@media print{
+  .no-print{display:none!important}
+  /* Déverrouillage du layout : sans ceci l'impression est tronquée à 1 page
+     (.app est en 100vh/overflow:hidden et .content scrolle à l'écran) */
+  html,body{height:auto!important;overflow:visible!important}
+  .app,.main,.content{display:block!important;height:auto!important;overflow:visible!important}
+  .sidebar,.topbar{display:none!important}
+  .page{max-width:none!important;margin:0!important;padding:0!important}
+  .table-wrap,.pivot-wrap{overflow:visible!important;max-height:none!important}
+}
 
 
 

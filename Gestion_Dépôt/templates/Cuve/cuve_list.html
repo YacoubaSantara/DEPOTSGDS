@@ -59,7 +59,7 @@
     <select class="select" name="produit">
       <option value="">Tous les produits</option>
       {% for prod in produits %}
-      <option value="{{ prod.pk }}" {% if produit_id == prod.pk|stringformat:"s" %}selected{% endif %}>{{ prod.nom }}</option>
+      <option value="{{ prod.uuid }}" {% if produit_id == prod.uuid|stringformat:"s" %}selected{% endif %}>{{ prod.nom }}</option>
       {% endfor %}
     </select>
     <select class="select" name="statut">

@@ -102,8 +102,7 @@ def inventaire_initial_saisir(request):
         volume_ambiant = Decimal(raw_vamb)
         volume_15c     = Decimal(raw_v15c)
 
-        if volume_ambiant < 0 or volume_15c < 0:
-            raise ValueError("Les volumes ne peuvent pas être négatifs.")
+        # Les valeurs négatives sont autorisées (solde débiteur / déficit marketeur)
 
         if not date_inventaire:
             raise ValueError("La date d'inventaire est obligatoire.")

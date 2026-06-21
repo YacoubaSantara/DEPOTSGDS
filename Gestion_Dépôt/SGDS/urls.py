@@ -18,18 +18,21 @@ urlpatterns = [
     # Espace Marketeur (client)
     path('mon-espace/',             views.client_dashboard,   name='client_dashboard'),
     path('mon-espace/mouvements/',  views.client_mouvements,  name='client_mouvements'),
+    path('mon-espace/mouvements/<uuid:uuid>/<slug:slug>/', views.client_mouvement_detail, name='client_mouvement_detail'),
     path('mon-espace/carte-stock/',              views.carte_stock,                   name='client_carte_stock'),
     path('mon-espace/carte-stock/export/',       views.carte_stock_export,            name='client_carte_stock_export'),
     path('mon-espace/stock-global/',             views.stock_global_marketeur,        name='client_stock_global'),
     path('mon-espace/stock-global/export/',      views.stock_global_marketeur_export, name='client_stock_global_export'),
 
     # Espace Marketeur - Etats mensuels
+    path('mon-espace/mensuel/stock-ouverture/',            views.etat_stock_ouverture_marketeur,              name='client_mensuel_stock_ouverture'),
+    path('mon-espace/mensuel/stock-fermeture/',            views.etat_stock_fermeture_marketeur,              name='client_mensuel_stock_fermeture'),
     path('mon-espace/mensuel/coulage-repartition/',        views.etat_coulage_repartition_marketeur,          name='client_mensuel_coulage_repartition'),
     path('mon-espace/mensuel/coulage-repartition/export/', views.etat_coulage_repartition_marketeur_export,   name='client_mensuel_coulage_repartition_export'),
-    path('mon-espace/mensuel/stock-a/',                    views.etat_stock_mensuel_a_marketeur,              name='client_mensuel_stock_a'),
-    path('mon-espace/mensuel/stock-a/export/',             views.etat_stock_mensuel_a_marketeur_export,       name='client_mensuel_stock_a_export'),
-    path('mon-espace/mensuel/stock-b/',                    views.etat_stock_mensuel_b_marketeur,              name='client_mensuel_stock_b'),
-    path('mon-espace/mensuel/stock-b/export/',             views.etat_stock_mensuel_b_marketeur_export,       name='client_mensuel_stock_b_export'),
+    path('mon-espace/mensuel/stock-15/',                   views.etat_stock_mensuel_15_marketeur,             name='client_mensuel_stock_15'),
+    path('mon-espace/mensuel/stock-15/export/',            views.etat_stock_mensuel_15_marketeur_export,      name='client_mensuel_stock_15_export'),
+    path('mon-espace/mensuel/stock-ambiant/',              views.etat_stock_ambiant_marketeur,                name='client_mensuel_stock_ambiant'),
+    path('mon-espace/mensuel/stock-ambiant/export/',       views.etat_stock_ambiant_marketeur_export,         name='client_mensuel_stock_ambiant_export'),
     path('mon-espace/mensuel/frais-passage/',              views.etat_frais_passage_mensuel_marketeur,        name='client_mensuel_frais_passage'),
     path('mon-espace/mensuel/frais-passage/export/',       views.etat_frais_passage_mensuel_marketeur_export, name='client_mensuel_frais_passage_export'),
 
@@ -51,10 +54,10 @@ urlpatterns = [
     path('etat/mensuel/rjj/export/',                 views.etat_global_mensuel_rjj_export,         name='etat_mensuel_rjj_export'),
     path('etat/mensuel/coulage-repartition/',        views.etat_coulage_repartition,               name='etat_mensuel_coulage_repartition'),
     path('etat/mensuel/coulage-repartition/export/', views.etat_coulage_repartition_export,        name='etat_mensuel_coulage_repartition_export'),
-    path('etat/mensuel/stock-a/',                    views.etat_stock_mensuel_a,                   name='etat_mensuel_stock_a'),
-    path('etat/mensuel/stock-a/export/',             views.etat_stock_mensuel_a_export,            name='etat_mensuel_stock_a_export'),
-    path('etat/mensuel/stock-b/',                    views.etat_stock_mensuel_b,                   name='etat_mensuel_stock_b'),
-    path('etat/mensuel/stock-b/export/',             views.etat_stock_mensuel_b_export,            name='etat_mensuel_stock_b_export'),
+    path('etat/mensuel/stock-15/',                   views.etat_stock_mensuel_15,                  name='etat_mensuel_stock_15'),
+    path('etat/mensuel/stock-15/export/',            views.etat_stock_mensuel_15_export,           name='etat_mensuel_stock_15_export'),
+    path('etat/mensuel/stock-ambiant/',              views.etat_stock_ambiant,                     name='etat_mensuel_stock_ambiant'),
+    path('etat/mensuel/stock-ambiant/export/',       views.etat_stock_ambiant_export,              name='etat_mensuel_stock_ambiant_export'),
     path('etat/mensuel/frais-passage/',              views.etat_frais_passage_mensuel,             name='etat_mensuel_frais_passage'),
     path('etat/mensuel/frais-passage/export/',       views.etat_frais_passage_mensuel_export,      name='etat_mensuel_frais_passage_export'),
 
@@ -151,6 +154,10 @@ urlpatterns = [
     # Periodes comptables
     path('periodes/',         views.ListePeriodesView.as_view(),  name='periode_liste'),
     path('periodes/ouvrir/',  views.OuvrirPeriodeView.as_view(),  name='periode_ouvrir'),
+
+    # Exercices comptables
+    path('exercices/',                   views.ListeExercicesView.as_view(),  name='exercice_liste'),
+    path('exercices/<int:annee>/cloturer/', views.ClotureExerciceView.as_view(), name='exercice_cloturer'),
 
     # Coulage - Repartition mensuelle
     path('coulage/',                                                                          views.ListePeriodesCoulageView.as_view(), name='coulage_liste'),

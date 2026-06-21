@@ -328,7 +328,7 @@
     </div>
     <div class="mkt-kpi-label">Entrées totales</div>
     <div class="mkt-kpi-val" data-count="{{ nb_entrees }}">{{ nb_entrees|intcomma }}</div>
-    <div class="mkt-kpi-sub">{{ total_vol_entree_15c|floatformat:0|intcomma }} L @15°C</div>
+    <div class="mkt-kpi-sub">{{ total_vol_entree_amb|floatformat:0|intcomma }} L Amb. · {{ total_vol_entree_15c|floatformat:0|intcomma }} L @15°C</div>
   </div>
 
   <div class="mkt-kpi k-red">
@@ -338,7 +338,7 @@
     </div>
     <div class="mkt-kpi-label">Sorties totales</div>
     <div class="mkt-kpi-val" data-count="{{ nb_sorties }}">{{ nb_sorties|intcomma }}</div>
-    <div class="mkt-kpi-sub">{{ total_vol_sortie_15c|floatformat:0|intcomma }} L @15°C</div>
+    <div class="mkt-kpi-sub">{{ total_vol_sortie_amb|floatformat:0|intcomma }} L Amb. · {{ total_vol_sortie_15c|floatformat:0|intcomma }} L @15°C</div>
   </div>
 
   <div class="mkt-kpi k-blue">
@@ -379,14 +379,18 @@
       <span class="mkt-stock-vol" data-count="{{ s.stock_amb|floatformat:0 }}">{{ s.stock_amb|floatformat:0|intcomma }}</span>
       <span class="mkt-stock-unit">L Amb.</span>
     </div>
+    <div class="mkt-stock-vol-row" style="margin-top:2px;">
+      <span class="mkt-stock-vol" style="font-size:1.1rem;color:var(--muted)">{{ s.stock_15c|floatformat:0|intcomma }}</span>
+      <span class="mkt-stock-unit">L @15°C</span>
+    </div>
     <div class="mkt-stock-bar-wrap">
       <div class="mkt-stock-bar-fill" style="width:0%"
            data-entrees="{{ s.entrees_amb|add:s.inv_amb|default:0 }}"
            data-stock="{{ s.stock_amb|floatformat:0|default:0 }}"></div>
     </div>
     <div class="mkt-stock-io">
-      <span><span class="dot-ok"></span> Entrées : {{ s.entrees|floatformat:0|intcomma }} L</span>
-      <span><span class="dot-err"></span> Sorties : {{ s.sorties|floatformat:0|intcomma }} L</span>
+      <span><span class="dot-ok"></span> Entrées : {{ s.entrees_amb|floatformat:0|intcomma }} L Amb. / {{ s.entrees|floatformat:0|intcomma }} L @15°C</span>
+      <span><span class="dot-err"></span> Sorties : {{ s.sorties_amb|floatformat:0|intcomma }} L Amb. / {{ s.sorties|floatformat:0|intcomma }} L @15°C</span>
       {% if s.inv_amb %}<span style="font-size:.72rem;color:var(--muted);margin-top:2px;width:100%;">📦 Stock initial : {{ s.inv_amb|floatformat:0|intcomma }} L</span>{% endif %}
     </div>
   </div>

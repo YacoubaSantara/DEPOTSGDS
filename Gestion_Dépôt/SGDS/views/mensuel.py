@@ -15,6 +15,7 @@ from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 
 from SGDS.users.decorators import chef_depot_required
 from .client import marketeur_required, _D
@@ -34,25 +35,25 @@ def _periodes_disponibles():
 
 
 def _get_periode(request):
-    """Période sélectionnée via GET ?periode_id=, sinon la plus récente."""
+    """Période sélectionnée via GET ?periode_id= (UUID), sinon la plus récente."""
     from SGDS.models import PeriodeComptable
     pid = request.GET.get('periode_id')
     if pid:
         try:
-            return PeriodeComptable.objects.get(pk=int(pid))
-        except (PeriodeComptable.DoesNotExist, ValueError):
+            return PeriodeComptable.objects.get(uuid=pid)
+        except (PeriodeComptable.DoesNotExist, ValueError, ValidationError):
             pass
     return PeriodeComptable.objects.order_by('-annee', '-mois').first()
 
 
 def _get_marketeur_optionnel(request):
-    """Retourne le Marketeur sélectionné via GET ?marketeur=, ou None."""
+    """Retourne le Marketeur sélectionné via GET ?marketeur= (UUID), ou None."""
     from SGDS.models import Marketeur
     mkt_id = request.GET.get('marketeur')
     if mkt_id:
         try:
-            return Marketeur.objects.get(pk=int(mkt_id))
-        except (Marketeur.DoesNotExist, ValueError):
+            return Marketeur.objects.get(uuid=mkt_id)
+        except (Marketeur.DoesNotExist, ValueError, ValidationError):
             pass
     return None
 
@@ -61,137 +62,363 @@ def _get_marketeur_optionnel(request):
 #  ÉTAT 1 — STOCK OUVERTURE / FERMETURE  (format fichier 06)
 # ═════════════════════════════════════════════════════════════
 
-def _calculer_stock_ouverture_fermeture(periode):
+def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_jaugeage_override=None):
     """
-    Pour chaque produit actif :
-      stock_debut / entrees (SD CC, AC CC, cessions reçues) /
-      sorties (livraisons AC, livraisons SD, cessions émises, coulage) /
-      stock_fin_comptable / stock_fin_physique (période suivante)
+    Pour chaque produit actif, calcule tous les agrégats du tableau mensuel
+    conformément au format Excel (fichier 06) :
+      Stock Ouverture (SD + Acquittée) /
+      Entrées détaillées (Réception CC + P/G Réception + Reclassement) /
+      Sorties détaillées (CC Acquittée + Cession + Reclassement + Coulage) /
+      Stock Comptable (SD + Acquittée) /
+      P/G Installation / Ratio /
+      Stock Clôture (SD + Acquittée + Total)
+    Tous les anciens champs sont conservés pour la rétrocompatibilité.
+
+    date_fin_override     : restreint les mouvements à cette date (vue journalière).
+    date_jaugeage_override: date à utiliser pour chercher le jaugeage en vue journalière.
+                            Peut différer de date_fin_override (ex : ouverture du jour J
+                            utilise date_fin_override=J-1 pour les mouvements mais cherche
+                            le jaugeage de J).
     """
-    from SGDS.models import Produit, StockOuverture, Mouvement
+    from SGDS.models import (Produit, StockOuverture, Mouvement,
+                              InventaireInitialMarketeur, JaugeageJour, MesureCuve)
+
+    date_fin_calc = date_fin_override if date_fin_override is not None else periode.date_fin
+    filtre_journalier = date_fin_override is not None
 
     produits   = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
     mouvements = list(
         Mouvement.objects
-        .filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
+        .filter(date_mouvement__range=(periode.date_debut, date_fin_calc))
         .select_related('produit', 'marketeur', 'cession_marketeur_destinataire')
     )
 
-    # Pertes coulage (si clôture disponible)
+    # ── Pertes coulage (si clôture disponible, ignoré en vue journalière) ──
     coulage_pertes = {}
-    cloture = getattr(periode, 'cloture_coulage', None)
-    if cloture:
-        for cp in cloture.produits_coulage.select_related('produit'):
-            coulage_pertes[cp.produit_id] = _D(cp.pertes_gains)
+    if not filtre_journalier:
+        cloture = getattr(periode, 'cloture_coulage', None)
+        if cloture:
+            for cp in cloture.produits_coulage.select_related('produit'):
+                coulage_pertes[cp.produit_id] = _D(cp.pertes_gains)
 
-    # Stock fermeture physique = StockOuverture de la période suivante
-    periode_suiv        = periode.periode_suivante()
-    sf_physique         = {}
-    if periode_suiv:
-        for so in StockOuverture.objects.filter(periode=periode_suiv).select_related('produit'):
-            sf_physique[so.produit_id] = {
-                'amb': _D(so.volume_ambiant),
-                '15c': _D(so.volume_15c),
-            }
+    # ── Stock physique (jaugeage) ──
+    sf_physique  = {}
+    if not filtre_journalier:
+        # Période entière : StockOuverture de la période suivante en priorité
+        periode_suiv = periode.periode_suivante()
+        if periode_suiv:
+            for so in StockOuverture.objects.filter(periode=periode_suiv).select_related('produit'):
+                pid = so.produit_id
+                if pid not in sf_physique:
+                    sf_physique[pid] = {'amb': _Z, '15c': _Z}
+                sf_physique[pid]['amb'] += _D(so.volume_ambiant)
+                sf_physique[pid]['15c'] += _D(so.volume_15c)
+
+        # Fallback : dernier jaugeage validé de la période
+        if not sf_physique:
+            dernier_j = (
+                JaugeageJour.objects
+                .filter(
+                    date_jaugeage__range=(periode.date_debut, periode.date_fin),
+                    est_valide=True,
+                )
+                .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
+                .first()
+            )
+            if dernier_j:
+                for mesure in dernier_j.mesures.select_related(
+                        'cuve__produit__famille', 'cuve__parametre_jaugeage').all():
+                    cuve = mesure.cuve
+                    if cuve.produit is None:
+                        continue
+                    pid   = cuve.produit_id
+                    v_amb = mesure.volume_ambiant_depot
+                    v_15c = mesure.volume_standard_15c_calcule
+                    if v_amb is not None:
+                        if pid not in sf_physique:
+                            sf_physique[pid] = {'amb': _Z, '15c': _Z}
+                        sf_physique[pid]['amb'] += _D(v_amb)
+                    if v_15c is not None:
+                        sf_physique.setdefault(pid, {'amb': _Z, '15c': _Z})
+                        sf_physique[pid]['15c'] += _D(v_15c)
+    else:
+        # Vue journalière : chercher le jaugeage du jour sélectionné.
+        # Ouverture (date_fin_override < date_jaugeage_override) → premier jaugeage du jour (matin).
+        # Fermeture (date_fin_override == date_jaugeage_override) → dernier jaugeage du jour (soir).
+        date_j = date_jaugeage_override or date_fin_override
+        is_ouverture_mode = (date_fin_override is not None
+                             and date_jaugeage_override is not None
+                             and date_fin_override < date_jaugeage_override)
+        heure_order = 'heure_jaugeage' if is_ouverture_mode else '-heure_jaugeage'
+
+        dernier_j = (
+            JaugeageJour.objects
+            .filter(date_jaugeage=date_j, est_valide=True)
+            .order_by(heure_order, '-date_creation')
+            .first()
+        )
+        if not dernier_j and date_j >= periode.date_debut:
+            dernier_j = (
+                JaugeageJour.objects
+                .filter(
+                    date_jaugeage__range=(periode.date_debut, date_j),
+                    est_valide=True,
+                )
+                .order_by('-date_jaugeage', heure_order, '-date_creation')
+                .first()
+            )
+        if dernier_j:
+            for mesure in dernier_j.mesures.select_related(
+                    'cuve__produit__famille', 'cuve__parametre_jaugeage').all():
+                cuve = mesure.cuve
+                if cuve.produit is None:
+                    continue
+                pid   = cuve.produit_id
+                v_amb = mesure.volume_ambiant_depot
+                v_15c = mesure.volume_standard_15c_calcule
+                if v_amb is not None:
+                    if pid not in sf_physique:
+                        sf_physique[pid] = {'amb': _Z, '15c': _Z}
+                    sf_physique[pid]['amb'] += _D(v_amb)
+                if v_15c is not None:
+                    sf_physique.setdefault(pid, {'amb': _Z, '15c': _Z})
+                    sf_physique[pid]['15c'] += _D(v_15c)
+
+    # ── Fallback inventaires initiaux (1ère période sans StockOuverture) ──
+    _inv_initiaux = {}
+    if periode.periode_precedente() is None:
+        for inv in InventaireInitialMarketeur.objects.filter(
+            date_inventaire__lte=periode.date_fin,
+        ).select_related('produit'):
+            pid = inv.produit_id
+            if pid not in _inv_initiaux:
+                _inv_initiaux[pid] = {'amb': _Z, '15c': _Z}
+            _inv_initiaux[pid]['amb'] += _D(inv.volume_ambiant)
+            _inv_initiaux[pid]['15c'] += _D(inv.volume_15c)
+
+    # ── Perte/Gain Installation par produit (ignoré en vue journalière) ──
+    pg_install = {}
+    if not filtre_journalier:
+        try:
+            from SGDS.models import PerteGainInstallation
+            for pg in PerteGainInstallation.objects.filter(periode=periode).select_related('produit'):
+                pid = pg.produit_id
+                if pid not in pg_install:
+                    pg_install[pid] = {'amb': _Z, '15c': _Z}
+                pg_install[pid]['amb'] += _D(pg.volume_ambiant)
+                pg_install[pid]['15c'] += _D(pg.volume_15c)
+        except Exception:
+            pass  # table pas encore migrée
 
     lignes = []
     for produit in produits:
         mvts_p = [m for m in mouvements if m.produit_id == produit.pk]
 
-        # ── Stock ouverture ──
-        try:
-            so = StockOuverture.objects.get(periode=periode, produit=produit)
-            stock_debut_amb = _D(so.volume_ambiant)
-            stock_debut_15c = _D(so.volume_15c)
-        except StockOuverture.DoesNotExist:
-            stock_debut_amb = stock_debut_15c = _Z
+        # ── Stock Ouverture par régime ──
+        so_qs  = list(StockOuverture.objects.filter(periode=periode, produit=produit))
+        so_map = {so.regime_douanier: so for so in so_qs}
+        if so_qs:
+            so_sd      = so_map.get('SOUS_DOUANE')
+            so_ac      = so_map.get('ACQUITTE')
+            ouv_sd_amb = _D(so_sd.volume_ambiant) if so_sd else _Z
+            ouv_sd_15c = _D(so_sd.volume_15c)     if so_sd else _Z
+            ouv_ac_amb = _D(so_ac.volume_ambiant)  if so_ac else _Z
+            ouv_ac_15c = _D(so_ac.volume_15c)      if so_ac else _Z
+        else:
+            ouv_sd_amb = ouv_sd_15c = _Z
+            _inv       = _inv_initiaux.get(produit.pk, {})
+            ouv_ac_amb = _inv.get('amb', _Z)
+            ouv_ac_15c = _inv.get('15c', _Z)
 
-        # ── Entrées ──
-        rec_sd_amb = rec_sd_15c = rec_ac_amb = rec_ac_15c = _Z
+        stock_debut_amb = ouv_sd_amb + ouv_ac_amb
+        stock_debut_15c = ouv_sd_15c + ouv_ac_15c
+
+        # ── Entrées détaillées ──
+        rec_sd_amb         = rec_sd_15c         = _Z
+        pg_rec_sd_amb      = pg_rec_sd_15c      = _Z
+        rec_ac_amb         = rec_ac_15c         = _Z
+        pg_rec_ac_amb      = pg_rec_ac_15c      = _Z
+        recl_sd_entree_amb = recl_sd_entree_15c = _Z  # Acquittée→SD
+        recl_ac_entree_amb = recl_ac_entree_15c = _Z  # SD→Acquittée
+
         for m in mvts_p:
             if m.type_mouvement == 'ENTREE':
-                v_amb = _D(m.volume_ambiant_recu)
-                v_15c = _D(m.volume_15c_recu)
+                v_amb    = _D(m.volume_ambiant_recu)
+                v_15c    = _D(m.volume_15c_recu)
+                pg_r_amb = _D(m.perte_gain_reception) if m.perte_gain_reception is not None else _Z
+                pg_r_15c = _D(m.perte_gain_15c)       if m.perte_gain_15c is not None else _Z
                 if m.regime_douanier == 'SOUS_DOUANE':
-                    rec_sd_amb += v_amb
-                    rec_sd_15c += v_15c
+                    rec_sd_amb += v_amb; rec_sd_15c += v_15c
+                    # pg_rec_sd exclu de la vue dépôt global (affiché uniquement côté marketeur)
                 else:
-                    rec_ac_amb += v_amb
-                    rec_ac_15c += v_15c
+                    rec_ac_amb += v_amb; rec_ac_15c += v_15c
+                    # pg_rec_ac exclu de la vue dépôt global (affiché uniquement côté marketeur)
+            elif m.type_mouvement == 'RECLASSEMENT':
+                v_amb = _D(m.volume_ambiant_recu) if m.volume_ambiant_recu else _Z
+                v_15c = _D(m.volume_15c_recu)     if m.volume_15c_recu     else _Z
+                # regime_douanier = régime SOURCE du produit reclassé
+                if m.regime_douanier == 'SOUS_DOUANE':
+                    recl_ac_entree_amb += v_amb   # entre en Acquittée
+                    recl_ac_entree_15c += v_15c
+                else:
+                    recl_sd_entree_amb += v_amb   # entre en SD
+                    recl_sd_entree_15c += v_15c
 
-        # Cessions reçues de l'extérieur du dépôt (via QuerySet séparé sur le destinataire).
-        # Dans un dépôt unique, les cessions sont des transferts INTERNES entre marketeurs :
-        # elles ne modifient pas le stock global → cess_recues = 0 pour éviter le double comptage.
-        # (Si votre dépôt reçoit des cessions d'un autre dépôt externe, ajustez ici.)
-        cess_recues_amb = _Z
-        cess_recues_15c = _Z
+        # Cessions reçues (dépôt unique = 0, évite double comptage)
+        cess_recues_amb = cess_recues_15c = _Z
 
-        # ── Sorties ──
-        livr_ac_amb = livr_ac_15c = livr_sd_amb = livr_sd_15c = _Z
+        # Totaux entrées par régime
+        total_entrees_sd_amb = rec_sd_amb + pg_rec_sd_amb + recl_sd_entree_amb
+        total_entrees_sd_15c = rec_sd_15c + pg_rec_sd_15c + recl_sd_entree_15c
+        total_entrees_ac_amb = rec_ac_amb + pg_rec_ac_amb + cess_recues_amb + recl_ac_entree_amb
+        total_entrees_ac_15c = rec_ac_15c + pg_rec_ac_15c + cess_recues_15c + recl_ac_entree_15c
+        total_entrees_amb    = total_entrees_sd_amb + total_entrees_ac_amb
+        total_entrees_15c    = total_entrees_sd_15c + total_entrees_ac_15c
+
+        # ── Sorties détaillées ──
+        livr_ac_amb        = livr_ac_15c        = _Z
+        livr_sd_amb        = livr_sd_15c        = _Z
+        cess_emises_amb    = cess_emises_15c    = _Z
+        recl_sd_sortie_amb = recl_sd_sortie_15c = _Z  # quitte SD (SD→Acquittée)
+        recl_ac_sortie_amb = recl_ac_sortie_15c = _Z  # quitte Acquittée (Acquittée→SD)
+
         for m in mvts_p:
             if m.type_mouvement == 'SORTIE':
                 v_amb = _D(m.volume_ambiant_sortie)
                 v_15c = _D(m.volume_15c_sortie)
                 if m.regime_douanier == 'ACQUITTE':
-                    livr_ac_amb += v_amb
-                    livr_ac_15c += v_15c
+                    livr_ac_amb += v_amb; livr_ac_15c += v_15c
                 else:
-                    livr_sd_amb += v_amb
-                    livr_sd_15c += v_15c
+                    livr_sd_amb += v_amb; livr_sd_15c += v_15c
+            elif m.type_mouvement == 'CESSION':
+                pass  # intra-dépôt : émises et reçues se compensent, exclu du stock global
+            elif m.type_mouvement == 'RECLASSEMENT':
+                v_amb = _D(m.volume_ambiant_recu) if m.volume_ambiant_recu else _Z
+                v_15c = _D(m.volume_15c_recu)     if m.volume_15c_recu     else _Z
+                if m.regime_douanier == 'SOUS_DOUANE':
+                    recl_sd_sortie_amb += v_amb   # quitte SD
+                    recl_sd_sortie_15c += v_15c
+                else:
+                    recl_ac_sortie_amb += v_amb   # quitte Acquittée
+                    recl_ac_sortie_15c += v_15c
 
-        cess_emises_amb = sum(
-            _D(m.cession_volume_ambiant) for m in mvts_p
-            if m.type_mouvement == 'CESSION'
-        )
-        cess_emises_15c = sum(
-            _D(m.cession_volume_15c) for m in mvts_p
-            if m.type_mouvement == 'CESSION'
-        )
-
-        # Coulage installation = |perte| sur ce produit
-        coul_pg = coulage_pertes.get(produit.pk, _Z)
+        # Coulage installation = |perte| sur ce produit (depuis audit coulage)
+        coul_pg          = coulage_pertes.get(produit.pk, _Z)
         coul_install_amb = abs(coul_pg) if coul_pg < _Z else _Z
 
-        # ── Totaux ──
-        total_entrees_amb = rec_sd_amb + rec_ac_amb + cess_recues_amb
-        total_entrees_15c = rec_sd_15c + rec_ac_15c + cess_recues_15c
-        total_sorties_amb = livr_ac_amb + livr_sd_amb + cess_emises_amb + coul_install_amb
-        total_sorties_15c = livr_ac_15c + livr_sd_15c + cess_emises_15c
+        # Totaux sorties par régime
+        total_sorties_sd_amb = recl_sd_sortie_amb
+        total_sorties_sd_15c = recl_sd_sortie_15c
+        total_sorties_ac_amb = livr_ac_amb + cess_emises_amb + recl_ac_sortie_amb + coul_install_amb
+        total_sorties_ac_15c = livr_ac_15c + cess_emises_15c + recl_ac_sortie_15c
+        total_sorties_amb    = total_sorties_sd_amb + total_sorties_ac_amb
+        total_sorties_15c    = total_sorties_sd_15c + total_sorties_ac_15c
 
-        stock_fin_c_amb = stock_debut_amb + total_entrees_amb - total_sorties_amb
-        stock_fin_c_15c = stock_debut_15c + total_entrees_15c - total_sorties_15c
+        # ── Stock Comptable par régime ──
+        stk_c_sd_amb    = ouv_sd_amb + total_entrees_sd_amb - total_sorties_sd_amb
+        stk_c_sd_15c    = ouv_sd_15c + total_entrees_sd_15c - total_sorties_sd_15c
+        stk_c_ac_amb    = ouv_ac_amb + total_entrees_ac_amb - total_sorties_ac_amb
+        stk_c_ac_15c    = ouv_ac_15c + total_entrees_ac_15c - total_sorties_ac_15c
+        stock_fin_c_amb = stk_c_sd_amb + stk_c_ac_amb
+        stock_fin_c_15c = stk_c_sd_15c + stk_c_ac_15c
 
-        sf = sf_physique.get(produit.pk, {})
+        # ── P/G Installation (Acquittée uniquement) ──
+        pg_inst     = pg_install.get(produit.pk, {})
+        pg_inst_amb = pg_inst.get('amb', _Z)
+        pg_inst_15c = pg_inst.get('15c', _Z)
+
+        # ── Ratio = P/G Installation / Total Sorties Acquittées ──
+        ratio = None
+        if total_sorties_ac_amb and total_sorties_ac_amb != _Z:
+            try:
+                ratio = round(float(pg_inst_amb) / float(total_sorties_ac_amb), 6)
+            except (ZeroDivisionError, Exception):
+                pass
+
+        # ── Stock physique (jaugeage) + P/G global ──
+        sf     = sf_physique.get(produit.pk, {})
         sf_amb = sf.get('amb')
         sf_15c = sf.get('15c')
         pg_amb = (sf_amb - stock_fin_c_amb) if sf_amb is not None else None
 
+        # ── Stock Clôture = Stock Comptable + P/G Installation (Acquittée) ──
+        cloture_sd_amb    = stk_c_sd_amb
+        cloture_sd_15c    = stk_c_sd_15c
+        cloture_ac_amb    = stk_c_ac_amb + pg_inst_amb
+        cloture_ac_15c    = stk_c_ac_15c + pg_inst_15c
+        cloture_total_amb = cloture_sd_amb + cloture_ac_amb
+        cloture_total_15c = cloture_sd_15c + cloture_ac_15c
+
         lignes.append({
-            'produit':                 produit,
-            'stock_debut_amb':         stock_debut_amb,
-            'stock_debut_15c':         stock_debut_15c,
-            'rec_sd_amb':              rec_sd_amb,
-            'rec_sd_15c':              rec_sd_15c,
-            'rec_ac_amb':              rec_ac_amb,
-            'rec_ac_15c':              rec_ac_15c,
-            'cess_recues_amb':         cess_recues_amb,
-            'cess_recues_15c':         cess_recues_15c,
-            'total_entrees_amb':       total_entrees_amb,
-            'total_entrees_15c':       total_entrees_15c,
-            'livr_ac_amb':             livr_ac_amb,
-            'livr_ac_15c':             livr_ac_15c,
-            'livr_sd_amb':             livr_sd_amb,
-            'livr_sd_15c':             livr_sd_15c,
-            'cess_emises_amb':         cess_emises_amb,
-            'cess_emises_15c':         cess_emises_15c,
-            'coul_install_amb':        coul_install_amb,
-            'total_sorties_amb':       total_sorties_amb,
-            'total_sorties_15c':       total_sorties_15c,
-            'stock_fin_comptable_amb': stock_fin_c_amb,
-            'stock_fin_comptable_15c': stock_fin_c_15c,
-            'stock_fin_physique_amb':  sf_amb,
-            'stock_fin_physique_15c':  sf_15c,
-            'perte_gain_amb':          pg_amb,
+            'produit':                  produit,
+            # Ouverture par régime
+            'ouv_sd_amb':               ouv_sd_amb,
+            'ouv_sd_15c':               ouv_sd_15c,
+            'ouv_ac_amb':               ouv_ac_amb,
+            'ouv_ac_15c':               ouv_ac_15c,
+            'stock_debut_amb':          stock_debut_amb,
+            'stock_debut_15c':          stock_debut_15c,
+            # Entrées détaillées
+            'rec_sd_amb':               rec_sd_amb,
+            'rec_sd_15c':               rec_sd_15c,
+            'pg_rec_sd_amb':            pg_rec_sd_amb,
+            'pg_rec_sd_15c':            pg_rec_sd_15c,
+            'rec_ac_amb':               rec_ac_amb,
+            'rec_ac_15c':               rec_ac_15c,
+            'pg_rec_ac_amb':            pg_rec_ac_amb,
+            'pg_rec_ac_15c':            pg_rec_ac_15c,
+            'cess_recues_amb':          cess_recues_amb,
+            'cess_recues_15c':          cess_recues_15c,
+            'recl_sd_entree_amb':       recl_sd_entree_amb,
+            'recl_sd_entree_15c':       recl_sd_entree_15c,
+            'recl_ac_entree_amb':       recl_ac_entree_amb,
+            'recl_ac_entree_15c':       recl_ac_entree_15c,
+            'total_entrees_sd_amb':     total_entrees_sd_amb,
+            'total_entrees_sd_15c':     total_entrees_sd_15c,
+            'total_entrees_ac_amb':     total_entrees_ac_amb,
+            'total_entrees_ac_15c':     total_entrees_ac_15c,
+            'total_entrees_amb':        total_entrees_amb,
+            'total_entrees_15c':        total_entrees_15c,
+            # Sorties détaillées
+            'livr_ac_amb':              livr_ac_amb,
+            'livr_ac_15c':              livr_ac_15c,
+            'livr_sd_amb':              livr_sd_amb,
+            'livr_sd_15c':              livr_sd_15c,
+            'cess_emises_amb':          cess_emises_amb,
+            'cess_emises_15c':          cess_emises_15c,
+            'coul_install_amb':         coul_install_amb,
+            'recl_sd_sortie_amb':       recl_sd_sortie_amb,
+            'recl_sd_sortie_15c':       recl_sd_sortie_15c,
+            'recl_ac_sortie_amb':       recl_ac_sortie_amb,
+            'recl_ac_sortie_15c':       recl_ac_sortie_15c,
+            'total_sorties_sd_amb':     total_sorties_sd_amb,
+            'total_sorties_sd_15c':     total_sorties_sd_15c,
+            'total_sorties_ac_amb':     total_sorties_ac_amb,
+            'total_sorties_ac_15c':     total_sorties_ac_15c,
+            'total_sorties_amb':        total_sorties_amb,
+            'total_sorties_15c':        total_sorties_15c,
+            # Stock Comptable par régime
+            'stk_c_sd_amb':             stk_c_sd_amb,
+            'stk_c_sd_15c':             stk_c_sd_15c,
+            'stk_c_ac_amb':             stk_c_ac_amb,
+            'stk_c_ac_15c':             stk_c_ac_15c,
+            'stock_fin_comptable_amb':  stock_fin_c_amb,
+            'stock_fin_comptable_15c':  stock_fin_c_15c,
+            # P/G Installation & Ratio
+            'pg_inst_amb':              pg_inst_amb,
+            'pg_inst_15c':              pg_inst_15c,
+            'ratio':                    ratio,
+            # Stock Clôture
+            'cloture_sd_amb':           cloture_sd_amb,
+            'cloture_sd_15c':           cloture_sd_15c,
+            'cloture_ac_amb':           cloture_ac_amb,
+            'cloture_ac_15c':           cloture_ac_15c,
+            'cloture_total_amb':        cloture_total_amb,
+            'cloture_total_15c':        cloture_total_15c,
+            # Stock physique (jaugeage) + P/G global
+            'stock_fin_physique_amb':   sf_amb,
+            'stock_fin_physique_15c':   sf_15c,
+            'perte_gain_amb':           pg_amb,
         })
 
     return lignes
@@ -200,17 +427,33 @@ def _calculer_stock_ouverture_fermeture(periode):
 @chef_depot_required
 def etat_stock_ouverture_fermeture(request):
     from SGDS.models import Societe, Produit
+    from datetime import datetime, timedelta
     periodes       = _periodes_disponibles()
     periode        = _get_periode(request)
     produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
     produit_id     = request.GET.get('produit_id')
+    date_str       = request.GET.get('date', '').strip()
     produit_filtre = None
+    date_filtre    = None
+    date_fin_override = None
+
     if produit_id:
         try:
-            produit_filtre = Produit.objects.get(pk=produit_id, statut='ACTIF')
-        except Produit.DoesNotExist:
+            produit_filtre = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValidationError, ValueError):
             pass
-    lignes_all = _calculer_stock_ouverture_fermeture(periode) if periode else []
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                # Ouverture du jour J = mouvements jusqu'à J-1 (exclu J)
+                date_fin_override = d - timedelta(days=1)
+        except ValueError:
+            pass
+
+    lignes_all = _calculer_stock_ouverture_fermeture(periode, date_fin_override, date_filtre) if periode else []
     lignes = [l for l in lignes_all
               if produit_filtre is None or l['produit'].pk == produit_filtre.pk]
     societe = Societe.get_instance()
@@ -221,23 +464,40 @@ def etat_stock_ouverture_fermeture(request):
         'societe':        societe,
         'produits':       produits,
         'produit_filtre': produit_filtre,
+        'date_filtre':    date_filtre,
     })
 
 
 @chef_depot_required
 def etat_stock_fermeture(request):
     from SGDS.models import Societe, Produit
+    from datetime import datetime
     periodes       = _periodes_disponibles()
     periode        = _get_periode(request)
     produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
     produit_id     = request.GET.get('produit_id')
+    date_str       = request.GET.get('date', '').strip()
     produit_filtre = None
+    date_filtre    = None
+    date_fin_override = None
+
     if produit_id:
         try:
-            produit_filtre = Produit.objects.get(pk=produit_id, statut='ACTIF')
-        except Produit.DoesNotExist:
+            produit_filtre = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValidationError, ValueError):
             pass
-    lignes_all = _calculer_stock_ouverture_fermeture(periode) if periode else []
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                # Fermeture du jour J = mouvements jusqu'à J inclus
+                date_fin_override = d
+        except ValueError:
+            pass
+
+    lignes_all = _calculer_stock_ouverture_fermeture(periode, date_fin_override, date_filtre) if periode else []
     lignes = [l for l in lignes_all
               if produit_filtre is None or l['produit'].pk == produit_filtre.pk]
     societe = Societe.get_instance()
@@ -248,6 +508,7 @@ def etat_stock_fermeture(request):
         'societe':        societe,
         'produits':       produits,
         'produit_filtre': produit_filtre,
+        'date_filtre':    date_filtre,
     })
 
 
@@ -472,6 +733,371 @@ def _calculer_global_depot(periode, marketeur=None):
     }
 
 
+# ─────────────────────────────────────────────────────────────
+#  STOCK OUVERTURE / FERMETURE — ESPACE MARKETEUR
+# ─────────────────────────────────────────────────────────────
+
+def _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur, date_fin_override=None):
+    """
+    Version filtrée par marketeur de _calculer_stock_ouverture_fermeture.
+    Utilise InventaireInitialMarketeur pour le stock de départ et filtre
+    les mouvements par marketeur.
+
+    date_fin_override : si fourni, restreint les mouvements à cette date au lieu
+    de periode.date_fin (état journalier).
+    """
+    from SGDS.models import Produit, InventaireInitialMarketeur, Mouvement, StockOuvertureMarketeur, ClotureCoulageLigne
+
+    date_fin_calc     = date_fin_override if date_fin_override is not None else periode.date_fin
+    filtre_journalier = date_fin_override is not None
+
+    # ── Quote-part du marketeur dans le P/G Installation du dépôt ──
+    # (même logique que la répartition du coulage / frais de passage,
+    # ignorée en vue journalière car calculée sur la période entière)
+    # Période déjà clôturée → lire la quote-part figée (ne bouge plus jamais).
+    # Période encore ouverte → estimation live (provisoire jusqu'à la clôture).
+    qp_coul_par_produit = {}
+    if not filtre_journalier:
+        if periode.statut == 'CLOTUREE':
+            for ligne in ClotureCoulageLigne.objects.filter(
+                cloture__periode=periode, marketeur=marketeur,
+            ).select_related('produit'):
+                if ligne.produit_id:
+                    qp_coul_par_produit[ligne.produit_id] = {
+                        'qp_coul': ligne.qp_coul, 'coef_qp_coul': ligne.coef_qp_coul,
+                    }
+        else:
+            try:
+                from SGDS.services.coulage_repartition import calculer_repartition_coulage
+                rapport_coul = calculer_repartition_coulage(periode, marketeurs=[marketeur])
+                if rapport_coul['lignes']:
+                    qp_coul_par_produit = rapport_coul['lignes'][0]['par_produit']
+            except Exception:
+                pass
+
+    produits   = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
+    mouvements = list(
+        Mouvement.objects
+        .filter(
+            date_mouvement__range=(periode.date_debut, date_fin_calc),
+            marketeur=marketeur,
+        )
+        .select_related('produit', 'cession_marketeur_destinataire')
+    )
+
+    # Cessions du marketeur sur la période (reçues + émises), pour répartition SD/AC
+    cessions_recues = list(
+        Mouvement.objects.filter(
+            cession_marketeur_destinataire=marketeur,
+            type_mouvement='CESSION',
+            date_mouvement__range=(periode.date_debut, date_fin_calc),
+        ).select_related('produit')
+    )
+
+    # Stock d'ouverture de ce marketeur pour la période — reporté depuis la
+    # fermeture du mois précédent (cf. services/stock_ouverture_marketeur.py).
+    # Repli sur InventaireInitialMarketeur seulement si rien n'a encore été
+    # résolu (1ère période du système, avant toute clôture).
+    report_par_produit = {}
+    for som in StockOuvertureMarketeur.objects.filter(periode=periode, marketeur=marketeur).select_related('produit'):
+        pid = som.produit_id
+        bucket = report_par_produit.setdefault(pid, {'SOUS_DOUANE': {'amb': _Z, '15c': _Z}, 'ACQUITTE': {'amb': _Z, '15c': _Z}})
+        bucket[som.regime_douanier] = {'amb': _D(som.volume_ambiant), '15c': _D(som.volume_15c)}
+
+    if not report_par_produit and periode.periode_precedente() is None:
+        for inv in InventaireInitialMarketeur.objects.filter(
+            marketeur=marketeur,
+            date_inventaire__lte=periode.date_fin,
+        ).select_related('produit'):
+            pid = inv.produit_id
+            bucket = report_par_produit.setdefault(pid, {'SOUS_DOUANE': {'amb': _Z, '15c': _Z}, 'ACQUITTE': {'amb': _Z, '15c': _Z}})
+            bucket[inv.regime_douanier]['amb'] += _D(inv.volume_ambiant)
+            bucket[inv.regime_douanier]['15c'] += _D(inv.volume_15c)
+
+    inv_mkt = report_par_produit
+
+    lignes = []
+    for produit in produits:
+        mvts_p = [m for m in mouvements if m.produit_id == produit.pk]
+        if not mvts_p and produit.pk not in report_par_produit and produit.pk not in inv_mkt:
+            continue  # pas d'activité pour ce marketeur sur ce produit
+
+        # ── Stock ouverture par régime ──
+        rp = report_par_produit.get(produit.pk, inv_mkt.get(
+            produit.pk, {'SOUS_DOUANE': {'amb': _Z, '15c': _Z}, 'ACQUITTE': {'amb': _Z, '15c': _Z}}
+        ))
+        ouv_sd_amb = rp['SOUS_DOUANE']['amb']; ouv_sd_15c = rp['SOUS_DOUANE']['15c']
+        ouv_ac_amb = rp['ACQUITTE']['amb'];    ouv_ac_15c = rp['ACQUITTE']['15c']
+        stock_debut_amb = ouv_sd_amb + ouv_ac_amb
+        stock_debut_15c = ouv_sd_15c + ouv_ac_15c
+
+        # ── Entrées détaillées ──
+        rec_sd_amb = rec_sd_15c = rec_ac_amb = rec_ac_15c = _Z
+        recl_sd_entree_amb = recl_sd_entree_15c = _Z  # Acquittée→SD
+        recl_ac_entree_amb = recl_ac_entree_15c = _Z  # SD→Acquittée
+        for m in mvts_p:
+            if m.type_mouvement == 'ENTREE':
+                v_amb = _D(m.volume_ambiant_recu)
+                v_15c = _D(m.volume_15c_recu)
+                if m.regime_douanier == 'SOUS_DOUANE':
+                    rec_sd_amb += v_amb; rec_sd_15c += v_15c
+                else:
+                    rec_ac_amb += v_amb; rec_ac_15c += v_15c
+            elif m.type_mouvement == 'RECLASSEMENT':
+                v_amb = _D(m.volume_ambiant_recu) if m.volume_ambiant_recu else _Z
+                v_15c = _D(m.volume_15c_recu)     if m.volume_15c_recu     else _Z
+                if m.regime_douanier == 'SOUS_DOUANE':
+                    recl_ac_entree_amb += v_amb   # entre en Acquittée
+                    recl_ac_entree_15c += v_15c
+                else:
+                    recl_sd_entree_amb += v_amb   # entre en SD
+                    recl_sd_entree_15c += v_15c
+
+        cess_recues_sd_amb = cess_recues_sd_15c = _Z
+        cess_recues_ac_amb = cess_recues_ac_15c = _Z
+        for m in cessions_recues:
+            if m.produit_id != produit.pk:
+                continue
+            if m.regime_douanier == 'SOUS_DOUANE':
+                cess_recues_sd_amb += _D(m.cession_volume_ambiant)
+                cess_recues_sd_15c += _D(m.cession_volume_15c)
+            else:
+                cess_recues_ac_amb += _D(m.cession_volume_ambiant)
+                cess_recues_ac_15c += _D(m.cession_volume_15c)
+        cess_recues_amb = cess_recues_sd_amb + cess_recues_ac_amb
+        cess_recues_15c = cess_recues_sd_15c + cess_recues_ac_15c
+
+        total_entrees_sd_amb = rec_sd_amb + cess_recues_sd_amb + recl_sd_entree_amb
+        total_entrees_sd_15c = rec_sd_15c + cess_recues_sd_15c + recl_sd_entree_15c
+        total_entrees_ac_amb = rec_ac_amb + cess_recues_ac_amb + recl_ac_entree_amb
+        total_entrees_ac_15c = rec_ac_15c + cess_recues_ac_15c + recl_ac_entree_15c
+        total_entrees_amb    = total_entrees_sd_amb + total_entrees_ac_amb
+        total_entrees_15c    = total_entrees_sd_15c + total_entrees_ac_15c
+
+        # ── Sorties détaillées ──
+        livr_ac_amb = livr_ac_15c = livr_sd_amb = livr_sd_15c = _Z
+        recl_sd_sortie_amb = recl_sd_sortie_15c = _Z  # quitte SD (SD→Acquittée)
+        recl_ac_sortie_amb = recl_ac_sortie_15c = _Z  # quitte Acquittée (Acquittée→SD)
+        cess_emises_sd_amb = cess_emises_sd_15c = _Z
+        cess_emises_ac_amb = cess_emises_ac_15c = _Z
+        for m in mvts_p:
+            if m.type_mouvement == 'SORTIE':
+                v_amb = _D(m.volume_ambiant_sortie)
+                v_15c = _D(m.volume_15c_sortie)
+                if m.regime_douanier == 'ACQUITTE':
+                    livr_ac_amb += v_amb; livr_ac_15c += v_15c
+                else:
+                    livr_sd_amb += v_amb; livr_sd_15c += v_15c
+            elif m.type_mouvement == 'CESSION':
+                if m.regime_douanier == 'SOUS_DOUANE':
+                    cess_emises_sd_amb += _D(m.cession_volume_ambiant)
+                    cess_emises_sd_15c += _D(m.cession_volume_15c)
+                else:
+                    cess_emises_ac_amb += _D(m.cession_volume_ambiant)
+                    cess_emises_ac_15c += _D(m.cession_volume_15c)
+            elif m.type_mouvement == 'RECLASSEMENT':
+                v_amb = _D(m.volume_ambiant_recu) if m.volume_ambiant_recu else _Z
+                v_15c = _D(m.volume_15c_recu)     if m.volume_15c_recu     else _Z
+                if m.regime_douanier == 'SOUS_DOUANE':
+                    recl_sd_sortie_amb += v_amb   # quitte SD
+                    recl_sd_sortie_15c += v_15c
+                else:
+                    recl_ac_sortie_amb += v_amb   # quitte Acquittée
+                    recl_ac_sortie_15c += v_15c
+
+        cess_emises_amb = cess_emises_sd_amb + cess_emises_ac_amb
+        cess_emises_15c = cess_emises_sd_15c + cess_emises_ac_15c
+
+        total_sorties_sd_amb = livr_sd_amb + cess_emises_sd_amb + recl_sd_sortie_amb
+        total_sorties_sd_15c = livr_sd_15c + cess_emises_sd_15c + recl_sd_sortie_15c
+        total_sorties_ac_amb = livr_ac_amb + cess_emises_ac_amb + recl_ac_sortie_amb
+        total_sorties_ac_15c = livr_ac_15c + cess_emises_ac_15c + recl_ac_sortie_15c
+        total_sorties_amb    = total_sorties_sd_amb + total_sorties_ac_amb
+        total_sorties_15c    = total_sorties_sd_15c + total_sorties_ac_15c
+
+        # ── Stock Comptable par régime ──
+        stk_c_sd_amb    = ouv_sd_amb + total_entrees_sd_amb - total_sorties_sd_amb
+        stk_c_sd_15c    = ouv_sd_15c + total_entrees_sd_15c - total_sorties_sd_15c
+        stk_c_ac_amb    = ouv_ac_amb + total_entrees_ac_amb - total_sorties_ac_amb
+        stk_c_ac_15c    = ouv_ac_15c + total_entrees_ac_15c - total_sorties_ac_15c
+        stock_fin_c_amb = stk_c_sd_amb + stk_c_ac_amb
+        stock_fin_c_15c = stk_c_sd_15c + stk_c_ac_15c
+
+        # ── Quote-part P/G Installation (Acquittée uniquement) ──
+        qp        = qp_coul_par_produit.get(produit.pk, {})
+        pg_inst_amb = qp.get('qp_coul', _Z)
+        coef_qp     = qp.get('coef_qp_coul')
+        ratio       = float(coef_qp) if coef_qp is not None else None
+
+        # ── Stock Clôture = Stock Comptable + quote-part P/G Installation ──
+        cloture_sd_amb    = stk_c_sd_amb
+        cloture_sd_15c    = stk_c_sd_15c
+        cloture_ac_amb    = stk_c_ac_amb + pg_inst_amb
+        cloture_ac_15c    = stk_c_ac_15c
+        cloture_total_amb = cloture_sd_amb + cloture_ac_amb
+        cloture_total_15c = cloture_sd_15c + cloture_ac_15c
+
+        lignes.append({
+            'produit':                  produit,
+            # Ouverture par régime
+            'ouv_sd_amb':               ouv_sd_amb,
+            'ouv_sd_15c':               ouv_sd_15c,
+            'ouv_ac_amb':               ouv_ac_amb,
+            'ouv_ac_15c':               ouv_ac_15c,
+            'stock_debut_amb':          stock_debut_amb,
+            'stock_debut_15c':          stock_debut_15c,
+            # Entrées détaillées
+            'rec_sd_amb':               rec_sd_amb,
+            'rec_sd_15c':               rec_sd_15c,
+            'rec_ac_amb':               rec_ac_amb,
+            'rec_ac_15c':               rec_ac_15c,
+            'cess_recues_sd_amb':       cess_recues_sd_amb,
+            'cess_recues_sd_15c':       cess_recues_sd_15c,
+            'cess_recues_ac_amb':       cess_recues_ac_amb,
+            'cess_recues_ac_15c':       cess_recues_ac_15c,
+            'cess_recues_amb':          cess_recues_amb,
+            'cess_recues_15c':          cess_recues_15c,
+            'recl_sd_entree_amb':       recl_sd_entree_amb,
+            'recl_sd_entree_15c':       recl_sd_entree_15c,
+            'recl_ac_entree_amb':       recl_ac_entree_amb,
+            'recl_ac_entree_15c':       recl_ac_entree_15c,
+            'total_entrees_sd_amb':     total_entrees_sd_amb,
+            'total_entrees_sd_15c':     total_entrees_sd_15c,
+            'total_entrees_ac_amb':     total_entrees_ac_amb,
+            'total_entrees_ac_15c':     total_entrees_ac_15c,
+            'total_entrees_amb':        total_entrees_amb,
+            'total_entrees_15c':        total_entrees_15c,
+            # Sorties détaillées
+            'livr_ac_amb':              livr_ac_amb,
+            'livr_ac_15c':              livr_ac_15c,
+            'livr_sd_amb':              livr_sd_amb,
+            'livr_sd_15c':              livr_sd_15c,
+            'cess_emises_sd_amb':       cess_emises_sd_amb,
+            'cess_emises_sd_15c':       cess_emises_sd_15c,
+            'cess_emises_ac_amb':       cess_emises_ac_amb,
+            'cess_emises_ac_15c':       cess_emises_ac_15c,
+            'cess_emises_amb':          cess_emises_amb,
+            'cess_emises_15c':          cess_emises_15c,
+            'recl_sd_sortie_amb':       recl_sd_sortie_amb,
+            'recl_sd_sortie_15c':       recl_sd_sortie_15c,
+            'recl_ac_sortie_amb':       recl_ac_sortie_amb,
+            'recl_ac_sortie_15c':       recl_ac_sortie_15c,
+            'total_sorties_sd_amb':     total_sorties_sd_amb,
+            'total_sorties_sd_15c':     total_sorties_sd_15c,
+            'total_sorties_ac_amb':     total_sorties_ac_amb,
+            'total_sorties_ac_15c':     total_sorties_ac_15c,
+            'total_sorties_amb':        total_sorties_amb,
+            'total_sorties_15c':        total_sorties_15c,
+            # Stock Comptable par régime
+            'stk_c_sd_amb':             stk_c_sd_amb,
+            'stk_c_sd_15c':             stk_c_sd_15c,
+            'stk_c_ac_amb':             stk_c_ac_amb,
+            'stk_c_ac_15c':             stk_c_ac_15c,
+            'stock_fin_comptable_amb':  stock_fin_c_amb,
+            'stock_fin_comptable_15c':  stock_fin_c_15c,
+            # Quote-part P/G Installation & Ratio
+            'pg_inst_amb':              pg_inst_amb,
+            'ratio':                    ratio,
+            # Stock Clôture
+            'cloture_sd_amb':           cloture_sd_amb,
+            'cloture_sd_15c':           cloture_sd_15c,
+            'cloture_ac_amb':           cloture_ac_amb,
+            'cloture_ac_15c':           cloture_ac_15c,
+            'cloture_total_amb':        cloture_total_amb,
+            'cloture_total_15c':        cloture_total_15c,
+        })
+
+    return lignes
+
+
+@marketeur_required
+def etat_stock_ouverture_marketeur(request):
+    from SGDS.models import Produit
+    from datetime import datetime, timedelta
+    periodes       = _periodes_disponibles()
+    periode        = _get_periode(request)
+    mkt            = request.user.marketeur
+    produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
+    produit_id     = request.GET.get('produit_id')
+    date_str       = request.GET.get('date', '').strip()
+    produit_filtre = None
+    date_filtre    = None
+    date_fin_override = None
+
+    if produit_id:
+        try:
+            produit_filtre = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValueError):
+            pass
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                # Ouverture du jour J = mouvements jusqu'à J-1 (exclu J)
+                date_fin_override = d - timedelta(days=1)
+        except ValueError:
+            pass
+
+    lignes_all = _calculer_stock_ouverture_fermeture_marketeur(periode, mkt, date_fin_override) if periode else []
+    lignes = [l for l in lignes_all
+              if produit_filtre is None or l['produit'].pk == produit_filtre.pk]
+    return render(request, 'Espace_Marketeur/mensuel/stock_ouverture.html', {
+        'periodes':       periodes,
+        'periode':        periode,
+        'lignes':         lignes,
+        'produits':       produits,
+        'produit_filtre': produit_filtre,
+        'marketeur':      mkt,
+        'date_filtre':    date_filtre,
+    })
+
+
+@marketeur_required
+def etat_stock_fermeture_marketeur(request):
+    from SGDS.models import Produit
+    from datetime import datetime
+    periodes       = _periodes_disponibles()
+    periode        = _get_periode(request)
+    mkt            = request.user.marketeur
+    produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
+    produit_id     = request.GET.get('produit_id')
+    date_str       = request.GET.get('date', '').strip()
+    produit_filtre = None
+    date_filtre    = None
+    date_fin_override = None
+
+    if produit_id:
+        try:
+            produit_filtre = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValueError):
+            pass
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                # Fermeture du jour J = mouvements jusqu'à J inclus
+                date_fin_override = d
+        except ValueError:
+            pass
+
+    lignes_all = _calculer_stock_ouverture_fermeture_marketeur(periode, mkt, date_fin_override) if periode else []
+    lignes = [l for l in lignes_all
+              if produit_filtre is None or l['produit'].pk == produit_filtre.pk]
+    return render(request, 'Espace_Marketeur/mensuel/stock_fermeture.html', {
+        'periodes':       periodes,
+        'periode':        periode,
+        'lignes':         lignes,
+        'produits':       produits,
+        'produit_filtre': produit_filtre,
+        'marketeur':      mkt,
+        'date_filtre':    date_filtre,
+    })
+
+
 @login_required
 def etat_global_mensuel_depot(request):
     from SGDS.models import Societe, Marketeur
@@ -647,7 +1273,7 @@ def _calculer_rjj(periode, cuve_id=None):
                      .select_related('produit', 'parametre_jaugeage')
                      .order_by('numero'))
     if cuve_id:
-        cuves = [c for c in cuves if c.pk == int(cuve_id)]
+        cuves = [c for c in cuves if str(c.uuid) == str(cuve_id)]
 
     lignes = []
     for j in jaugeages:
@@ -658,6 +1284,8 @@ def _calculer_rjj(periode, cuve_id=None):
                 continue
             lignes.append({
                 'jaugeage_pk':     j.pk,
+                'jaugeage_uuid':   j.uuid,
+                'jaugeage_slug':   j.slug,
                 'date':            j.date_jaugeage,
                 'type_jaugeage':   j.get_type_jaugeage_display(),
                 'heure':           j.heure_jaugeage,
@@ -823,13 +1451,23 @@ def _rapport_coulage_pour_periode(periode):
 
 @login_required
 def etat_coulage_repartition(request):
-    from SGDS.models import Societe
+    from SGDS.models import Societe, PeriodeComptable
     if request.user.is_marketeur_role:
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
     periodes = _periodes_disponibles()
-    periode  = _get_periode(request)
+
+    # Si aucune période choisie, prendre la dernière clôturée (pas forcément la plus récente)
+    if request.GET.get('periode_id'):
+        periode = _get_periode(request)
+    else:
+        periode = (
+            PeriodeComptable.objects.filter(statut='CLOTUREE')
+            .order_by('-annee', '-mois').first()
+            or _get_periode(request)
+        )
+
     societe  = Societe.get_instance()
     rapport  = source = erreur = None
 
@@ -881,9 +1519,18 @@ def etat_coulage_repartition_export(request):
 
 @marketeur_required
 def etat_coulage_repartition_marketeur(request):
-    from SGDS.models import Societe
+    from SGDS.models import Societe, PeriodeComptable
     periodes = _periodes_disponibles()
-    periode  = _get_periode(request)
+
+    if request.GET.get('periode_id'):
+        periode = _get_periode(request)
+    else:
+        periode = (
+            PeriodeComptable.objects.filter(statut='CLOTUREE')
+            .order_by('-annee', '-mois').first()
+            or _get_periode(request)
+        )
+
     societe  = Societe.get_instance()
     mkt      = request.user.marketeur
     rapport  = source = erreur = None
@@ -1058,217 +1705,276 @@ def _xlsx_coulage_repartition(rapport, societe, marketeur_filtre=None):
 
 
 # ═════════════════════════════════════════════════════════════
-#  ÉTAT 5 — STOCK MENSUEL FORMAT A  (admin + marketeur)
+#  ÉTAT 5 — STOCK À 15° (admin + marketeur)
+#  Même format pivot que le Stock Mensuel B, avec en plus la
+#  valeur @15°C affichée à côté de chaque valeur AMB.
 # ═════════════════════════════════════════════════════════════
 
-def _calculer_stock_mensuel_a(periode, marketeur=None):
+def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
     """
-    Par produit × marketeur :
-      Stock Départ, Récept SD/AC (AMB+15C), Perte/Gain réception,
-      Total Entrées Nettes, Sorties, Stock Comptable,
-      P/G Physique, Ratio, Stock Fermeture.
-    Quand marketeur=None → mode TM (tous marketeurs).
+    Format pivot (lignes = statistiques, colonnes = produits actifs),
+    identique à Stock Mensuel B, mais avec les volumes AMB ET @15°C.
+    marketeur=None => Tous marketeurs (stock global depuis StockOuverture)
+    marketeur=<obj> => filtre par ce marketeur
+
+    date_fin_override : si fourni, calcule un instantane "fermeture du jour"
+    (mêmes règles que _calculer_stock_ambiant).
     """
-    from SGDS.models import Produit, StockOuverture, Mouvement, Marketeur as MktModel
+    from SGDS.models import Produit, StockOuverture, Mouvement, JaugeageJour, InventaireInitialMarketeur
 
     produits = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
 
-    if marketeur:
-        marketeurs = [marketeur]
-    else:
-        mkt_ids = (
-            Mouvement.objects
-            .filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
-            .values_list('marketeur_id', flat=True).distinct()
-        )
-        marketeurs = list(MktModel.objects.filter(pk__in=mkt_ids).order_by('raison_sociale'))
+    date_fin_calc     = date_fin_override if date_fin_override is not None else periode.date_fin
+    filtre_journalier = date_fin_override is not None
+
+    # Repli 1ere periode (aucune periode precedente => pas encore de StockOuverture
+    # resolue depuis un jaugeage) : on agrege les inventaires initiaux par produit,
+    # comme le fait _calculer_stock_ouverture_fermeture.
+    _inv_initiaux = {}
+    if marketeur is None and periode.periode_precedente() is None:
+        for inv in InventaireInitialMarketeur.objects.filter(date_inventaire__lte=periode.date_fin):
+            pid = inv.produit_id
+            if pid not in _inv_initiaux:
+                _inv_initiaux[pid] = {'amb': _Z, '15c': _Z}
+            _inv_initiaux[pid]['amb'] += _D(inv.volume_ambiant)
+            _inv_initiaux[pid]['15c'] += _D(inv.volume_15c)
+
+    # Marketeur specifique : Pertes/Gains AMB = quote-part de coulage du marketeur
+    # (pas le jaugeage du depot, qui n'est pas attribuable a un marketeur en particulier).
+    # Le coulage n'est pas suivi en @15°C dans ce systeme.
+    qp_coul_par_produit = {}
+    if marketeur is not None and not filtre_journalier:
+        try:
+            from SGDS.services.coulage_repartition import calculer_repartition_coulage
+            rapport_coul = calculer_repartition_coulage(periode, marketeurs=[marketeur])
+            if rapport_coul['lignes']:
+                qp_coul_par_produit = rapport_coul['lignes'][0]['par_produit']
+        except Exception:
+            pass
 
     periode_suiv = periode.periode_suivante()
-    sf_physique  = {}
-    if periode_suiv:
-        for so in StockOuverture.objects.filter(periode=periode_suiv).select_related('produit'):
-            sf_physique[so.produit_id] = {
-                'amb': _D(so.volume_ambiant),
-                '15c': _D(so.volume_15c),
-            }
-
-    lignes_par_produit = {}
-    for produit in produits:
-        lignes_mkt = []
-        tot = {k: _Z for k in [
-            'stock_debut_amb', 'stock_debut_15c',
-            'rec_sd_amb', 'rec_sd_15c', 'rec_ac_amb', 'rec_ac_15c',
-            'pg_rec_amb', 'pg_rec_15c',
-            'entrees_nettes_amb', 'entrees_nettes_15c',
-            'sorties_amb', 'sorties_15c',
-            'stock_comptable_amb', 'stock_comptable_15c',
-        ]}
-
-        for mkt in marketeurs:
-            mvts = list(
-                Mouvement.objects.filter(
-                    produit=produit, marketeur=mkt,
-                    date_mouvement__range=(periode.date_debut, periode.date_fin),
-                )
+    sf_amb_map   = {}
+    sf_15c_map   = {}
+    if filtre_journalier:
+        date_j = date_fin_override
+        dernier_j = (
+            JaugeageJour.objects
+            .filter(date_jaugeage=date_j, est_valide=True)
+            .order_by('-heure_jaugeage', '-date_creation')
+            .first()
+        )
+        if not dernier_j and date_j >= periode.date_debut:
+            dernier_j = (
+                JaugeageJour.objects
+                .filter(date_jaugeage__range=(periode.date_debut, date_j), est_valide=True)
+                .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
+                .first()
             )
+        if dernier_j:
+            for mesure in dernier_j.mesures.select_related('cuve__produit').all():
+                cuve = mesure.cuve
+                if cuve.produit is None:
+                    continue
+                pid = cuve.produit_id
+                if mesure.volume_ambiant_depot is not None:
+                    sf_amb_map[pid] = sf_amb_map.get(pid, _Z) + _D(mesure.volume_ambiant_depot)
+                if mesure.volume_standard_15c_calcule is not None:
+                    sf_15c_map[pid] = sf_15c_map.get(pid, _Z) + _D(mesure.volume_standard_15c_calcule)
+    else:
+        # Période entière : StockOuverture de la période suivante en priorité
+        if periode_suiv:
+            for so in StockOuverture.objects.filter(periode=periode_suiv).select_related('produit'):
+                sf_amb_map[so.produit_id] = sf_amb_map.get(so.produit_id, _Z) + _D(so.volume_ambiant)
+                sf_15c_map[so.produit_id] = sf_15c_map.get(so.produit_id, _Z) + _D(so.volume_15c)
+        # Repli : dernier jaugeage validé de la période (StockOuverture de la
+        # période suivante pas encore résolue / période en cours)
+        if not sf_amb_map:
+            dernier_j = (
+                JaugeageJour.objects
+                .filter(date_jaugeage__range=(periode.date_debut, periode.date_fin), est_valide=True)
+                .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
+                .first()
+            )
+            if dernier_j:
+                for mesure in dernier_j.mesures.select_related('cuve__produit').all():
+                    cuve = mesure.cuve
+                    if cuve.produit is None:
+                        continue
+                    pid = cuve.produit_id
+                    if mesure.volume_ambiant_depot is not None:
+                        sf_amb_map[pid] = sf_amb_map.get(pid, _Z) + _D(mesure.volume_ambiant_depot)
+                    if mesure.volume_standard_15c_calcule is not None:
+                        sf_15c_map[pid] = sf_15c_map.get(pid, _Z) + _D(mesure.volume_standard_15c_calcule)
 
-            # Stock départ — mode TM : 0 par ligne marketeur (total = StockOuverture dépôt, fixé après la boucle)
-            # mode par marketeur : cumul historique (mouvements + inventaire initial + cessions)
-            if not marketeur:
-                # En mode TM on n'affecte pas le stock de départ ici, il sera calculé au niveau totaux
-                sd_amb = sd_15c = _Z
+    stk_ouv_amb   = []
+    cumul_ent_amb = []
+    cumul_sor_amb = []
+    stk_cpt_amb   = []
+    pertes_gains_vals = []
+    ratios_vals       = []
+    stk_ferm_amb  = []
+
+    for produit in produits:
+        if marketeur is None:
+            # TM : stock global depuis StockOuverture (somme SD + Acquittée),
+            # avec repli sur les inventaires initiaux si rien n'a encore été résolu
+            # (1ère période, avant tout jaugeage de la période précédente).
+            from django.db.models import Sum as _Sum
+            agg_ouv = (
+                StockOuverture.objects
+                .filter(periode=periode, produit=produit)
+                .aggregate(v_amb=_Sum('volume_ambiant'), v_15c=_Sum('volume_15c'))
+            )
+            if agg_ouv['v_amb'] is not None:
+                ouv_amb = _D(agg_ouv['v_amb'] or 0)
+                ouv_15c = _D(agg_ouv['v_15c'] or 0)
             else:
-                from SGDS.models import InventaireInitialMarketeur
-                from django.db.models import Sum as _Sum
-                # Mouvements antérieurs à la période (ENTREE, SORTIE, CESSION émise)
-                mvts_avant = list(Mouvement.objects.filter(
-                    produit=produit, marketeur=mkt,
-                    date_mouvement__lt=periode.date_debut,
-                ))
-                sd_amb = sum(
-                    (_D(m.volume_ambiant_recu)       if m.type_mouvement == 'ENTREE'  else
-                     -_D(m.volume_ambiant_sortie)    if m.type_mouvement == 'SORTIE'  else
-                     -_D(m.cession_volume_ambiant)   if m.type_mouvement == 'CESSION' else _Z)
-                    for m in mvts_avant
-                )
-                sd_15c = sum(
-                    (_D(m.volume_15c_recu)       if m.type_mouvement == 'ENTREE'  else
-                     -_D(m.volume_15c_sortie)    if m.type_mouvement == 'SORTIE'  else
-                     -_D(m.cession_volume_15c)   if m.type_mouvement == 'CESSION' else _Z)
-                    for m in mvts_avant
-                )
-                # Cessions REÇUES par ce marketeur avant la période
-                cess_recues_avant = Mouvement.objects.filter(
-                    produit=produit,
-                    type_mouvement='CESSION',
-                    cession_marketeur_destinataire=mkt,
-                    date_mouvement__lt=periode.date_debut,
-                )
-                for m in cess_recues_avant:
-                    sd_amb += _D(m.cession_volume_ambiant)
-                    sd_15c += _D(m.cession_volume_15c)
-                # Ajouter l'inventaire initial du marketeur pour ce produit
+                _inv = _inv_initiaux.get(produit.pk, {})
+                ouv_amb = _inv.get('amb', _Z)
+                ouv_15c = _inv.get('15c', _Z)
+            mvts_qs = Mouvement.objects.filter(
+                produit=produit,
+                date_mouvement__range=(periode.date_debut, date_fin_calc),
+            )
+        else:
+            # Marketeur spécifique : stock d'ouverture reporté depuis la
+            # fermeture du mois précédent (StockOuvertureMarketeur), au lieu
+            # de rejouer tout l'historique des mouvements.
+            from django.db.models import Sum as _Sum
+            from SGDS.models import StockOuvertureMarketeur
+            agg_ouv_mkt = (
+                StockOuvertureMarketeur.objects
+                .filter(periode=periode, marketeur=marketeur, produit=produit)
+                .aggregate(v_amb=_Sum('volume_ambiant'), v_15c=_Sum('volume_15c'))
+            )
+            if agg_ouv_mkt['v_amb'] is not None:
+                ouv_amb = _D(agg_ouv_mkt['v_amb'] or 0)
+                ouv_15c = _D(agg_ouv_mkt['v_15c'] or 0)
+            else:
                 inv_agg = (
                     InventaireInitialMarketeur.objects
-                    .filter(marketeur=mkt, produit=produit)
+                    .filter(marketeur=marketeur, produit=produit)
                     .aggregate(v_amb=_Sum('volume_ambiant'), v_15c=_Sum('volume_15c'))
                 )
-                sd_amb += _D(inv_agg['v_amb'] or 0)
-                sd_15c += _D(inv_agg['v_15c'] or 0)
+                ouv_amb = _D(inv_agg['v_amb'] or 0)
+                ouv_15c = _D(inv_agg['v_15c'] or 0)
+            mvts_qs = Mouvement.objects.filter(
+                produit=produit, marketeur=marketeur,
+                date_mouvement__range=(periode.date_debut, date_fin_calc),
+            )
 
-            rec_sd_amb = rec_sd_15c = rec_ac_amb = rec_ac_15c = _Z
-            pg_amb = pg_15c = _Z
+        mvts = list(mvts_qs)
+        ent_amb = sum(_D(m.volume_ambiant_recu)   for m in mvts if m.type_mouvement == 'ENTREE')
+        ent_15c = sum(_D(m.volume_15c_recu)       for m in mvts if m.type_mouvement == 'ENTREE')
+        sor_amb = sum(_D(m.volume_ambiant_sortie) for m in mvts if m.type_mouvement == 'SORTIE')
+        sor_15c = sum(_D(m.volume_15c_sortie)     for m in mvts if m.type_mouvement == 'SORTIE')
 
-            for m in mvts:
-                if m.type_mouvement == 'ENTREE':
-                    v_amb = _D(m.volume_ambiant_recu)
-                    v_15c = _D(m.volume_15c_recu)
-                    if m.regime_douanier == 'SOUS_DOUANE':
-                        rec_sd_amb += v_amb
-                        rec_sd_15c += v_15c
-                    else:
-                        rec_ac_amb += v_amb
-                        rec_ac_15c += v_15c
-                    pg_amb += _D(m.perte_gain_reception)
-                    pg_15c += _D(m.perte_gain_15c)
+        if marketeur is not None:
+            # Cessions émises par ce marketeur durant la période -> sortie
+            sor_amb += sum(_D(m.cession_volume_ambiant) for m in mvts if m.type_mouvement == 'CESSION')
+            sor_15c += sum(_D(m.cession_volume_15c)     for m in mvts if m.type_mouvement == 'CESSION')
+            # Cessions reçues par ce marketeur durant la période -> entrée
+            # (Mouvement.marketeur = l'émetteur de la cession, pas le destinataire,
+            # donc requête séparée filtrée sur cession_marketeur_destinataire)
+            cess_recues = Mouvement.objects.filter(
+                produit=produit, type_mouvement='CESSION',
+                cession_marketeur_destinataire=marketeur,
+                date_mouvement__range=(periode.date_debut, date_fin_calc),
+            )
+            for m in cess_recues:
+                ent_amb += _D(m.cession_volume_ambiant)
+                ent_15c += _D(m.cession_volume_15c)
 
-            tot_rec_amb = rec_sd_amb + rec_ac_amb
-            tot_rec_15c = rec_sd_15c + rec_ac_15c
-            en_nettes_amb = tot_rec_amb + pg_amb
-            en_nettes_15c = tot_rec_15c + pg_15c
+        cpt_amb = ouv_amb + ent_amb - sor_amb
+        cpt_15c = ouv_15c + ent_15c - sor_15c
 
-            sor_amb = sum(_D(m.volume_ambiant_sortie) for m in mvts if m.type_mouvement == 'SORTIE')
-            sor_15c = sum(_D(m.volume_15c_sortie)     for m in mvts if m.type_mouvement == 'SORTIE')
+        if marketeur is None:
+            # TM : Pertes/Gains = jaugeage physique du dépôt - stock comptable
+            sf_amb = sf_amb_map.get(produit.pk)
+            sf_15c = sf_15c_map.get(produit.pk)
+            pg_amb = (sf_amb - cpt_amb) if sf_amb is not None else None
+            pg_15c = (sf_15c - cpt_15c) if sf_15c is not None else None
+        else:
+            # Marketeur : Pertes/Gains AMB = sa quote-part de coulage (pas le jaugeage
+            # du dépôt). Le coulage n'est pas suivi en @15°C : le stock fermeture @15°C
+            # reste donc égal au stock comptable @15°C, sans ajustement.
+            qp = qp_coul_par_produit.get(produit.pk)
+            if qp is not None:
+                pg_amb = qp.get('qp_coul', _Z)
+                sf_amb = cpt_amb + pg_amb
+            else:
+                pg_amb = None
+                sf_amb = None
+            pg_15c = None
+            sf_15c = cpt_15c
+        ratio_amb = (float(pg_amb) / float(sor_amb) * 100) if (pg_amb is not None and sor_amb) else None
+        ratio_15c = (float(pg_15c) / float(sor_15c) * 100) if (pg_15c is not None and sor_15c) else None
 
-            stk_c_amb = sd_amb + en_nettes_amb - sor_amb
-            stk_c_15c = sd_15c + en_nettes_15c - sor_15c
-
-            ligne = {
-                'marketeur':          mkt,
-                'stock_debut_amb':    sd_amb,
-                'stock_debut_15c':    sd_15c,
-                'rec_sd_amb':         rec_sd_amb,
-                'rec_sd_15c':         rec_sd_15c,
-                'rec_ac_amb':         rec_ac_amb,
-                'rec_ac_15c':         rec_ac_15c,
-                'pg_rec_amb':         pg_amb,
-                'pg_rec_15c':         pg_15c,
-                'entrees_nettes_amb': en_nettes_amb,
-                'entrees_nettes_15c': en_nettes_15c,
-                'sorties_amb':        sor_amb,
-                'sorties_15c':        sor_15c,
-                'stock_comptable_amb': stk_c_amb,
-                'stock_comptable_15c': stk_c_15c,
-            }
-            lignes_mkt.append(ligne)
-
-            for k in tot.keys():
-                tot[k] += ligne.get(k, _Z)
-
-        # En mode TM : le stock de départ total = StockOuverture global du dépôt
-        if not marketeur:
-            try:
-                so_global = StockOuverture.objects.get(periode=periode, produit=produit)
-                tot['stock_debut_amb'] = _D(so_global.volume_ambiant)
-                tot['stock_debut_15c'] = _D(so_global.volume_15c)
-            except StockOuverture.DoesNotExist:
-                pass  # reste à 0
-
-        sf      = sf_physique.get(produit.pk, {})
-        sf_amb  = sf.get('amb')
-        sf_15c  = sf.get('15c')
-        # Stock comptable total = stock départ + entrées nettes - sorties
-        tot['stock_comptable_amb'] = tot['stock_debut_amb'] + tot['entrees_nettes_amb'] - tot['sorties_amb']
-        tot['stock_comptable_15c'] = tot['stock_debut_15c'] + tot['entrees_nettes_15c'] - tot['sorties_15c']
-        pg_phys = (sf_amb - tot['stock_comptable_amb']) if sf_amb is not None else None
-        ratio   = ((pg_phys / tot['entrees_nettes_amb'] * 100)
-                   if pg_phys is not None and tot['entrees_nettes_amb'] else None)
-
-        lignes_par_produit[produit.pk] = {
-            'produit':    produit,
-            'lignes':     lignes_mkt,
-            'totaux':     tot,
-            'sf_amb':     sf_amb,
-            'sf_15c':     sf_15c,
-            'pg_phys_amb': pg_phys,
-            'ratio':       ratio,
-        }
+        stk_ouv_amb.append({'amb': ouv_amb, 'c15': ouv_15c})
+        cumul_ent_amb.append({'amb': ent_amb, 'c15': ent_15c})
+        cumul_sor_amb.append({'amb': sor_amb, 'c15': sor_15c})
+        stk_cpt_amb.append({'amb': cpt_amb, 'c15': cpt_15c})
+        pertes_gains_vals.append({'amb': pg_amb, 'c15': pg_15c})
+        ratios_vals.append({'amb': ratio_amb, 'c15': ratio_15c})
+        stk_ferm_amb.append({'amb': sf_amb, 'c15': sf_15c})
 
     return {
-        'periode':             periode,
-        'produits':            produits,
-        'marketeurs':          marketeurs,
-        'lignes_par_produit':  lignes_par_produit,
-        'is_tm':               marketeur is None,
+        'periode':       periode,
+        'produits':      produits,
+        'date_ouv':      periode.date_debut,
+        'date_ferm':     date_fin_calc,
+        'date_filtre':   date_fin_override,
+        'stk_ouverture': stk_ouv_amb,
+        'cumul_entrees': cumul_ent_amb,
+        'cumul_sorties': cumul_sor_amb,
+        'stk_comptable': stk_cpt_amb,
+        'pertes_gains':  pertes_gains_vals,
+        'ratios':        ratios_vals,
+        'stk_fermeture': stk_ferm_amb,
     }
 
 
 @login_required
-def etat_stock_mensuel_a(request):
+def etat_stock_mensuel_15(request):
     from SGDS.models import Societe, Marketeur as MktModel
+    from datetime import datetime
     if request.user.is_marketeur_role:
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes   = _periodes_disponibles()
-    periode    = _get_periode(request)
-    marketeurs = list(MktModel.objects.filter(statut='ACTIF').order_by('raison_sociale'))
-    marketeur  = _get_marketeur_optionnel(request)
-    rapport    = _calculer_stock_mensuel_a(periode, marketeur) if periode else {}
+    periodes    = _periodes_disponibles()
+    periode     = _get_periode(request)
+    marketeurs  = list(MktModel.objects.filter(statut='ACTIF').order_by('raison_sociale'))
+    marketeur   = _get_marketeur_optionnel(request)
+    date_str    = request.GET.get('date', '').strip()
+    date_filtre = None
+    date_fin_override = None
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                date_fin_override = d
+        except ValueError:
+            pass
+
+    rapport    = _calculer_stock_a_15(periode, marketeur, date_fin_override) if periode else {}
     societe    = Societe.get_instance()
 
-    return render(request, 'Etat/mensuel/stock_mensuel_a.html', {
+    return render(request, 'Etat/mensuel/stock_a_15.html', {
         'periodes':      periodes,
         'periode':       periode,
         'rapport':       rapport,
         'marketeurs':    marketeurs,
         'marketeur_sel': marketeur,
         'societe':       societe,
+        'date_filtre':   date_filtre,
     })
 
 
 @login_required
-def etat_stock_mensuel_a_export(request):
+def etat_stock_mensuel_15_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
     if request.user.is_marketeur_role:
@@ -1277,14 +1983,14 @@ def etat_stock_mensuel_a_export(request):
     periode   = _get_periode(request)
     if not periode:
         messages.warning(request, "Aucune période disponible.")
-        return redirect('etat_mensuel_stock_a')
+        return redirect('etat_mensuel_stock_15')
     marketeur = _get_marketeur_optionnel(request)
-    rapport   = _calculer_stock_mensuel_a(periode, marketeur)
+    rapport   = _calculer_stock_a_15(periode, marketeur)
     societe   = Societe.get_instance()
-    contenu   = _xlsx_stock_mensuel_a(rapport, societe)
+    contenu   = _xlsx_stock_a_15(rapport, societe)
 
     suffix = f"_{marketeur.sigle or 'mkt'}" if marketeur else "_TM"
-    nom = f"stock_mensuel_A_{periode.mois:02d}_{periode.annee}{suffix}.xlsx"
+    nom = f"stock_a_15_{periode.mois:02d}_{periode.annee}{suffix}.xlsx"
     response = HttpResponse(
         content=contenu,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1294,36 +2000,51 @@ def etat_stock_mensuel_a_export(request):
 
 
 @marketeur_required
-def etat_stock_mensuel_a_marketeur(request):
+def etat_stock_mensuel_15_marketeur(request):
     from SGDS.models import Societe
-    periodes = _periodes_disponibles()
-    periode  = _get_periode(request)
-    mkt      = request.user.marketeur
-    rapport  = _calculer_stock_mensuel_a(periode, mkt) if periode else {}
+    from datetime import datetime
+    periodes    = _periodes_disponibles()
+    periode     = _get_periode(request)
+    mkt         = request.user.marketeur
+    date_str    = request.GET.get('date', '').strip()
+    date_filtre = None
+    date_fin_override = None
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                date_fin_override = d
+        except ValueError:
+            pass
+
+    rapport  = _calculer_stock_a_15(periode, mkt, date_fin_override) if periode else {}
     societe  = Societe.get_instance()
 
-    return render(request, 'Espace_Marketeur/mensuel/stock_mensuel_a.html', {
-        'periodes':  periodes,
-        'periode':   periode,
-        'rapport':   rapport,
-        'societe':   societe,
-        'marketeur': mkt,
+    return render(request, 'Espace_Marketeur/mensuel/stock_a_15.html', {
+        'periodes':    periodes,
+        'periode':     periode,
+        'rapport':     rapport,
+        'societe':     societe,
+        'marketeur':   mkt,
+        'date_filtre': date_filtre,
     })
 
 
 @marketeur_required
-def etat_stock_mensuel_a_marketeur_export(request):
+def etat_stock_mensuel_15_marketeur_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
     periode = _get_periode(request)
     if not periode:
-        return redirect('client_mensuel_stock_a')
+        return redirect('client_mensuel_stock_15')
     mkt     = request.user.marketeur
-    rapport = _calculer_stock_mensuel_a(periode, mkt)
+    rapport = _calculer_stock_a_15(periode, mkt)
     societe = Societe.get_instance()
-    contenu = _xlsx_stock_mensuel_a(rapport, societe)
+    contenu = _xlsx_stock_a_15(rapport, societe)
 
-    nom = f"stock_mensuel_A_{mkt.sigle or 'mkt'}_{periode.mois:02d}_{periode.annee}.xlsx"
+    nom = f"stock_a_15_{mkt.sigle or 'mkt'}_{periode.mois:02d}_{periode.annee}.xlsx"
     response = HttpResponse(
         content=contenu,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1332,115 +2053,105 @@ def etat_stock_mensuel_a_marketeur_export(request):
     return response
 
 
-def _xlsx_stock_mensuel_a(rapport, societe):
+def _xlsx_stock_a_15(rapport, societe):
+    """
+    Export pivot Stock à 15° : lignes = statistiques, colonnes = produits
+    (2 sous-colonnes AMB / @15°C par produit). Même format que l'export B.
+    """
     import io, openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
 
-    COLS = [
-        'Marketeur',
-        'Stk Départ AMB', 'Stk Départ 15C',
-        'Récept SD AMB', 'Récept SD 15C',
-        'Récept AC AMB', 'Récept AC 15C',
-        'P/G Récept AMB',
-        'Tot.Entrées Nettes AMB', 'Tot.Entrées Nettes 15C',
-        'Sorties AMB', 'Sorties 15C',
-        'Stk Comptable AMB', 'Stk Comptable 15C',
-        'P/G Physique AMB', 'Ratio %',
-        'Stk Fermeture AMB', 'Stk Fermeture 15C',
-    ]
-    KEYS = [
-        None,
-        'stock_debut_amb', 'stock_debut_15c',
-        'rec_sd_amb', 'rec_sd_15c',
-        'rec_ac_amb', 'rec_ac_15c',
-        'pg_rec_amb',
-        'entrees_nettes_amb', 'entrees_nettes_15c',
-        'sorties_amb', 'sorties_15c',
-        'stock_comptable_amb', 'stock_comptable_15c',
-        None, None, None, None,
-    ]
+    NAVY   = PatternFill(fill_type='solid', fgColor='1B3A6B')
+    OUV    = PatternFill(fill_type='solid', fgColor='EEF2FF')
+    ENT    = PatternFill(fill_type='solid', fgColor='F0FDF4')
+    SOR    = PatternFill(fill_type='solid', fgColor='FFF7ED')
+    CPT    = PatternFill(fill_type='solid', fgColor='EFF6FF')
+    PG     = PatternFill(fill_type='solid', fgColor='FEF2F2')
+    RAT    = PatternFill(fill_type='solid', fgColor='FAFAFA')
+    FERM   = PatternFill(fill_type='solid', fgColor='F0FDF4')
+    WHITE  = Font(bold=True, color='FFFFFF')
+    NAVY_F = Font(bold=True, color='1B3A6B')
+    RED_F  = Font(bold=True, color='DC2626')
+    GRN_F  = Font(bold=True, color='16A34A')
+    BOLD   = Font(bold=True)
+    CENTER = Alignment(horizontal='center', vertical='center')
+    RIGHT  = Alignment(horizontal='right', vertical='center')
+    LEFT   = Alignment(horizontal='left', vertical='center')
 
-    BLEU  = PatternFill(fill_type='solid', fgColor='1F4E79')
-    VERT  = PatternFill(fill_type='solid', fgColor='E2EFDA')
-    TITRE = PatternFill(fill_type='solid', fgColor='BDD7EE')
-    ZEBRA = PatternFill(fill_type='solid', fgColor='EBF3FB')
+    periode  = rapport.get('periode')
+    produits = rapport.get('produits', [])
+    n_cols   = 1 + len(produits) * 2
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Stock Mensuel A"
+    ws.title = "Stock a 15"
 
-    periode = rapport.get('periode')
-    n       = len(COLS)
-    ws.merge_cells(f'A1:{get_column_letter(n)}1')
-    ws['A1'] = societe.raison_sociale if societe else 'SGDS'
-    ws['A1'].font = Font(bold=True, size=14)
-    ws['A1'].alignment = Alignment(horizontal='center')
+    last_col = get_column_letter(n_cols)
+    ws.merge_cells(f'A1:{last_col}1')
+    c = ws['A1']
+    c.value = societe.raison_sociale if societe else 'SGDS'
+    c.font = Font(bold=True, size=14, color='1B3A6B')
+    c.alignment = CENTER
 
-    ws.merge_cells(f'A2:{get_column_letter(n)}2')
-    ws['A2'] = f"ÉTAT STOCK MENSUEL — FORMAT A — {periode}"
-    ws['A2'].font = Font(bold=True, size=12)
-    ws['A2'].alignment = Alignment(horizontal='center')
+    ws.merge_cells(f'A2:{last_col}2')
+    c = ws['A2']
+    c.value = f"ETAT STOCK A 15 DEGRES - {periode}"
+    c.font = Font(bold=True, size=12)
+    c.alignment = CENTER
 
     row = 4
-    for ci, h in enumerate(COLS, 1):
-        c = ws.cell(row=row, column=ci, value=h)
-        c.font = Font(bold=True, color='FFFFFF', size=8)
-        c.fill = BLEU
-        c.alignment = Alignment(horizontal='center', wrap_text=True)
-        ws.column_dimensions[get_column_letter(ci)].width = 13
-    ws.column_dimensions['A'].width = 22
-    ws.row_dimensions[row].height = 35
-    row += 1
+    ws.merge_cells(start_row=row, start_column=1, end_row=row + 1, end_column=1)
+    c = ws.cell(row=row, column=1, value='DESIGNATION')
+    c.font = WHITE; c.fill = NAVY; c.alignment = CENTER
+    ws.column_dimensions['A'].width = 28
+
+    col = 2
+    for prod in produits:
+        ws.merge_cells(start_row=row, start_column=col, end_row=row, end_column=col + 1)
+        c = ws.cell(row=row, column=col, value=prod.nom.upper())
+        c.font = WHITE; c.fill = NAVY; c.alignment = CENTER
+        ws.column_dimensions[get_column_letter(col)].width = 15
+        ws.column_dimensions[get_column_letter(col + 1)].width = 15
+        for ci, label in ((col, 'AMB (L)'), (col + 1, '@15°C (L)')):
+            sub = ws.cell(row=row + 1, column=ci, value=label)
+            sub.font = WHITE; sub.fill = NAVY; sub.alignment = CENTER
+        col += 2
+    ws.row_dimensions[row].height = 22
+    row += 2
 
     def _f(v):
-        return float(v) if v is not None else ''
+        return float(v) if v is not None else None
 
-    for produit in rapport.get('produits', []):
-        info = rapport.get('lignes_par_produit', {}).get(produit.pk)
-        if not info:
-            continue
+    STAT_ROWS = [
+        ('STOCKS OUVERTURE (L)',  'stk_ouverture', OUV,  NAVY_F, False),
+        ('CUMULS ENTREES (L)',    'cumul_entrees', ENT,  BOLD,   False),
+        ('CUMULS SORTIES (L)',    'cumul_sorties', SOR,  BOLD,   False),
+        ('STOCKS COMPTABLE (L)',  'stk_comptable', CPT,  NAVY_F, False),
+        ('PERTES OU GAINS (L)',   'pertes_gains',  PG,   BOLD,   True),
+        ('RATIO (%)',             'ratios',        RAT,  BOLD,   True),
+        ('STOCKS FERMETURE (L)',  'stk_fermeture', FERM, GRN_F,  False),
+    ]
 
-        ws.merge_cells(f'A{row}:{get_column_letter(n)}{row}')
-        c = ws.cell(row=row, column=1, value=produit.nom.upper())
-        c.font = Font(bold=True, size=11, color='1F4E79')
-        c.fill = TITRE
+    for label, key, fill, label_font, signe in STAT_ROWS:
+        c = ws.cell(row=row, column=1, value=label)
+        c.fill = fill; c.alignment = LEFT; c.font = label_font
+
+        col = 2
+        for entry in rapport.get(key, []):
+            for v in (entry.get('amb'), entry.get('c15')):
+                num = _f(v)
+                cc = ws.cell(row=row, column=col)
+                cc.fill = fill; cc.alignment = RIGHT
+                if num is None:
+                    cc.value = ''
+                else:
+                    cc.value = num
+                    cc.number_format = '0.0000' if key == 'ratios' else '#,##0.00'
+                    if signe:
+                        cc.font = RED_F if num < 0 else (GRN_F if num > 0 else BOLD)
+                col += 1
         row += 1
-
-        for i, ligne in enumerate(info['lignes']):
-            mkt  = ligne['marketeur']
-            fill = ZEBRA if i % 2 == 0 else None
-            vals = [mkt.sigle or mkt.raison_sociale]
-            for key in KEYS[1:]:
-                vals.append(_f(ligne.get(key)) if key else '')
-            for ci, v in enumerate(vals, 1):
-                c = ws.cell(row=row, column=ci, value=v)
-                if fill:
-                    c.fill = fill
-                if isinstance(v, float):
-                    c.number_format = '#,##0.00'
-                    c.alignment = Alignment(horizontal='right')
-            row += 1
-
-        # Ligne totaux
-        tot = info['totaux']
-        tot_vals = ['TOTAUX']
-        for key in KEYS[1:13]:
-            tot_vals.append(_f(tot.get(key, _Z)) if key else '')
-        tot_vals += [
-            _f(info['pg_phys_amb']),
-            f"{float(info['ratio']):.4f}%" if info['ratio'] is not None else '',
-            _f(info['sf_amb']),
-            _f(info['sf_15c']),
-        ]
-        for ci, v in enumerate(tot_vals, 1):
-            c = ws.cell(row=row, column=ci, value=v)
-            c.font = Font(bold=True)
-            c.fill = VERT
-            if isinstance(v, float):
-                c.number_format = '#,##0.00'
-                c.alignment = Alignment(horizontal='right')
-        row += 2
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1449,10 +2160,10 @@ def _xlsx_stock_mensuel_a(rapport, societe):
 
 
 # ═════════════════════════════════════════════════════════════
-#  ÉTAT 6 — STOCK MENSUEL FORMAT B  (simplifié AMB — admin + mkt)
+#  ÉTAT 6 — STOCK AMBIANT  (simplifié AMB — admin + mkt)
 # ═════════════════════════════════════════════════════════════
 
-def _calculer_stock_mensuel_b(periode, marketeur=None):
+def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
     """
     Format pivot exact du fichier Excel "STOCK AMB" :
       Lignes   = statistiques (Ouverture, Entrees, Sorties, Comptable, P/G, Ratio, Fermeture)
@@ -1460,17 +2171,87 @@ def _calculer_stock_mensuel_b(periode, marketeur=None):
     V AMB uniquement.
     marketeur=None => Tous marketeurs (stock global depuis StockOuverture)
     marketeur=<obj> => filtre par ce marketeur
+
+    date_fin_override : si fourni, calcule un instantane "fermeture du jour" -
+    les cumuls Entrees/Sorties s'arretent a cette date (incluse) et le Stock
+    Fermeture/P-G/Ratio utilisent le jaugeage de ce jour au lieu du
+    StockOuverture de la periode suivante (meme logique que la page Fermeture).
     """
-    from SGDS.models import Produit, StockOuverture, Mouvement
+    from SGDS.models import Produit, StockOuverture, Mouvement, JaugeageJour, InventaireInitialMarketeur
 
     produits = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
 
-    # Stock fermeture physique = StockOuverture de la periode suivante
+    date_fin_calc     = date_fin_override if date_fin_override is not None else periode.date_fin
+    filtre_journalier = date_fin_override is not None
+
+    # Repli 1ere periode (aucune periode precedente => pas encore de StockOuverture
+    # resolue depuis un jaugeage) : on agrege les inventaires initiaux par produit,
+    # comme le fait _calculer_stock_ouverture_fermeture.
+    _inv_initiaux = {}
+    if marketeur is None and periode.periode_precedente() is None:
+        for inv in InventaireInitialMarketeur.objects.filter(date_inventaire__lte=periode.date_fin):
+            pid = inv.produit_id
+            _inv_initiaux[pid] = _inv_initiaux.get(pid, _Z) + _D(inv.volume_ambiant)
+
+    # Marketeur specifique : Pertes/Gains = quote-part de coulage du marketeur
+    # (pas le jaugeage du depot, qui n'est pas attribuable a un marketeur en particulier)
+    qp_coul_par_produit = {}
+    if marketeur is not None and not filtre_journalier:
+        try:
+            from SGDS.services.coulage_repartition import calculer_repartition_coulage
+            rapport_coul = calculer_repartition_coulage(periode, marketeurs=[marketeur])
+            if rapport_coul['lignes']:
+                qp_coul_par_produit = rapport_coul['lignes'][0]['par_produit']
+        except Exception:
+            pass
+
+    # Stock fermeture physique = jaugeage du jour choisi (vue journaliere)
+    # ou StockOuverture de la periode suivante (vue periode entiere)
     periode_suiv = periode.periode_suivante()
     sf_physique  = {}
-    if periode_suiv:
-        for so in StockOuverture.objects.filter(periode=periode_suiv).select_related('produit'):
-            sf_physique[so.produit_id] = _D(so.volume_ambiant)
+    if filtre_journalier:
+        date_j = date_fin_override
+        dernier_j = (
+            JaugeageJour.objects
+            .filter(date_jaugeage=date_j, est_valide=True)
+            .order_by('-heure_jaugeage', '-date_creation')
+            .first()
+        )
+        if not dernier_j and date_j >= periode.date_debut:
+            dernier_j = (
+                JaugeageJour.objects
+                .filter(date_jaugeage__range=(periode.date_debut, date_j), est_valide=True)
+                .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
+                .first()
+            )
+        if dernier_j:
+            for mesure in dernier_j.mesures.select_related('cuve__produit').all():
+                cuve = mesure.cuve
+                if cuve.produit is None or mesure.volume_ambiant_depot is None:
+                    continue
+                pid = cuve.produit_id
+                sf_physique[pid] = sf_physique.get(pid, _Z) + _D(mesure.volume_ambiant_depot)
+    else:
+        # Période entière : StockOuverture de la période suivante en priorité
+        if periode_suiv:
+            for so in StockOuverture.objects.filter(periode=periode_suiv).select_related('produit'):
+                sf_physique[so.produit_id] = sf_physique.get(so.produit_id, _Z) + _D(so.volume_ambiant)
+        # Repli : dernier jaugeage validé de la période (StockOuverture de la
+        # période suivante pas encore résolue / période en cours)
+        if not sf_physique:
+            dernier_j = (
+                JaugeageJour.objects
+                .filter(date_jaugeage__range=(periode.date_debut, periode.date_fin), est_valide=True)
+                .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
+                .first()
+            )
+            if dernier_j:
+                for mesure in dernier_j.mesures.select_related('cuve__produit').all():
+                    cuve = mesure.cuve
+                    if cuve.produit is None or mesure.volume_ambiant_depot is None:
+                        continue
+                    pid = cuve.produit_id
+                    sf_physique[pid] = sf_physique.get(pid, _Z) + _D(mesure.volume_ambiant_depot)
 
     stk_ouv_vals      = []
     cumul_ent_vals    = []
@@ -1482,59 +2263,82 @@ def _calculer_stock_mensuel_b(periode, marketeur=None):
 
     for produit in produits:
         if marketeur is None:
-            # TM : stock global depuis StockOuverture
-            try:
-                so  = StockOuverture.objects.get(periode=periode, produit=produit)
-                ouv = _D(so.volume_ambiant)
-            except StockOuverture.DoesNotExist:
-                ouv = _Z
-            mvts_qs = Mouvement.objects.filter(
-                produit=produit,
-                date_mouvement__range=(periode.date_debut, periode.date_fin),
-            )
-        else:
-            # Marketeur specifique : recalcul depuis historique
-            from SGDS.models import InventaireInitialMarketeur
+            # TM : stock global depuis StockOuverture (somme SD + Acquittée),
+            # avec repli sur les inventaires initiaux si rien n'a encore été résolu
+            # (1ère période, avant tout jaugeage de la période précédente).
             from django.db.models import Sum as _Sum
-            mvts_avant = list(Mouvement.objects.filter(
-                produit=produit, marketeur=marketeur,
-                date_mouvement__lt=periode.date_debut,
-            ))
-            ouv = sum(
-                (_D(m.volume_ambiant_recu)      if m.type_mouvement == 'ENTREE'  else
-                 -_D(m.volume_ambiant_sortie)   if m.type_mouvement == 'SORTIE'  else
-                 -_D(m.cession_volume_ambiant)  if m.type_mouvement == 'CESSION' else _Z)
-                for m in mvts_avant
-            )
-            # Cessions REÇUES par ce marketeur avant la période
-            cess_recues_avant = Mouvement.objects.filter(
-                produit=produit,
-                type_mouvement='CESSION',
-                cession_marketeur_destinataire=marketeur,
-                date_mouvement__lt=periode.date_debut,
-            )
-            for m in cess_recues_avant:
-                ouv += _D(m.cession_volume_ambiant)
-            # Ajouter l'inventaire initial du marketeur pour ce produit
-            inv_agg = (
-                InventaireInitialMarketeur.objects
-                .filter(marketeur=marketeur, produit=produit)
+            agg_ouv = (
+                StockOuverture.objects
+                .filter(periode=periode, produit=produit)
                 .aggregate(v_amb=_Sum('volume_ambiant'))
             )
-            ouv += _D(inv_agg['v_amb'] or 0)
+            if agg_ouv['v_amb'] is not None:
+                ouv = _D(agg_ouv['v_amb'])
+            else:
+                ouv = _inv_initiaux.get(produit.pk, _Z)
+            mvts_qs = Mouvement.objects.filter(
+                produit=produit,
+                date_mouvement__range=(periode.date_debut, date_fin_calc),
+            )
+        else:
+            # Marketeur spécifique : stock d'ouverture reporté depuis la
+            # fermeture du mois précédent (StockOuvertureMarketeur), au lieu
+            # de rejouer tout l'historique des mouvements.
+            from django.db.models import Sum as _Sum
+            from SGDS.models import StockOuvertureMarketeur
+            agg_ouv_mkt = (
+                StockOuvertureMarketeur.objects
+                .filter(periode=periode, marketeur=marketeur, produit=produit)
+                .aggregate(v_amb=_Sum('volume_ambiant'))
+            )
+            if agg_ouv_mkt['v_amb'] is not None:
+                ouv = _D(agg_ouv_mkt['v_amb'] or 0)
+            else:
+                inv_agg = (
+                    InventaireInitialMarketeur.objects
+                    .filter(marketeur=marketeur, produit=produit)
+                    .aggregate(v_amb=_Sum('volume_ambiant'))
+                )
+                ouv = _D(inv_agg['v_amb'] or 0)
             mvts_qs = Mouvement.objects.filter(
                 produit=produit, marketeur=marketeur,
-                date_mouvement__range=(periode.date_debut, periode.date_fin),
+                date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
 
         mvts = list(mvts_qs)
         ent  = sum(_D(m.volume_ambiant_recu)   for m in mvts if m.type_mouvement == 'ENTREE')
         sor  = sum(_D(m.volume_ambiant_sortie) for m in mvts if m.type_mouvement == 'SORTIE')
+
+        if marketeur is not None:
+            # Cessions émises par ce marketeur durant la période -> sortie
+            sor += sum(_D(m.cession_volume_ambiant) for m in mvts if m.type_mouvement == 'CESSION')
+            # Cessions reçues par ce marketeur durant la période -> entrée
+            # (Mouvement.marketeur = l'émetteur de la cession, pas le destinataire,
+            # donc requête séparée filtrée sur cession_marketeur_destinataire)
+            cess_recues = Mouvement.objects.filter(
+                produit=produit, type_mouvement='CESSION',
+                cession_marketeur_destinataire=marketeur,
+                date_mouvement__range=(periode.date_debut, date_fin_calc),
+            )
+            ent += sum(_D(m.cession_volume_ambiant) for m in cess_recues)
+
         cpt  = ouv + ent - sor
 
-        sf    = sf_physique.get(produit.pk)
-        pg    = (sf - cpt) if sf is not None else None
-        ratio = (float(pg) / float(ent) * 100) if (pg is not None and ent) else None
+        if marketeur is None:
+            # TM : Pertes/Gains = jaugeage physique du dépôt - stock comptable
+            sf = sf_physique.get(produit.pk)
+            pg = (sf - cpt) if sf is not None else None
+        else:
+            # Marketeur : Pertes/Gains = sa quote-part de coulage (pas le jaugeage du dépôt,
+            # qui n'est pas attribuable à un marketeur en particulier)
+            qp = qp_coul_par_produit.get(produit.pk)
+            if qp is not None:
+                pg = qp.get('qp_coul', _Z)
+                sf = cpt + pg
+            else:
+                pg = None
+                sf = None
+        ratio = (float(pg) / float(sor) * 100) if (pg is not None and sor) else None
 
         stk_ouv_vals.append(ouv)
         cumul_ent_vals.append(ent)
@@ -1548,7 +2352,8 @@ def _calculer_stock_mensuel_b(periode, marketeur=None):
         'periode':       periode,
         'produits':      produits,
         'date_ouv':      periode.date_debut,
-        'date_ferm':     periode.date_fin,
+        'date_ferm':     date_fin_calc,
+        'date_filtre':   date_fin_override,
         'stk_ouverture': stk_ouv_vals,
         'cumul_entrees': cumul_ent_vals,
         'cumul_sorties': cumul_sor_vals,
@@ -1560,31 +2365,47 @@ def _calculer_stock_mensuel_b(periode, marketeur=None):
 
 
 @login_required
-def etat_stock_mensuel_b(request):
+def etat_stock_ambiant(request):
     from SGDS.models import Societe, Marketeur as MktModel
+    from datetime import datetime
     if request.user.is_marketeur_role:
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes   = _periodes_disponibles()
-    periode    = _get_periode(request)
-    marketeurs = list(MktModel.objects.filter(statut='ACTIF').order_by('raison_sociale'))
-    marketeur  = _get_marketeur_optionnel(request)
-    rapport    = _calculer_stock_mensuel_b(periode, marketeur) if periode else {}
+    periodes    = _periodes_disponibles()
+    periode     = _get_periode(request)
+    marketeurs  = list(MktModel.objects.filter(statut='ACTIF').order_by('raison_sociale'))
+    marketeur   = _get_marketeur_optionnel(request)
+    date_str    = request.GET.get('date', '').strip()
+    date_filtre = None
+    date_fin_override = None
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                # Fermeture du jour J = mouvements jusqu'à J inclus
+                date_fin_override = d
+        except ValueError:
+            pass
+
+    rapport    = _calculer_stock_ambiant(periode, marketeur, date_fin_override) if periode else {}
     societe    = Societe.get_instance()
 
-    return render(request, 'Etat/mensuel/stock_mensuel_b.html', {
+    return render(request, 'Etat/mensuel/stock_ambiant.html', {
         'periodes':      periodes,
         'periode':       periode,
         'rapport':       rapport,
         'marketeurs':    marketeurs,
         'marketeur_sel': marketeur,
         'societe':       societe,
+        'date_filtre':   date_filtre,
     })
 
 
 @login_required
-def etat_stock_mensuel_b_export(request):
+def etat_stock_ambiant_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
     if request.user.is_marketeur_role:
@@ -1593,14 +2414,14 @@ def etat_stock_mensuel_b_export(request):
     periode   = _get_periode(request)
     if not periode:
         messages.warning(request, "Aucune période disponible.")
-        return redirect('etat_mensuel_stock_b')
+        return redirect('etat_mensuel_stock_ambiant')
     marketeur = _get_marketeur_optionnel(request)
-    rapport   = _calculer_stock_mensuel_b(periode, marketeur)
+    rapport   = _calculer_stock_ambiant(periode, marketeur)
     societe   = Societe.get_instance()
-    contenu   = _xlsx_stock_mensuel_b(rapport, societe)
+    contenu   = _xlsx_stock_ambiant(rapport, societe)
 
     suffix = f"_{marketeur.sigle or 'mkt'}" if marketeur else "_TM"
-    nom = f"stock_mensuel_B_{periode.mois:02d}_{periode.annee}{suffix}.xlsx"
+    nom = f"stock_ambiant_{periode.mois:02d}_{periode.annee}{suffix}.xlsx"
     response = HttpResponse(
         content=contenu,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1610,36 +2431,51 @@ def etat_stock_mensuel_b_export(request):
 
 
 @marketeur_required
-def etat_stock_mensuel_b_marketeur(request):
+def etat_stock_ambiant_marketeur(request):
     from SGDS.models import Societe
-    periodes = _periodes_disponibles()
-    periode  = _get_periode(request)
-    mkt      = request.user.marketeur
-    rapport  = _calculer_stock_mensuel_b(periode, mkt) if periode else {}
+    from datetime import datetime
+    periodes    = _periodes_disponibles()
+    periode     = _get_periode(request)
+    mkt         = request.user.marketeur
+    date_str    = request.GET.get('date', '').strip()
+    date_filtre = None
+    date_fin_override = None
+
+    if date_str and periode:
+        try:
+            d = datetime.strptime(date_str, '%Y-%m-%d').date()
+            if periode.date_debut <= d <= periode.date_fin:
+                date_filtre = d
+                date_fin_override = d
+        except ValueError:
+            pass
+
+    rapport  = _calculer_stock_ambiant(periode, mkt, date_fin_override) if periode else {}
     societe  = Societe.get_instance()
 
-    return render(request, 'Espace_Marketeur/mensuel/stock_mensuel_b.html', {
-        'periodes':  periodes,
-        'periode':   periode,
-        'rapport':   rapport,
-        'societe':   societe,
-        'marketeur': mkt,
+    return render(request, 'Espace_Marketeur/mensuel/stock_ambiant.html', {
+        'periodes':    periodes,
+        'periode':     periode,
+        'rapport':     rapport,
+        'societe':     societe,
+        'marketeur':   mkt,
+        'date_filtre': date_filtre,
     })
 
 
 @marketeur_required
-def etat_stock_mensuel_b_marketeur_export(request):
+def etat_stock_ambiant_marketeur_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
     periode = _get_periode(request)
     if not periode:
-        return redirect('client_mensuel_stock_b')
+        return redirect('client_mensuel_stock_ambiant')
     mkt     = request.user.marketeur
-    rapport = _calculer_stock_mensuel_b(periode, mkt)
+    rapport = _calculer_stock_ambiant(periode, mkt)
     societe = Societe.get_instance()
-    contenu = _xlsx_stock_mensuel_b(rapport, societe)
+    contenu = _xlsx_stock_ambiant(rapport, societe)
 
-    nom = f"stock_mensuel_B_{mkt.sigle or 'mkt'}_{periode.mois:02d}_{periode.annee}.xlsx"
+    nom = f"stock_ambiant_{mkt.sigle or 'mkt'}_{periode.mois:02d}_{periode.annee}.xlsx"
     response = HttpResponse(
         content=contenu,
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -1648,9 +2484,9 @@ def etat_stock_mensuel_b_marketeur_export(request):
     return response
 
 
-def _xlsx_stock_mensuel_b(rapport, societe):
+def _xlsx_stock_ambiant(rapport, societe):
     """
-    Export pivot format B: lignes = statistiques, colonnes = produits.
+    Export pivot Stock Ambiant : lignes = statistiques, colonnes = produits.
     Correspond au format exact du classeur Excel STOCK AMB.
     """
     import io, openpyxl
@@ -1682,7 +2518,7 @@ def _xlsx_stock_mensuel_b(rapport, societe):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Stock Mensuel B"
+    ws.title = "Stock Ambiant"
 
     last_col = get_column_letter(n_cols)
 
@@ -1696,7 +2532,7 @@ def _xlsx_stock_mensuel_b(rapport, societe):
     # Row 2: title
     ws.merge_cells(f'A2:{last_col}2')
     c = ws['A2']
-    c.value = f"ETAT STOCK MENSUEL - FORMAT B (AMB) - {periode}"
+    c.value = f"ETAT STOCK AMBIANT - {periode}"
     c.font = Font(bold=True, size=12)
     c.alignment = CENTER
 

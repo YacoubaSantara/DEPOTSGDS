@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load humanize %}
 {% block title %}Stock Fermeture{% endblock %}
 {% block nav_etat_mensuel_stock_fermeture %}active{% endblock %}
@@ -25,21 +25,32 @@ th.right{text-align:right}
 td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text)}
 td.right{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.82rem}
 tr.section-header td{background:#f0f4f8;font-weight:700;color:var(--navy);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+tr.subtotal-row td{background:#eef2ff;font-weight:600;font-size:.80rem}
 tr.total-row td{background:#e8f0fe;font-weight:700;border-top:2px solid var(--navy)}
 tr.stock-fin-row td{background:#fff9c4;font-weight:700;border-top:2px solid #e6b800}
+tr.cloture-row td{background:#e3f2fd;font-weight:700;border-top:2px solid #1565c0}
 tr.physique-row td{background:#e8f5e9;font-weight:700}
 tr.perte-row td{background:#fce8e6;color:#c62828;font-weight:700}
 tr.gain-row td{background:#e8f5e9;color:#2e7d32;font-weight:700}
+tr.pg-row td{background:#f3e5f5;font-weight:600}
+tr.ratio-row td{background:#fafafa;font-style:italic;color:var(--muted)}
+tr.sd-row td{background:#fef9ee}
+tr.ac-row td{background:#f0f9f4}
 .num-zero{color:var(--muted);opacity:.5}
 .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
-
-/* ── Dark mode ── */
+.badge-sd{display:inline-block;font-size:.65rem;font-weight:700;padding:1px 5px;border-radius:3px;background:#fff3cd;color:#856404;margin-left:4px}
+.badge-ac{display:inline-block;font-size:.65rem;font-weight:700;padding:1px 5px;border-radius:3px;background:#d1fae5;color:#065f46;margin-left:4px}
 [data-theme="dark"] tr.section-header td{background:var(--surface-2);color:var(--accent-ink)}
+[data-theme="dark"] tr.subtotal-row td{background:rgba(99,102,241,.08)}
 [data-theme="dark"] tr.total-row td{background:rgba(59,130,246,.08)}
 [data-theme="dark"] tr.stock-fin-row td{background:rgba(245,158,11,.1);border-top-color:var(--warn)}
+[data-theme="dark"] tr.cloture-row td{background:rgba(21,101,192,.1);border-top-color:#1565c0}
 [data-theme="dark"] tr.physique-row td{background:rgba(34,197,94,.08)}
 [data-theme="dark"] tr.perte-row td{background:rgba(239,68,68,.1);color:var(--err)}
 [data-theme="dark"] tr.gain-row td{background:rgba(34,197,94,.08);color:var(--ok)}
+[data-theme="dark"] tr.pg-row td{background:rgba(156,39,176,.08)}
+[data-theme="dark"] tr.sd-row td{background:rgba(234,179,8,.05)}
+[data-theme="dark"] tr.ac-row td{background:rgba(34,197,94,.05)}
 </style>
 {% include 'partials/_print_css.html' %}
 {% endblock %}
@@ -54,13 +65,14 @@ tr.gain-row td{background:#e8f5e9;color:#2e7d32;font-weight:700}
     <h1 class="page-title">Stock de Fermeture</h1>
     <p class="page-subtitle">
       {% if periode %}{{ periode }}{% else %}Sélectionnez une période{% endif %}
+      {% if date_filtre %} — Fermeture du {{ date_filtre|date:"d/m/Y" }}{% endif %}
       {% if produit_filtre %} — {{ produit_filtre.nom|upper }}{% endif %}
     </p>
   </div>
   <div style="display:flex;gap:8px" class="no-print">
     <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
-    {% if periode and lignes %}
-    <a href="{% url 'etat_mensuel_stock_fermeture_export' %}?periode_id={{ periode.pk }}{% if produit_filtre %}&produit_id={{ produit_filtre.pk }}{% endif %}"
+    {% if periode and lignes and not date_filtre %}
+    <a href="{% url 'etat_mensuel_stock_fermeture_export' %}?periode_id={{ periode.uuid }}{% if produit_filtre %}&produit_id={{ produit_filtre.uuid }}{% endif %}"
        class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
     {% endif %}
   </div>
@@ -72,15 +84,21 @@ tr.gain-row td{background:#e8f5e9;color:#2e7d32;font-weight:700}
       <div class="filter-group">
         <label>Période</label>
         <select name="periode_id">
-          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          {% for p in periodes %}<option value="{{ p.uuid }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
         </select>
       </div>
       <div class="filter-group">
         <label>Produit</label>
         <select name="produit_id">
           <option value="">— Tous les produits —</option>
-          {% for p in produits %}<option value="{{ p.pk }}" {% if produit_filtre and produit_filtre.pk == p.pk %}selected{% endif %}>{{ p.nom }}</option>{% endfor %}
+          {% for p in produits %}<option value="{{ p.uuid }}" {% if produit_filtre and produit_filtre.pk == p.pk %}selected{% endif %}>{{ p.nom }}</option>{% endfor %}
         </select>
+      </div>
+      <div class="filter-group">
+        <label>Jour (optionnel)</label>
+        <input type="date" name="date" value="{{ date_filtre|date:'Y-m-d' }}"
+               {% if periode %}min="{{ periode.date_debut|date:'Y-m-d' }}" max="{{ periode.date_fin|date:'Y-m-d' }}"{% endif %}
+               style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)">
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end">
         <button type="submit" class="btn-filter">Afficher</button>
@@ -103,55 +121,169 @@ tr.gain-row td{background:#e8f5e9;color:#2e7d32;font-weight:700}
       <tr><th style="width:50%">Désignation</th><th class="right">V AMB (L)</th><th class="right">V @15°C (L)</th></tr>
     </thead>
     <tbody>
-      <tr class="section-header"><td colspan="3">STOCK</td></tr>
-      <tr>
-        <td><strong>Stock de départ</strong></td>
+
+      {# ══ STOCK OUVERTURE ══ #}
+      <tr class="section-header"><td colspan="3">STOCK OUVERTURE</td></tr>
+      <tr class="sd-row">
+        <td>&nbsp;&nbsp;Sous douane <span class="badge-sd">SD</span></td>
+        <td class="right {% if ligne.ouv_sd_amb == 0 %}num-zero{% endif %}">{{ ligne.ouv_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.ouv_sd_15c == 0 %}num-zero{% endif %}">{{ ligne.ouv_sd_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="ac-row">
+        <td>&nbsp;&nbsp;Acquitté <span class="badge-ac">AC</span></td>
+        <td class="right {% if ligne.ouv_ac_amb == 0 %}num-zero{% endif %}">{{ ligne.ouv_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.ouv_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.ouv_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total Stock Ouverture</td>
         <td class="right">{{ ligne.stock_debut_amb|floatformat:2|intcomma }}</td>
         <td class="right">{{ ligne.stock_debut_15c|floatformat:2|intcomma }}</td>
       </tr>
+
+      {# ══ ENTRÉES ══ #}
       <tr class="section-header"><td colspan="3">ENTRÉES</td></tr>
-      <tr><td>&nbsp;&nbsp;Réceptions SD CC</td>
+      <tr>
+        <td>&nbsp;&nbsp;Réception CC <span class="badge-sd">SD</span></td>
         <td class="right {% if ligne.rec_sd_amb == 0 %}num-zero{% endif %}">{{ ligne.rec_sd_amb|floatformat:2|intcomma }}</td>
-        <td class="right {% if ligne.rec_sd_15c == 0 %}num-zero{% endif %}">{{ ligne.rec_sd_15c|floatformat:2|intcomma }}</td></tr>
-      <tr><td>&nbsp;&nbsp;Réceptions AC CC</td>
+        <td class="right {% if ligne.rec_sd_15c == 0 %}num-zero{% endif %}">{{ ligne.rec_sd_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;&nbsp;Réception CC <span class="badge-ac">AC</span></td>
         <td class="right {% if ligne.rec_ac_amb == 0 %}num-zero{% endif %}">{{ ligne.rec_ac_amb|floatformat:2|intcomma }}</td>
-        <td class="right {% if ligne.rec_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.rec_ac_15c|floatformat:2|intcomma }}</td></tr>
-      <tr><td>&nbsp;&nbsp;Cessions reçues</td>
-        <td class="right {% if ligne.cess_recues_amb == 0 %}num-zero{% endif %}">{{ ligne.cess_recues_amb|floatformat:2|intcomma }}</td>
-        <td class="right {% if ligne.cess_recues_15c == 0 %}num-zero{% endif %}">{{ ligne.cess_recues_15c|floatformat:2|intcomma }}</td></tr>
-      <tr class="total-row"><td>Total Entrées</td>
+        <td class="right {% if ligne.rec_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.rec_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;&nbsp;Reclassement <span class="badge-sd">SD</span></td>
+        <td class="right {% if ligne.recl_sd_entree_amb == 0 %}num-zero{% endif %}">{{ ligne.recl_sd_entree_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.recl_sd_entree_15c == 0 %}num-zero{% endif %}">{{ ligne.recl_sd_entree_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;&nbsp;Reclassement <span class="badge-ac">AC</span></td>
+        <td class="right {% if ligne.recl_ac_entree_amb == 0 %}num-zero{% endif %}">{{ ligne.recl_ac_entree_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.recl_ac_entree_15c == 0 %}num-zero{% endif %}">{{ ligne.recl_ac_entree_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="subtotal-row sd-row">
+        <td>&nbsp;&nbsp;&nbsp;&nbsp;Total Entrées <span class="badge-sd">SD</span></td>
+        <td class="right">{{ ligne.total_entrees_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.total_entrees_sd_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="subtotal-row ac-row">
+        <td>&nbsp;&nbsp;&nbsp;&nbsp;Total Entrées <span class="badge-ac">AC</span></td>
+        <td class="right">{{ ligne.total_entrees_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.total_entrees_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total Entrées</td>
         <td class="right">{{ ligne.total_entrees_amb|floatformat:2|intcomma }}</td>
-        <td class="right">{{ ligne.total_entrees_15c|floatformat:2|intcomma }}</td></tr>
+        <td class="right">{{ ligne.total_entrees_15c|floatformat:2|intcomma }}</td>
+      </tr>
+
+      {# ══ SORTIES ══ #}
       <tr class="section-header"><td colspan="3">SORTIES</td></tr>
-      <tr><td>&nbsp;&nbsp;Livraisons AC</td>
+      <tr>
+        <td>&nbsp;&nbsp;CC Acquitté <span class="badge-ac">AC</span></td>
         <td class="right {% if ligne.livr_ac_amb == 0 %}num-zero{% endif %}">{{ ligne.livr_ac_amb|floatformat:2|intcomma }}</td>
-        <td class="right {% if ligne.livr_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.livr_ac_15c|floatformat:2|intcomma }}</td></tr>
-      <tr><td>&nbsp;&nbsp;Livraisons SD</td>
-        <td class="right {% if ligne.livr_sd_amb == 0 %}num-zero{% endif %}">{{ ligne.livr_sd_amb|floatformat:2|intcomma }}</td>
-        <td class="right {% if ligne.livr_sd_15c == 0 %}num-zero{% endif %}">{{ ligne.livr_sd_15c|floatformat:2|intcomma }}</td></tr>
-      <tr><td>&nbsp;&nbsp;Cessions émises</td>
-        <td class="right {% if ligne.cess_emises_amb == 0 %}num-zero{% endif %}">{{ ligne.cess_emises_amb|floatformat:2|intcomma }}</td>
-        <td class="right {% if ligne.cess_emises_15c == 0 %}num-zero{% endif %}">{{ ligne.cess_emises_15c|floatformat:2|intcomma }}</td></tr>
-      <tr><td>&nbsp;&nbsp;Coulage installation</td>
+        <td class="right {% if ligne.livr_ac_15c == 0 %}num-zero{% endif %}">{{ ligne.livr_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;&nbsp;Reclassement <span class="badge-sd">SD</span></td>
+        <td class="right {% if ligne.recl_sd_sortie_amb == 0 %}num-zero{% endif %}">{{ ligne.recl_sd_sortie_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.recl_sd_sortie_15c == 0 %}num-zero{% endif %}">{{ ligne.recl_sd_sortie_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;&nbsp;Reclassement <span class="badge-ac">AC</span></td>
+        <td class="right {% if ligne.recl_ac_sortie_amb == 0 %}num-zero{% endif %}">{{ ligne.recl_ac_sortie_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.recl_ac_sortie_15c == 0 %}num-zero{% endif %}">{{ ligne.recl_ac_sortie_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;&nbsp;Coulage installation</td>
         <td class="right {% if ligne.coul_install_amb == 0 %}num-zero{% endif %}">{{ ligne.coul_install_amb|floatformat:2|intcomma }}</td>
-        <td class="right num-zero">—</td></tr>
-      <tr class="total-row"><td>Total Sorties</td>
+        <td class="right num-zero">—</td>
+      </tr>
+      <tr class="subtotal-row sd-row">
+        <td>&nbsp;&nbsp;&nbsp;&nbsp;Total Sorties <span class="badge-sd">SD</span></td>
+        <td class="right">{{ ligne.total_sorties_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.total_sorties_sd_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="subtotal-row ac-row">
+        <td>&nbsp;&nbsp;&nbsp;&nbsp;Total Sorties <span class="badge-ac">AC</span></td>
+        <td class="right">{{ ligne.total_sorties_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.total_sorties_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total Sorties</td>
         <td class="right">{{ ligne.total_sorties_amb|floatformat:2|intcomma }}</td>
-        <td class="right">{{ ligne.total_sorties_15c|floatformat:2|intcomma }}</td></tr>
-      <tr class="section-header"><td colspan="3">STOCK FIN DE MOIS</td></tr>
-      <tr class="stock-fin-row"><td>Stock comptable (fin)</td>
+        <td class="right">{{ ligne.total_sorties_15c|floatformat:2|intcomma }}</td>
+      </tr>
+
+      {# ══ STOCK COMPTABLE ══ #}
+      <tr class="section-header"><td colspan="3">STOCK COMPTABLE</td></tr>
+      <tr class="sd-row">
+        <td>&nbsp;&nbsp;Stock Comptable <span class="badge-sd">SD</span></td>
+        <td class="right">{{ ligne.stk_c_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.stk_c_sd_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="ac-row">
+        <td>&nbsp;&nbsp;Stock Comptable <span class="badge-ac">AC</span></td>
+        <td class="right">{{ ligne.stk_c_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.stk_c_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="stock-fin-row">
+        <td>Total Stock Comptable</td>
         <td class="right">{{ ligne.stock_fin_comptable_amb|floatformat:2|intcomma }}</td>
-        <td class="right">{{ ligne.stock_fin_comptable_15c|floatformat:2|intcomma }}</td></tr>
+        <td class="right">{{ ligne.stock_fin_comptable_15c|floatformat:2|intcomma }}</td>
+      </tr>
+
+      {# ══ STOCK PERTE/GAIN INSTALLATION ══ #}
+      <tr class="section-header"><td colspan="3">STOCK PERTE/GAIN INSTALLATION</td></tr>
+      <tr class="pg-row {% if ligne.pg_inst_amb and ligne.pg_inst_amb < 0 %}perte-row{% elif ligne.pg_inst_amb and ligne.pg_inst_amb > 0 %}gain-row{% endif %}">
+        <td>P/G Installation <span class="badge-ac">AC</span></td>
+        <td class="right {% if ligne.pg_inst_amb == 0 %}num-zero{% endif %}">{{ ligne.pg_inst_amb|floatformat:2|intcomma }}</td>
+        <td class="right {% if ligne.pg_inst_15c == 0 %}num-zero{% endif %}">{{ ligne.pg_inst_15c|floatformat:2|intcomma }}</td>
+      </tr>
+
+      {# ══ RATIO ══ #}
+      <tr class="section-header"><td colspan="3">RATIO</td></tr>
+      <tr class="ratio-row">
+        <td>Ratio P/G / Sorties Acquittées</td>
+        <td class="right {% if not ligne.ratio %}num-zero{% endif %}">{% if ligne.ratio %}{{ ligne.ratio|floatformat:6 }}{% else %}—{% endif %}</td>
+        <td class="right num-zero">—</td>
+      </tr>
+
+      {# ══ STOCKS CLÔTURE ══ #}
+      <tr class="section-header"><td colspan="3">STOCKS CLÔTURE</td></tr>
+      <tr class="sd-row">
+        <td>&nbsp;&nbsp;Stock Clôture <span class="badge-sd">SD</span></td>
+        <td class="right">{{ ligne.cloture_sd_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.cloture_sd_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="ac-row">
+        <td>&nbsp;&nbsp;Stock Clôture <span class="badge-ac">AC</span></td>
+        <td class="right">{{ ligne.cloture_ac_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.cloture_ac_15c|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="cloture-row">
+        <td>Total Stock Clôture</td>
+        <td class="right">{{ ligne.cloture_total_amb|floatformat:2|intcomma }}</td>
+        <td class="right">{{ ligne.cloture_total_15c|floatformat:2|intcomma }}</td>
+      </tr>
+
+      {# ══ STOCK PHYSIQUE (jaugeage, si disponible) ══ #}
       {% if ligne.stock_fin_physique_amb is not None %}
-      <tr class="physique-row"><td>Stock physique (jaugeage)</td>
+      <tr class="physique-row">
+        <td>Stock physique (jaugeage)</td>
         <td class="right">{{ ligne.stock_fin_physique_amb|floatformat:2|intcomma }}</td>
-        <td class="right">{% if ligne.stock_fin_physique_15c %}{{ ligne.stock_fin_physique_15c|floatformat:2|intcomma }}{% else %}—{% endif %}</td></tr>
+        <td class="right">{% if ligne.stock_fin_physique_15c %}{{ ligne.stock_fin_physique_15c|floatformat:2|intcomma }}{% else %}—{% endif %}</td>
+      </tr>
       {% if ligne.perte_gain_amb is not None %}
       <tr class="{% if ligne.perte_gain_amb < 0 %}perte-row{% else %}gain-row{% endif %}">
         <td>{% if ligne.perte_gain_amb < 0 %}Perte{% else %}Gain{% endif %}</td>
         <td class="right">{{ ligne.perte_gain_amb|floatformat:2|intcomma }}</td>
-        <td class="right num-zero">—</td></tr>
-      {% endif %}{% endif %}
+        <td class="right num-zero">—</td>
+      </tr>
+      {% endif %}
+      {% endif %}
+
     </tbody>
   </table>
 </div>

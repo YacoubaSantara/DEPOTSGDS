@@ -136,14 +136,12 @@
           {% if cam.modele %}<br><span style="color:var(--muted);font-size:.78rem">{{ cam.modele }}{% if cam.annee_fabrication %} · {{ cam.annee_fabrication }}{% endif %}</span>{% endif %}
         </td>
         <td>
-          {% if cam.type_produit == 'ESSENCE' %}
+          {% if cam.type_produit == 'Carburant' %}
             <span class="bdg" style="background:#fbe8e3;color:#c14a1f">{{ cam.get_type_produit_display }}</span>
-          {% elif cam.type_produit == 'GASOIL' %}
+          {% elif cam.type_produit == 'HUILE' %}
             <span class="bdg ok">{{ cam.get_type_produit_display }}</span>
-          {% elif cam.type_produit == 'PETROLE' %}
+          {% elif cam.type_produit == 'MIXTE' %}
             <span class="bdg info">{{ cam.get_type_produit_display }}</span>
-          {% elif cam.type_produit == 'JET_A1' %}
-            <span class="bdg" style="background:#f0e8f5;color:#7a4ba8">{{ cam.get_type_produit_display }}</span>
           {% else %}
             <span class="bdg muted">{{ cam.get_type_produit_display }}</span>
           {% endif %}

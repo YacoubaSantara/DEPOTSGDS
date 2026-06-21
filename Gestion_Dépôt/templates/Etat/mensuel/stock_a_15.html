@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Stock à 15°{% endblock %}
+{% block nav_etat_mensuel_stock_15 %}active{% endblock %}
+
+{% block breadcrumb %}
+  <a href="#">États</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Stock à 15°</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:5px;min-width:160px}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left}
+.filter-group select,.filter-group input[type="date"]{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
+.btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
+.btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none}
+.pivot-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{padding:9px 12px;text-align:center;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+th.row-label{text-align:left;min-width:190px;background:#1b3a6b;color:#fff;border-bottom:2px solid #0f2547}
+th.prod-head{background:#1b3a6b;color:#fff;border-left:1px solid #2d4f82;border-bottom:1px solid #0f2547}
+th.sub-head{background:#274a82;color:#fff;border-left:1px solid #2d4f82;border-bottom:2px solid #0f2547;font-size:.62rem}
+td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+td.row-label{text-align:left;font-weight:600;font-size:.78rem;color:var(--navy);background:var(--bg);border-right:2px solid var(--border)}
+td.num{font-family:'JetBrains Mono',monospace;font-size:.8rem}
+td.sep-left{border-left:2px solid var(--border)}
+tr.row-ouverture td{background:#eef2ff}
+tr.row-entrees td{background:#f0fdf4}
+tr.row-sorties td{background:#fff7ed}
+tr.row-comptable td{background:#eff6ff;font-weight:700}
+tr.row-pg td{background:#fef2f2}
+tr.row-ratio td{background:#fafafa}
+tr.row-fermeture td{background:#f0fdf4;font-weight:700}
+tr:hover td{filter:brightness(.96)}
+.num-neg{color:#dc2626;font-weight:700}
+.num-pos{color:#16a34a;font-weight:700}
+.empty-state{text-align:left;padding:48px 20px;color:var(--muted)}
+.subtitle-band{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;font-size:.78rem;color:var(--muted)}
+.page-subtitle{text-align:left}
+.badge-na{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--bg);color:var(--muted);border:1px solid var(--border);letter-spacing:.03em}
+
+/* ── Dark mode ── */
+[data-theme="dark"] tr.row-ouverture td{background:rgba(99,102,241,.08)}
+[data-theme="dark"] tr.row-entrees td{background:rgba(34,197,94,.06)}
+[data-theme="dark"] tr.row-sorties td{background:rgba(245,158,11,.06)}
+[data-theme="dark"] tr.row-comptable td{background:rgba(59,130,246,.08)}
+[data-theme="dark"] tr.row-pg td{background:rgba(239,68,68,.06)}
+[data-theme="dark"] tr.row-ratio td{background:rgba(255,255,255,.02)}
+[data-theme="dark"] tr.row-fermeture td{background:rgba(34,197,94,.06)}
+[data-theme="dark"] td.row-label{color:var(--accent-ink)}
+[data-theme="dark"] .num-neg{color:var(--err)}
+[data-theme="dark"] .num-pos{color:var(--ok)}
+[data-theme="dark"] .badge-na{background:var(--surface-2)}
+
+</style>
+{% include 'partials/_print_css.html' %}
+{% endblock %}
+
+{% block content %}
+
+{% with titre_print="STOCK À 15° — ÉTAT RÉCAPITULATIF" sous_titre_print=periode %}
+{% include 'partials/_print_header.html' %}
+{% endwith %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Etat Stock à 15° (AMB + @15°C)</h1>
+    <p class="page-subtitle">
+      {% if periode %}{{ periode }}{% endif %}
+      {% if marketeur_sel %} — {{ marketeur_sel.raison_sociale }}{% else %} — Tous Marketeurs{% endif %}
+      {% if date_filtre %} — Fermeture du {{ date_filtre|date:"d/m/Y" }}{% endif %}
+    </p>
+  </div>
+  <div style="display:flex;gap:8px" class="no-print">
+    <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
+    {% if periode and rapport.produits and not date_filtre %}
+    <a href="{% url 'etat_mensuel_stock_15_export' %}?periode_id={{ periode.uuid }}{% if marketeur_sel %}&marketeur={{ marketeur_sel.uuid }}{% endif %}"
+       class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="filters-bar no-print">
+  <form method="get">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label>Période</label>
+        <select name="periode_id">
+          {% for p in periodes %}<option value="{{ p.uuid }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Marketeur (optionnel)</label>
+        <select name="marketeur">
+          <option value="">— Tous les marketeurs —</option>
+          {% for m in marketeurs %}<option value="{{ m.uuid }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>{{ m.sigle|default:m.raison_sociale }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Jour (optionnel)</label>
+        <input type="date" name="date" value="{{ date_filtre|date:'Y-m-d' }}"
+               {% if periode %}min="{{ periode.date_debut|date:'Y-m-d' }}" max="{{ periode.date_fin|date:'Y-m-d' }}"{% endif %}>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button type="submit" class="btn-filter">Afficher</button>
+        <a href="{% url 'etat_mensuel_stock_15' %}" class="btn-reset">Réinitialiser</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% if not rapport or not rapport.produits %}
+<div class="empty-state"><p>Sélectionnez une période pour afficher l'état.</p></div>
+{% else %}
+
+{% if rapport.date_ouv and rapport.date_ferm %}
+<div class="subtitle-band">
+  Période : <strong>{{ rapport.date_ouv }} au {{ rapport.date_ferm }}</strong>
+  {% if marketeur_sel %} — Marketeur : <strong>{{ marketeur_sel.raison_sociale }}</strong>{% else %} — <strong>Tous les Marketeurs (stock global)</strong>{% endif %}
+  {% if date_filtre %} — <strong>Instantané au {{ date_filtre|date:"d/m/Y" }}</strong>{% endif %}
+</div>
+{% endif %}
+
+<div class="pivot-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="row-label" rowspan="2">Désignation</th>
+        {% for prod in rapport.produits %}
+        <th class="prod-head" colspan="2">{{ prod.nom|upper }}</th>
+        {% endfor %}
+      </tr>
+      <tr>
+        {% for prod in rapport.produits %}
+        <th class="sub-head">AMB (L)</th><th class="sub-head">@15°C (L)</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+
+      {# Row 1: Stocks Ouverture #}
+      <tr class="row-ouverture">
+        <td class="row-label">STOCKS OUVERTURE</td>
+        {% for v in rapport.stk_ouverture %}
+        <td class="num sep-left">{{ v.amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ v.c15|floatformat:2|intcomma }}</td>
+        {% endfor %}
+      </tr>
+
+      {# Row 2: Cumuls Entrées #}
+      <tr class="row-entrees">
+        <td class="row-label">CUMULS ENTREES</td>
+        {% for v in rapport.cumul_entrees %}
+        <td class="num sep-left">{{ v.amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ v.c15|floatformat:2|intcomma }}</td>
+        {% endfor %}
+      </tr>
+
+      {# Row 3: Cumuls Sorties #}
+      <tr class="row-sorties">
+        <td class="row-label">CUMULS SORTIES</td>
+        {% for v in rapport.cumul_sorties %}
+        <td class="num sep-left">{{ v.amb|floatformat:2|intcomma }}</td>
+        <td class="num">{{ v.c15|floatformat:2|intcomma }}</td>
+        {% endfor %}
+      </tr>
+
+      {# Row 4: Stock Comptable #}
+      <tr class="row-comptable">
+        <td class="row-label">STOCKS COMPTABLE</td>
+        {% for v in rapport.stk_comptable %}
+        <td class="num sep-left" style="color:var(--navy)">{{ v.amb|floatformat:2|intcomma }}</td>
+        <td class="num" style="color:var(--navy)">{{ v.c15|floatformat:2|intcomma }}</td>
+        {% endfor %}
+      </tr>
+
+      {# Row 5: Pertes ou Gains (AMB + @15°C) #}
+      <tr class="row-pg">
+        <td class="row-label">PERTES OU GAINS</td>
+        {% for v in rapport.pertes_gains %}
+        <td class="num sep-left" {% if v.amb is not None and v.amb < 0 %}style="color:#dc2626;font-weight:700"{% elif v.amb is not None and v.amb > 0 %}style="color:#16a34a;font-weight:700"{% endif %}>
+          {% if v.amb is not None %}{{ v.amb|floatformat:2|intcomma }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour calculer cette valeur">N/D</span>{% endif %}
+        </td>
+        <td class="num" {% if v.c15 is not None and v.c15 < 0 %}style="color:#dc2626;font-weight:700"{% elif v.c15 is not None and v.c15 > 0 %}style="color:#16a34a;font-weight:700"{% endif %}>
+          {% if v.c15 is not None %}{{ v.c15|floatformat:2|intcomma }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour calculer cette valeur">N/D</span>{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+      {# Row 6: Ratio (AMB + @15°C) #}
+      <tr class="row-ratio">
+        <td class="row-label">RATIO (%)</td>
+        {% for v in rapport.ratios %}
+        <td class="num sep-left" {% if v.amb is not None and v.amb < 0 %}style="color:#dc2626;font-weight:700"{% elif v.amb is not None and v.amb > 0 %}style="color:#16a34a;font-weight:700"{% endif %}>
+          {% if v.amb is not None %}{{ v.amb|floatformat:4 }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour calculer cette valeur">N/D</span>{% endif %}
+        </td>
+        <td class="num" {% if v.c15 is not None and v.c15 < 0 %}style="color:#dc2626;font-weight:700"{% elif v.c15 is not None and v.c15 > 0 %}style="color:#16a34a;font-weight:700"{% endif %}>
+          {% if v.c15 is not None %}{{ v.c15|floatformat:4 }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour calculer cette valeur">N/D</span>{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+      {# Row 7: Stocks Fermeture #}
+      <tr class="row-fermeture">
+        <td class="row-label">STOCKS FERMETURE</td>
+        {% for v in rapport.stk_fermeture %}
+        <td class="num num-pos sep-left">
+          {% if v.amb is not None %}{{ v.amb|floatformat:2|intcomma }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour cette date">N/D</span>{% endif %}
+        </td>
+        <td class="num num-pos">
+          {% if v.c15 is not None %}{{ v.c15|floatformat:2|intcomma }}{% else %}<span class="badge-na" title="Aucun jaugeage disponible pour cette date">N/D</span>{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% include 'partials/_print_footer.html' with reference_doc="ETAT-MENS-15" sig1="Le Gestionnaire" sig2="Le Comptable" sig3="Le Directeur" %}
+{% endblock %}

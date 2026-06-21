@@ -53,7 +53,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
     from django.db.models import Sum
     from SGDS.models import (
         Marketeur, Mouvement, JaugeageJour, StockOuverture,
-        ParametresCoulage,
+        ParametresCoulage, InventaireInitialMarketeur,
     )
 
     if marketeurs is None:
@@ -82,7 +82,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
 
     def _agg_entree_produit(produit_pk):
         r = qs_entrees.filter(produit_id=produit_pk).aggregate(
-            brut=Sum('volume_ambiant_recu'),
+            brut=Sum('volume_ambiant_expediteur'),
             coul=Sum('perte_gain_reception'),
         )
         brut  = _D(r['brut']).quantize(_Q2, ROUND_HALF_UP)
@@ -94,7 +94,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
         r = qs_sorties.filter(produit_id=produit_pk).aggregate(s=Sum('volume_ambiant_sortie'))
         return _D(r['s']).quantize(_Q2, ROUND_HALF_UP)
 
-    # ── Stock physique fin de mois (dernier jaugeage du mois) ─────
+    # ── Stock physique fin de mois (dernier jaugeage de la période) ──
     dernier_j = (
         JaugeageJour.objects
         .filter(
@@ -122,6 +122,14 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
     pertes_gains = {}  # {produit_pk: Decimal}
     coefficients = {}  # {produit_pk: Decimal}
 
+    # ── Inventaires initiaux (fallback si pas de StockOuverture) ─
+    inv_initiaux = {}   # {produit_pk: Decimal}
+    for inv in InventaireInitialMarketeur.objects.filter(
+        date_inventaire__lte=date_fin,
+    ).select_related('produit'):
+        pid = inv.produit_id
+        inv_initiaux[pid] = inv_initiaux.get(pid, Decimal('0')) + _D(inv.volume_ambiant)
+
     for produit in produits:
         pk = produit.pk
 
@@ -129,7 +137,11 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
         sortie = _agg_sortie_produit(pk)
 
         so = StockOuverture.objects.filter(periode=periode, produit_id=pk).first()
-        so_val = _D(so.volume_ambiant if so else None)
+        if so:
+            so_val = _D(so.volume_ambiant)
+        else:
+            # Fallback : somme des inventaires initiaux des marketeurs
+            so_val = inv_initiaux.get(pk, Decimal('0'))
 
         physique = physique_par_produit.get(pk, Decimal('0'))
 
@@ -159,7 +171,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
             pk = produit.pk
 
             r_e = qs_entrees.filter(marketeur=mkt, produit_id=pk).aggregate(
-                brut=Sum('volume_ambiant_recu'),
+                brut=Sum('volume_ambiant_expediteur'),
                 coul=Sum('perte_gain_reception'),
             )
             m_brut  = _D(r_e['brut']).quantize(_Q2, ROUND_HALF_UP)
@@ -316,222 +328,3 @@ def figer_cloture_coulage(periode, user=None, notes=None):
         ClotureCoulageLigne.objects.bulk_create(nouvelles_lignes)
 
     return cloture
-
-    """
-    Calcul pur (sans écriture DB) de la répartition du coulage.
-
-    Retourne un dict avec : periode, coefficients, pertes_gains, cumuls,
-    lignes (une par marketeur), totaux, parametres.
-    """
-    from django.db.models import Sum
-    from SGDS.models import (
-        Marketeur, Mouvement, JaugeageJour, StockOuverture,
-        ParametresCoulage,
-    )
-
-    if marketeurs is None:
-        marketeurs = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
-
-    date_debut = periode.date_debut
-    date_fin   = periode.date_fin
-
-    # ── Paramètres de coulage en vigueur ──────────────────────────
-    params = ParametresCoulage.en_vigueur(date_fin)
-    prix_unitaire = _D(params.prix_unitaire_passage) if params else Decimal('4.7554')
-    motif_defaut  = params.motif_defaut if params else 'Chargement'
-
-    # ── Stocks d'ouverture du mois ────────────────────────────────
-    so_go = StockOuverture.objects.filter(
-        periode=periode, produit__code=CODE_GASOIL
-    ).first()
-    so_super = StockOuverture.objects.filter(
-        periode=periode, produit__code=CODE_SUPER
-    ).first()
-    so_go_val    = _D(so_go.volume_ambiant if so_go else None)
-    so_super_val = _D(so_super.volume_ambiant if so_super else None)
-
-    # ── Cumuls globaux (tous marketeurs) ──────────────────────────
-    qs_entrees = Mouvement.objects.filter(
-        type_mouvement='ENTREE',
-        date_mouvement__range=(date_debut, date_fin),
-    )
-    qs_sorties = Mouvement.objects.filter(
-        type_mouvement='SORTIE',
-        date_mouvement__range=(date_debut, date_fin),
-    )
-
-    def _agg_entree(code):
-        r = qs_entrees.filter(produit__code=code).aggregate(
-            brut=Sum('volume_ambiant_recu'),
-            coul=Sum('perte_gain_reception'),
-        )
-        brut = _D(r['brut'])
-        coul = _D(r['coul'])
-        nette = (brut + coul).quantize(_Q2, ROUND_HALF_UP)
-        return brut.quantize(_Q2, ROUND_HALF_UP), coul.quantize(_Q2, ROUND_HALF_UP), nette
-
-    def _agg_sortie(code):
-        r = qs_sorties.filter(produit__code=code).aggregate(s=Sum('volume_ambiant_sortie'))
-        return _D(r['s']).quantize(_Q2, ROUND_HALF_UP)
-
-    brut_go,  coul_go,  entree_go    = _agg_entree(CODE_GASOIL)
-    brut_sup, coul_sup, entree_super = _agg_entree(CODE_SUPER)
-    sortie_go    = _agg_sortie(CODE_GASOIL)
-    sortie_super = _agg_sortie(CODE_SUPER)
-
-    cumuls = {
-        'brut_entree_go':    brut_go,
-        'coul_entree_go':    coul_go,
-        'entree_go':         entree_go,
-        'brut_entree_super': brut_sup,
-        'coul_entree_super': coul_sup,
-        'entree_super':      entree_super,
-        'sortie_go':         sortie_go,
-        'sortie_super':      sortie_super,
-    }
-
-    # ── Stock physique fin de mois (dernier jaugeage du mois) ─────
-    dernier_j = (
-        JaugeageJour.objects
-        .filter(
-            date_jaugeage__gte=date_debut,
-            date_jaugeage__lte=date_fin,
-        )
-        .prefetch_related('mesures__cuve__produit', 'mesures__cuve__parametre_jaugeage')
-        .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
-        .first()
-    )
-
-    if dernier_j:
-        physique_go    = Decimal('0')
-        physique_super = Decimal('0')
-        for m in dernier_j.mesures.all():
-            if m.cuve.produit is None:
-                continue
-            v = m.volume_ambiant_depot
-            if v is None:
-                continue
-            if m.cuve.produit.code == CODE_GASOIL:
-                physique_go += _D(v)
-            elif m.cuve.produit.code == CODE_SUPER:
-                physique_super += _D(v)
-    else:
-        physique_go    = Decimal('0')
-        physique_super = Decimal('0')
-
-    # ── Pertes/gains du mois ──────────────────────────────────────
-    # stock_comptable = SO + Σentrees_nettes - Σsorties
-    stock_comp_go    = so_go_val    + entree_go    - sortie_go
-    stock_comp_super = so_super_val + entree_super - sortie_super
-
-    perte_gain_go    = (physique_go    - stock_comp_go).quantize(_Q2, ROUND_HALF_UP)
-    perte_gain_super = (physique_super - stock_comp_super).quantize(_Q2, ROUND_HALF_UP)
-
-    pertes_gains = {'GO': perte_gain_go, 'SUPER': perte_gain_super}
-
-    # ── Coefficients globaux ──────────────────────────────────────
-    denom_go    = entree_go    + sortie_go
-    denom_super = entree_super + sortie_super
-
-    coef_go    = (perte_gain_go    / denom_go).quantize(_Q8, ROUND_HALF_UP) if denom_go else Decimal('0')
-    coef_super = (perte_gain_super / denom_super).quantize(_Q8, ROUND_HALF_UP) if denom_super else Decimal('0')
-
-    coefficients = {'GO': coef_go, 'SUPER': coef_super}
-
-    # ── Calcul par marketeur ──────────────────────────────────────
-    lignes = []
-    for mkt in marketeurs:
-        def _mkt_entree(code):
-            r = qs_entrees.filter(marketeur=mkt, produit__code=code).aggregate(
-                brut=Sum('volume_ambiant_recu'),
-                coul=Sum('perte_gain_reception'),
-            )
-            b = _D(r['brut']).quantize(_Q2, ROUND_HALF_UP)
-            c = _D(r['coul']).quantize(_Q2, ROUND_HALF_UP)
-            n = (b + c).quantize(_Q2, ROUND_HALF_UP)
-            return b, c, n
-
-        def _mkt_sortie(code):
-            r = qs_sorties.filter(marketeur=mkt, produit__code=code).aggregate(
-                s=Sum('volume_ambiant_sortie')
-            )
-            return _D(r['s']).quantize(_Q2, ROUND_HALF_UP)
-
-        m_brut_go,  m_coul_go,  m_nette_go    = _mkt_entree(CODE_GASOIL)
-        m_brut_sup, m_coul_sup, m_nette_super  = _mkt_entree(CODE_SUPER)
-        m_sortie_go    = _mkt_sortie(CODE_GASOIL)
-        m_sortie_super = _mkt_sortie(CODE_SUPER)
-
-        # Quote-part coulage GO
-        m_base_go  = (m_nette_go + m_sortie_go).quantize(_Q2, ROUND_HALF_UP)
-        m_qp_go    = (m_base_go * coef_go).quantize(_Q2, ROUND_HALF_UP)
-
-        # Quote-part coulage SUPER
-        m_base_sup = (m_nette_super + m_sortie_super).quantize(_Q2, ROUND_HALF_UP)
-        m_qp_sup   = (m_base_sup * coef_super).quantize(_Q2, ROUND_HALF_UP)
-
-        # Volume global sorti et montant
-        vol_global  = (m_sortie_go + m_sortie_super).quantize(_Q2, ROUND_HALF_UP)
-        montant     = (vol_global * prix_unitaire).quantize(_Q2, ROUND_HALF_UP)
-
-        lignes.append({
-            'marketeur':         mkt,
-            'brut_entree_go':    m_brut_go,
-            'coul_entree_go':    m_coul_go,
-            'entree_nette_go':   m_nette_go,
-            'brut_entree_super': m_brut_sup,
-            'coul_entree_super': m_coul_sup,
-            'entree_nette_super':m_nette_super,
-            'sortie_go':         m_sortie_go,
-            'sortie_super':      m_sortie_super,
-            'base_qp_coul_go':   m_base_go,
-            'coef_qp_coul_go':   coef_go,
-            'qp_coul_go':        m_qp_go,
-            'base_qp_coul_super':m_base_sup,
-            'coef_qp_coul_super':coef_super,
-            'qp_coul_super':     m_qp_sup,
-            'volume_global_sorti': vol_global,
-            'motif':             motif_defaut,
-            'prix_unitaire':     prix_unitaire,
-            'montant':           montant,
-        })
-
-    # ── Totaux ────────────────────────────────────────────────────
-    def _sum_field(field):
-        return sum((l[field] for l in lignes), Decimal('0')).quantize(_Q2, ROUND_HALF_UP)
-
-    totaux = {
-        'marketeur':         None,
-        'brut_entree_go':    _sum_field('brut_entree_go'),
-        'coul_entree_go':    _sum_field('coul_entree_go'),
-        'entree_nette_go':   _sum_field('entree_nette_go'),
-        'brut_entree_super': _sum_field('brut_entree_super'),
-        'coul_entree_super': _sum_field('coul_entree_super'),
-        'entree_nette_super':_sum_field('entree_nette_super'),
-        'sortie_go':         _sum_field('sortie_go'),
-        'sortie_super':      _sum_field('sortie_super'),
-        'base_qp_coul_go':   _sum_field('base_qp_coul_go'),
-        'coef_qp_coul_go':   coef_go,
-        'qp_coul_go':        _sum_field('qp_coul_go'),
-        'base_qp_coul_super':_sum_field('base_qp_coul_super'),
-        'coef_qp_coul_super':coef_super,
-        'qp_coul_super':     _sum_field('qp_coul_super'),
-        'volume_global_sorti':_sum_field('volume_global_sorti'),
-        'motif':             motif_defaut,
-        'prix_unitaire':     prix_unitaire,
-        'montant':           _sum_field('montant'),
-    }
-
-    return {
-        'periode':      periode,
-        'coefficients': coefficients,
-        'pertes_gains': pertes_gains,
-        'cumuls':       cumuls,
-        'lignes':       lignes,
-        'totaux':       totaux,
-        'parametres':   {
-            'prix_unitaire_passage': prix_unitaire,
-            'motif':                 motif_defaut,
-        },
-    }
-

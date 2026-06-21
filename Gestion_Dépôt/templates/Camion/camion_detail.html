@@ -136,10 +136,9 @@
         <div class="detail-field" style="margin-bottom:0">
           <div class="detail-label">Type de produit</div>
           <div class="detail-value">
-            {% if camion.type_produit == 'ESSENCE' %}<span class="bdg" style="background:#fbe8e3;color:#c14a1f">{{ camion.get_type_produit_display }}</span>
-            {% elif camion.type_produit == 'GASOIL' %}<span class="bdg ok">{{ camion.get_type_produit_display }}</span>
-            {% elif camion.type_produit == 'PETROLE' %}<span class="bdg info">{{ camion.get_type_produit_display }}</span>
-            {% elif camion.type_produit == 'JET_A1' %}<span class="bdg" style="background:#f0e8f5;color:#7a4ba8">{{ camion.get_type_produit_display }}</span>
+            {% if camion.type_produit == 'Carburant' %}<span class="bdg" style="background:#fbe8e3;color:#c14a1f">{{ camion.get_type_produit_display }}</span>
+            {% elif camion.type_produit == 'HUILE' %}<span class="bdg ok">{{ camion.get_type_produit_display }}</span>
+            {% elif camion.type_produit == 'MIXTE' %}<span class="bdg info">{{ camion.get_type_produit_display }}</span>
             {% else %}<span class="bdg muted">{{ camion.get_type_produit_display }}</span>{% endif %}
           </div>
         </div>

@@ -17,6 +17,7 @@ from datetime import date as _date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Q, Sum
 
 from .client import marketeur_required, _D
@@ -667,8 +668,8 @@ def carte_stock(request):
 
     if produit_id:
         try:
-            produit_sel = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-        except (Produit.DoesNotExist, ValueError):
+            produit_sel = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValueError, ValidationError):
             messages.warning(request, "Produit introuvable.")
 
     if produit_sel:
@@ -754,8 +755,8 @@ def carte_stock_admin(request, marketeur_uuid, marketeur_slug):
 
     if produit_id:
         try:
-            produit_sel = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-        except (Produit.DoesNotExist, ValueError):
+            produit_sel = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValueError, ValidationError):
             messages.warning(request, "Produit introuvable.")
 
     if produit_sel:
@@ -793,18 +794,37 @@ def carte_stock_admin(request, marketeur_uuid, marketeur_slug):
 #  Calcul : stock global dépôt (tous marketeurs ou un seul)
 # ─────────────────────────────────────────────────────────────
 
-def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=None):
+def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=None, regime=None):
     """
     Calcul du stock global ambiant pour un produit donné.
 
-    Si `marketeur` est fourni  → stock global de CE marketeur (TOUS régimes).
+    Si `marketeur` est fourni  → stock global de CE marketeur.
     Sinon                       → stock global de TOUS les marketeurs.
+    Si `regime` est fourni (SOUS_DOUANE ou ACQUITTE) → filtrage par régime.
+    Sinon (None ou TOUS)        → tous régimes combinés.
 
-    Règles de delta global :
+    Règles de delta global (régime TOUS), pour TOUS les marketeurs combinés :
       ENTREE      : +volume_ambiant_recu
       SORTIE      : −volume_ambiant_sortie
       ACQUITTEMENT: 0  (transfert SD↔AC interne, affiché pour traçabilité)
-      CESSION     : 0  (transfert M1→M2, bilan global nul)
+      CESSION     : 0  (transfert M1→M2, bilan global du dépôt nul)
+
+    Règles de delta (régime SD), pour TOUS les marketeurs combinés :
+      ENTREE(SD)  : +volume_ambiant_recu
+      SORTIE(SD)  : −volume_ambiant_sortie
+      ACQUITTEMENT: −acquittement_volume_ambiant  (sortie du SD)
+      CESSION     : 0
+
+    Règles de delta (régime AC), pour TOUS les marketeurs combinés :
+      ENTREE(AC)  : +volume_ambiant_recu
+      SORTIE(AC)  : −volume_ambiant_sortie
+      ACQUITTEMENT: +acquittement_volume_ambiant  (entrée dans l'AC)
+      CESSION     : 0
+
+    Quand `marketeur` est fourni, la CESSION n'est plus neutre : elle
+    impacte réellement le stock de CE marketeur (quel que soit le régime) :
+      Cession émise par ce marketeur  : −cession_volume_ambiant
+      Cession reçue par ce marketeur  : +cession_volume_ambiant
 
     Retourne un dict :
       report_amb, lignes, cumul_entrees_amb, cumul_sorties_amb,
@@ -812,31 +832,77 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
     """
     from SGDS.models import Mouvement
 
-    qs = (
+    is_sd  = (regime == REGIME_SD)
+    is_ac  = (regime == REGIME_AC)
+    is_all = not is_sd and not is_ac   # TOUS ou None
+
+    base_qs = (
         Mouvement.objects
         .filter(produit=produit)
         .select_related('produit', 'camion', 'chauffeur',
                         'marketeur', 'cession_marketeur_destinataire')
     )
     if marketeur:
-        qs = qs.filter(marketeur=marketeur)
+        # Les mouvements propres au marketeur + les cessions REÇUES par lui
+        # (enregistrées sous le marketeur émetteur, donc invisibles via le
+        # seul filtre marketeur=marketeur).
+        base_qs = base_qs.filter(
+            Q(marketeur=marketeur)
+            | Q(type_mouvement='CESSION', cession_marketeur_destinataire=marketeur)
+        )
+
+    # Filtrage par régime
+    if is_sd:
+        qs = base_qs.filter(
+            Q(regime_douanier=REGIME_SD) | Q(type_mouvement='ACQUITTEMENT')
+        )
+    elif is_ac:
+        qs = base_qs.filter(
+            Q(regime_douanier=REGIME_AC) | Q(type_mouvement='ACQUITTEMENT')
+        )
+    else:
+        qs = base_qs
 
     def _delta(mouv):
         t = mouv.type_mouvement
-        if t == 'ENTREE':
-            return _D(mouv.volume_ambiant_recu)
-        if t == 'SORTIE':
-            return -_D(mouv.volume_ambiant_sortie)
-        return Decimal('0')   # ACQUITTEMENT, CESSION → 0
+        if t == 'CESSION' and marketeur:
+            v = _D(mouv.cession_volume_ambiant)
+            return v if mouv.cession_marketeur_destinataire_id == marketeur.pk else -v
+        if is_all:
+            if t == 'ENTREE':
+                return _D(mouv.volume_ambiant_recu)
+            if t == 'SORTIE':
+                return -_D(mouv.volume_ambiant_sortie)
+            return Decimal('0')   # ACQUITTEMENT, CESSION (vue tous marketeurs) → 0
+        elif is_sd:
+            if t == 'ENTREE':
+                return _D(mouv.volume_ambiant_recu)
+            if t == 'SORTIE':
+                return -_D(mouv.volume_ambiant_sortie)
+            if t == 'ACQUITTEMENT':
+                return -_D(mouv.acquittement_volume_ambiant)
+            return Decimal('0')
+        else:  # AC
+            if t == 'ENTREE':
+                return _D(mouv.volume_ambiant_recu)
+            if t == 'SORTIE':
+                return -_D(mouv.volume_ambiant_sortie)
+            if t == 'ACQUITTEMENT':
+                return _D(mouv.acquittement_volume_ambiant)
+            return Decimal('0')
 
     # ── 1. REPORT : inventaire initial + mouvements antérieurs ──
     from SGDS.models import InventaireInitialMarketeur
     report_amb = Decimal('0')
 
-    # Inventaire initial (SD + AC cumulés pour la vue globale)
+    # Inventaire initial filtré par régime si besoin
     inv_qs = InventaireInitialMarketeur.objects.filter(produit=produit)
     if marketeur:
         inv_qs = inv_qs.filter(marketeur=marketeur)
+    if is_sd:
+        inv_qs = inv_qs.filter(regime_douanier=REGIME_SD)
+    elif is_ac:
+        inv_qs = inv_qs.filter(regime_douanier=REGIME_AC)
     for inv in inv_qs:
         if date_debut is None or inv.date_inventaire <= date_debut:
             report_amb += _D(inv.volume_ambiant)
@@ -899,6 +965,12 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
             vol_sortie_amb   = _D(mouv.volume_ambiant_sortie)
             vol_manquant_amb = None
             vol_manquant_15c = None
+        elif sens == 'cession':
+            cession_recue = bool(marketeur) and mouv.cession_marketeur_destinataire_id == marketeur.pk
+            vol_entree_amb   = _D(mouv.cession_volume_ambiant) if cession_recue else None
+            vol_sortie_amb   = None if cession_recue else _D(mouv.cession_volume_ambiant)
+            vol_manquant_amb = None
+            vol_manquant_15c = None
         else:
             vol_entree_amb   = None
             vol_sortie_amb   = None
@@ -912,11 +984,18 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
             dest = mouv.destination or mouv.code_destination
             libelle = dest if dest else 'BON DE SORTIE'
         elif sens == 'cession':
-            dest_mkt = mouv.cession_marketeur_destinataire
-            libelle = (
-                f"Cession → {dest_mkt.sigle or dest_mkt.raison_sociale}"
-                if dest_mkt else 'Cession'
-            )
+            if cession_recue:
+                src_mkt = mouv.marketeur
+                libelle = (
+                    f"Cession ← {src_mkt.sigle or src_mkt.raison_sociale}"
+                    if src_mkt else 'Cession reçue'
+                )
+            else:
+                dest_mkt = mouv.cession_marketeur_destinataire
+                libelle = (
+                    f"Cession → {dest_mkt.sigle or dest_mkt.raison_sociale}"
+                    if dest_mkt else 'Cession'
+                )
         elif sens == 'acquittement':
             libelle = 'Acquittement douanier'
         else:
@@ -983,31 +1062,47 @@ def stock_global_marketeur(request):
     mkt      = request.user.marketeur
     produits = _produits_avec_activite(mkt)
 
-    produit_id = request.GET.get('produit', '').strip()
-    date_debut = _parse_date(request.GET.get('date_debut', '').strip())
-    date_fin   = _parse_date(request.GET.get('date_fin', '').strip())
+    produit_id  = request.GET.get('produit', '').strip()
+    regime_raw  = request.GET.get('regime', REGIME_TOUS).strip()
+    regime      = regime_raw if regime_raw in (REGIME_SD, REGIME_AC, REGIME_TOUS) else REGIME_TOUS
+    date_debut  = _parse_date(request.GET.get('date_debut', '').strip())
+    date_fin    = _parse_date(request.GET.get('date_fin', '').strip())
 
     produit_sel = None
     stock       = None
 
     if produit_id:
         try:
-            produit_sel = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-        except (Produit.DoesNotExist, ValueError):
+            produit_sel = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValueError, ValidationError):
             messages.warning(request, "Produit introuvable.")
 
     if produit_sel:
         stock = _calculer_stock_global(
-            produit_sel, date_debut, date_fin, marketeur=mkt
+            produit_sel, date_debut, date_fin,
+            marketeur=mkt,
+            regime=None if regime == REGIME_TOUS else regime,
         )
+
+    if regime == REGIME_SD:
+        regime_label = 'Sous Douane'
+    elif regime == REGIME_AC:
+        regime_label = 'Acquitté'
+    else:
+        regime_label = 'Tous (SD + AC)'
 
     ctx = {
         'mkt':          mkt,
         'produits':     produits,
         'produit_sel':  produit_sel,
+        'regime':       regime,
+        'regime_label': regime_label,
         'date_debut':   request.GET.get('date_debut', ''),
         'date_fin':     request.GET.get('date_fin', ''),
         'stock':        stock,
+        'REGIME_SD':    REGIME_SD,
+        'REGIME_AC':    REGIME_AC,
+        'REGIME_TOUS':  REGIME_TOUS,
     }
     return render(request, 'Espace_Marketeur/stock_global.html', ctx)
 
@@ -1034,6 +1129,8 @@ def stock_global_admin(request):
 
     produit_id   = request.GET.get('produit', '').strip()
     marketeur_id = request.GET.get('marketeur', '').strip()
+    regime_raw   = request.GET.get('regime', REGIME_TOUS).strip()
+    regime       = regime_raw if regime_raw in (REGIME_SD, REGIME_AC, REGIME_TOUS) else REGIME_TOUS
     date_debut   = _parse_date(request.GET.get('date_debut', '').strip())
     date_fin     = _parse_date(request.GET.get('date_fin', '').strip())
 
@@ -1043,21 +1140,29 @@ def stock_global_admin(request):
 
     if produit_id:
         try:
-            produit_sel = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-        except (Produit.DoesNotExist, ValueError):
+            produit_sel = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+        except (Produit.DoesNotExist, ValueError, ValidationError):
             messages.warning(request, "Produit introuvable.")
 
     if marketeur_id:
         try:
-            marketeur_sel = Marketeur.objects.get(pk=int(marketeur_id))
-        except (Marketeur.DoesNotExist, ValueError):
+            marketeur_sel = Marketeur.objects.get(uuid=marketeur_id)
+        except (Marketeur.DoesNotExist, ValueError, ValidationError):
             pass
 
     if produit_sel:
         stock = _calculer_stock_global(
             produit_sel, date_debut, date_fin,
-            marketeur=marketeur_sel  # None = tous les marketeurs
+            marketeur=marketeur_sel,
+            regime=None if regime == REGIME_TOUS else regime,
         )
+
+    if regime == REGIME_SD:
+        regime_label = 'Sous Douane'
+    elif regime == REGIME_AC:
+        regime_label = 'Acquitté'
+    else:
+        regime_label = 'Tous (SD + AC)'
 
     from SGDS.models import Societe
     ctx = {
@@ -1065,10 +1170,15 @@ def stock_global_admin(request):
         'tous_marketeurs': tous_marketeurs,
         'produit_sel':     produit_sel,
         'marketeur_sel':   marketeur_sel,
+        'regime':          regime,
+        'regime_label':    regime_label,
         'date_debut':      request.GET.get('date_debut', ''),
         'date_fin':        request.GET.get('date_fin', ''),
         'stock':           stock,
         'societe':         Societe.get_instance(),
+        'REGIME_SD':       REGIME_SD,
+        'REGIME_AC':       REGIME_AC,
+        'REGIME_TOUS':     REGIME_TOUS,
     }
     return render(request, 'Etat/stock_global.html', ctx)
 
@@ -1335,6 +1445,8 @@ def stock_global_marketeur_export(request):
 
     mkt        = request.user.marketeur
     produit_id = request.GET.get('produit', '').strip()
+    regime_raw = request.GET.get('regime', REGIME_TOUS).strip()
+    regime     = regime_raw if regime_raw in (REGIME_SD, REGIME_AC, REGIME_TOUS) else REGIME_TOUS
     date_debut = _parse_date(request.GET.get('date_debut', '').strip())
     date_fin   = _parse_date(request.GET.get('date_fin', '').strip())
 
@@ -1343,12 +1455,13 @@ def stock_global_marketeur_export(request):
         return redirect('client_stock_global')
 
     try:
-        produit = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-    except (Produit.DoesNotExist, ValueError):
+        produit = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+    except (Produit.DoesNotExist, ValueError, ValidationError):
         messages.error(request, "Produit introuvable.")
         return redirect('client_stock_global')
 
-    stock   = _calculer_stock_global(produit, date_debut, date_fin, marketeur=mkt)
+    stock   = _calculer_stock_global(produit, date_debut, date_fin, marketeur=mkt,
+                                     regime=None if regime == REGIME_TOUS else regime)
     societe = Societe.get_instance()
 
     try:
@@ -1386,6 +1499,8 @@ def stock_global_admin_export(request):
 
     produit_id   = request.GET.get('produit', '').strip()
     marketeur_id = request.GET.get('marketeur', '').strip()
+    regime_raw   = request.GET.get('regime', REGIME_TOUS).strip()
+    regime       = regime_raw if regime_raw in (REGIME_SD, REGIME_AC, REGIME_TOUS) else REGIME_TOUS
     date_debut   = _parse_date(request.GET.get('date_debut', '').strip())
     date_fin     = _parse_date(request.GET.get('date_fin', '').strip())
 
@@ -1394,19 +1509,20 @@ def stock_global_admin_export(request):
         return redirect('etat_stock_global')
 
     try:
-        produit = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-    except (Produit.DoesNotExist, ValueError):
+        produit = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+    except (Produit.DoesNotExist, ValueError, ValidationError):
         messages.error(request, "Produit introuvable.")
         return redirect('etat_stock_global')
 
     marketeur_sel = None
     if marketeur_id:
         try:
-            marketeur_sel = Marketeur.objects.get(pk=int(marketeur_id))
-        except (Marketeur.DoesNotExist, ValueError):
+            marketeur_sel = Marketeur.objects.get(uuid=marketeur_id)
+        except (Marketeur.DoesNotExist, ValueError, ValidationError):
             pass
 
-    stock   = _calculer_stock_global(produit, date_debut, date_fin, marketeur=marketeur_sel)
+    stock   = _calculer_stock_global(produit, date_debut, date_fin, marketeur=marketeur_sel,
+                                     regime=None if regime == REGIME_TOUS else regime)
     societe = Societe.get_instance()
 
     try:
@@ -1739,8 +1855,8 @@ def carte_stock_export(request):
         return redirect('client_carte_stock')
 
     try:
-        produit = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-    except (Produit.DoesNotExist, ValueError):
+        produit = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+    except (Produit.DoesNotExist, ValueError, ValidationError):
         messages.error(request, "Produit introuvable.")
         return redirect('client_carte_stock')
 
@@ -1795,8 +1911,8 @@ def carte_stock_export_admin(request, marketeur_uuid, marketeur_slug):
         return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)
 
     try:
-        produit = Produit.objects.get(pk=int(produit_id), statut='ACTIF')
-    except (Produit.DoesNotExist, ValueError):
+        produit = Produit.objects.get(uuid=produit_id, statut='ACTIF')
+    except (Produit.DoesNotExist, ValueError, ValidationError):
         messages.error(request, "Produit introuvable.")
         return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)
 

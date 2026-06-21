@@ -1,0 +1,860 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}{{ mouvement.numero_enregistrement }}{% endblock %}
+{% block nav_client_mouvements %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+.dcheader-camion{background:var(--ink)}
+.dcheader-entree{background:#166534}
+.dcheader-sortie{background:#9a3412}
+.dcheader-cession{background:#283593}
+.dcheader-acquittement{background:#6a1b9a}
+.dcheader-notes{background:var(--ink-2)}
+
+.btn-hero-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  height: 36px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+  color: #fff;
+  border: 1.5px solid #7f1d1d;
+  text-decoration: none;
+  letter-spacing: .02em;
+  box-shadow: 0 2px 8px rgba(185,28,28,.3), inset 0 1px 0 rgba(255,255,255,.12);
+  transition: transform .12s, box-shadow .12s;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-hero-pdf:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(185,28,28,.45), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.btn-hero-pdf:active { transform: translateY(0); }
+.btn-hero-pdf svg { flex-shrink: 0; }
+[data-theme="dark"] .btn-hero-pdf {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  border-color: #991b1b;
+  box-shadow: 0 2px 8px rgba(220,38,38,.35);
+}
+
+[data-theme="dark"] .dcheader-entree{background:rgba(34,197,94,.12)}
+[data-theme="dark"] .dcheader-sortie{background:rgba(239,68,68,.12)}
+[data-theme="dark"] .dcheader-cession{background:rgba(59,130,246,.12)}
+[data-theme="dark"] .dcheader-acquittement{background:rgba(168,85,247,.12)}
+</style>
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'client_dashboard' %}">Mon Espace</a>
+<span class="breadcrumb-sep">/</span>
+<a href="{% url 'client_mouvements' %}">Mes mouvements</a>
+<span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">{{ mouvement.numero_enregistrement }}</span>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════ HERO ═══════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-top">
+    <!-- Icône selon le type -->
+    <div class="hero-icon" style="background:
+      {% if mouvement.type_mouvement == 'ENTREE' %}#166534
+      {% elif mouvement.type_mouvement == 'SORTIE' %}#9a3412
+      {% elif mouvement.type_mouvement == 'CESSION' %}#283593
+      {% else %}#6a1b9a{% endif %}">
+      {% if mouvement.type_mouvement == 'ENTREE' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 12h18M15 5l7 7-7 7"/></svg>
+      {% elif mouvement.type_mouvement == 'SORTIE' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 12H3M9 19l-7-7 7-7"/></svg>
+      {% elif mouvement.type_mouvement == 'CESSION' %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+      {% else %}
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      {% endif %}
+    </div>
+
+    <div class="hero-body">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+        <span class="hero-numero">{{ mouvement.numero_enregistrement }}</span>
+        {% if mouvement.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
+        {% elif mouvement.type_mouvement == 'SORTIE' %}<span class="bdg-type sortie">Sortie</span>
+        {% elif mouvement.type_mouvement == 'CESSION' %}<span class="bdg-type cession">Cession</span>
+        {% elif mouvement.type_mouvement == 'ACQUITTEMENT' %}<span class="bdg-type acquit">Acquittement</span>
+        {% endif %}
+        {% if mouvement.regime_douanier == 'ACQUITTE' %}<span class="bdg ok">Acquitté</span>
+        {% else %}<span class="bdg warn">Sous douane</span>{% endif %}
+      </div>
+      <div class="hero-sub">
+        Saisi le {{ mouvement.date_saisie|date:"d/m/Y à H:i" }}
+        &nbsp;·&nbsp; Modifié le {{ mouvement.date_modification|date:"d/m/Y à H:i" }}
+      </div>
+    </div>
+
+    <!-- Boutons d'action -->
+    <div class="hero-actions no-print">
+      <a href="{% url 'client_mouvements' %}" class="btn-hero btn-hero-retour">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Retour
+      </a>
+      <a href="{% url 'mouvement_bordereau' uuid=mouvement.uuid slug=mouvement.slug %}" class="btn-hero-pdf" target="_blank" title="Ouvrir le bordereau imprimable">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Imprimer
+      </a>
+    </div>
+  </div>
+
+  <hr class="hero-divider">
+
+  <!-- Méta-données clés -->
+  <div class="hero-meta">
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Date du mouvement</span>
+      <span class="hero-meta-value">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Marketeur</span>
+      <span class="hero-meta-value">{{ mouvement.marketeur.sigle|default:mouvement.marketeur.raison_sociale }}</span>
+    </div>
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Produit</span>
+      <span class="hero-meta-value">{{ mouvement.produit.nom }}</span>
+    </div>
+    {% with v=mouvement.volume_ambiant_principal %}{% if v %}
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Vol. ambiant</span>
+      <span class="hero-meta-value">{{ v|floatformat:0 }} L</span>
+    </div>
+    {% endif %}{% endwith %}
+    {% with v=mouvement.volume_principal %}{% if v %}
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Vol. @15°C</span>
+      <span class="hero-meta-value">{{ v|floatformat:0 }} L</span>
+    </div>
+    {% endif %}{% endwith %}
+    {% if mouvement.camion %}
+    <div class="hero-meta-item">
+      <span class="hero-meta-label">Camion</span>
+      <span class="hero-meta-value">{{ mouvement.camion.immatriculation }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ═══════════ SECTION COMMUNE ═══════════════════════════════ -->
+<div class="detail-card">
+  <div class="detail-card-header">
+    <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+    <h3>Informations générales</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">N° d'enregistrement</span>
+        <span class="detail-value num">{{ mouvement.numero_enregistrement }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Type de mouvement</span>
+        <span class="detail-value">{{ mouvement.get_type_mouvement_display }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Régime douanier</span>
+        <span class="detail-value">{{ mouvement.get_regime_douanier_display }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date du mouvement</span>
+        <span class="detail-value">{{ mouvement.date_mouvement|date:"d/m/Y" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Marketeur propriétaire</span>
+        <span class="detail-value">{{ mouvement.marketeur.raison_sociale }}{% if mouvement.marketeur.sigle %} ({{ mouvement.marketeur.sigle }}){% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Produit</span>
+        <span class="detail-value">{{ mouvement.produit.nom }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════ CAMION & CHAUFFEUR (hors ACQUITTEMENT) ════════ -->
+{% if mouvement.type_mouvement != 'ACQUITTEMENT' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-camion">
+    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <h3>Camion & Chauffeur</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Camion citerne</span>
+        {% if mouvement.camion %}
+          <span class="detail-value">{{ mouvement.camion.immatriculation }}{% if mouvement.camion.marque %} — {{ mouvement.camion.marque }}{% endif %}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Transporteur (marketeur camion)</span>
+        {% if mouvement.camion.marketeur %}
+          <span class="detail-value">{{ mouvement.camion.marketeur.sigle|default:mouvement.camion.marketeur.raison_sociale }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Chauffeur</span>
+        {% if mouvement.chauffeur %}
+          <span class="detail-value">{{ mouvement.chauffeur.nom }} {{ mouvement.chauffeur.prenom }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Cuves affectées</span>
+        {% with lignes=mouvement.lignes.all %}
+        {% if lignes %}
+          <span class="detail-value" style="flex-wrap:wrap">
+            {% for ligne in lignes %}
+              <span style="display:inline-flex;align-items:center;gap:4px;background:var(--info-soft);border:1px solid rgba(42,91,138,.3);border-radius:5px;padding:2px 8px;font-size:11.5px;margin:2px">
+                {% if ligne.cuve %}{{ ligne.cuve.numero }} — {{ ligne.cuve.designation }}{% else %}Sans cuve{% endif %}
+                {% if ligne.volume_ambiant %}&nbsp;<span class="mono" style="color:var(--info)">{{ ligne.volume_ambiant|floatformat:0 }} L</span>{% endif %}
+              </span>
+            {% endfor %}
+          </span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION ENTREE ════════════════════════════════ -->
+{% if mouvement.type_mouvement == 'ENTREE' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-entree">
+    <svg viewBox="0 0 24 24"><path d="M3 12h18M15 5l7 7-7 7"/></svg>
+    <h3>Données d'entrée</h3>
+  </div>
+  <div class="detail-card-body">
+
+    <p class="ss-title">Provenance</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Dépôt expéditeur</span>
+        <span class="detail-value {% if not mouvement.provenance %}tiret{% endif %}">{{ mouvement.provenance|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° BL Dépôt Chargeur</span>
+        <span class="detail-value {% if not mouvement.bl_expediteur %}tiret{% endif %}">{{ mouvement.bl_expediteur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° BL Client</span>
+        <span class="detail-value {% if not mouvement.bl_client %}tiret{% endif %}">{{ mouvement.bl_client|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de chargement</span>
+        <span class="detail-value {% if not mouvement.date_chargement %}tiret{% endif %}">{{ mouvement.date_chargement|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de déchargement</span>
+        <span class="detail-value {% if not mouvement.date_dechargement %}tiret{% endif %}">{{ mouvement.date_dechargement|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date du permis</span>
+        <span class="detail-value {% if not mouvement.date_permis %}tiret{% endif %}">{{ mouvement.date_permis|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° Permis</span>
+        <span class="detail-value {% if not mouvement.numero_permis_sortie %}tiret{% endif %}">{{ mouvement.numero_permis_sortie|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° S</span>
+        <span class="detail-value {% if not mouvement.numero_s %}tiret{% endif %}">{{ mouvement.numero_s|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° C</span>
+        <span class="detail-value {% if not mouvement.numero_c %}tiret{% endif %}">{{ mouvement.numero_c|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Données BL Expéditeur</p>
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant expéditeur (L)</span>
+        <span class="detail-value {% if mouvement.volume_ambiant_expediteur %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_expediteur %}{{ mouvement.volume_ambiant_expediteur|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. @15°C expéditeur (L)</span>
+        <span class="detail-value {% if mouvement.volume_15c_expediteur %}num{% else %}tiret{% endif %}">{% if mouvement.volume_15c_expediteur %}{{ mouvement.volume_15c_expediteur|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Densité @15°C expéditeur (kg/m³)</span>
+        <span class="detail-value {% if mouvement.densite_15c_expediteur %}num{% else %}tiret{% endif %}">{% if mouvement.densite_15c_expediteur %}{{ mouvement.densite_15c_expediteur|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Temp. chargement (°C)</span>
+        <span class="detail-value {% if mouvement.temperature_chargement %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_chargement %}{{ mouvement.temperature_chargement|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Données obtenues à la réception</p>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div style="padding:14px 18px">
+        <div class="dg-4">
+          <div class="detail-field">
+            <span class="detail-label">Vol. ambiant reçu (L)</span>
+            <span class="detail-value {% if mouvement.volume_ambiant_recu %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_recu %}{{ mouvement.volume_ambiant_recu|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">Temp. réception (°C)</span>
+            <span class="detail-value {% if mouvement.temperature_reception %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_reception %}{{ mouvement.temperature_reception|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">Temp. labo T<sub>L</sub> (°C)</span>
+            <span class="detail-value {% if mouvement.temperature_labo %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_labo %}{{ mouvement.temperature_labo|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">D<sub>OBS</sub> labo (kg/m³)</span>
+            <span class="detail-value {% if mouvement.densite_observee_labo %}num{% else %}tiret{% endif %}">{% if mouvement.densite_observee_labo %}{{ mouvement.densite_observee_labo|floatformat:2 }}{% else %}—{% endif %}</span>
+          </div>
+        </div>
+      </div>
+      <div style="border-top:2px dashed var(--border);background:var(--surface-2);padding:14px 18px">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Calculés</div>
+        <div class="dg-2">
+          <div class="detail-field">
+            <span class="detail-label">P/G réception — V<sub>amb</sub> reçu − V<sub>amb</sub> expé (L)</span>
+            {% if mouvement.perte_gain_reception is not None %}
+              <span class="detail-value {% if mouvement.perte_gain_reception >= 0 %}positive{% else %}negative{% endif %}">
+                {% if mouvement.perte_gain_reception > 0 %}+{% endif %}{{ mouvement.perte_gain_reception|floatformat:2 }} L
+              </span>
+            {% else %}
+              <span class="detail-value tiret">—</span>
+            {% endif %}
+          </div>
+          <div class="detail-field">
+            <span class="detail-label">D 15°C calculée labo (kg/m³)</span>
+            <span class="detail-value {% if mouvement.densite_15c_calculee %}num{% else %}tiret{% endif %}">{% if mouvement.densite_15c_calculee %}{{ mouvement.densite_15c_calculee|floatformat:2 }} kg/m³{% else %}—{% endif %}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="ss-title">Contrôle final avant déchargement</p>
+    <div class="calc-band">
+      <div class="calc-band-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Calculés automatiquement via API MPMS (TRH_15 / TVCF_15)
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Écart densité 15°C — (D<sub>cal</sub> − D<sub>expé</sub>) ÷ 1000</span>
+        {% if mouvement.ecart_densite_15c is not None %}
+          {% with e=mouvement.ecart_densite_15c %}
+            {% if e >= -0.001 and e <= 0.001 %}
+              <span class="calc-val pos">{{ e|floatformat:4 }}</span>
+            {% else %}
+              <span class="calc-val alerte">{{ e|floatformat:4 }}
+                <svg viewBox="0 0 24 24" stroke-width="2" style="width:13px;height:13px;stroke:var(--warn);fill:none;vertical-align:middle;margin-left:3px"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </span>
+            {% endif %}
+          {% endwith %}
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">K<sub>conv</sub> @15°C</span>
+        {% if mouvement.coefficient_conversion_15c %}<span class="calc-val">{{ mouvement.coefficient_conversion_15c }}</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Vol. @15°C reçu</span>
+        {% if mouvement.volume_15c_recu %}<span class="calc-val">{{ mouvement.volume_15c_recu|floatformat:0 }} L</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">P/G @15°C — P/G<sub>réception</sub> × K<sub>conv</sub></span>
+        {% if mouvement.perte_gain_15c is not None %}
+          <span class="calc-val {% if mouvement.perte_gain_15c >= 0 %}pos{% else %}neg{% endif %}">
+            {% if mouvement.perte_gain_15c > 0 %}+{% endif %}{{ mouvement.perte_gain_15c|floatformat:2 }} L
+          </span>
+        {% else %}
+          <span class="calc-val empty">— non calculé —</span>
+        {% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Poids — V<sub>15°C</sub> × D<sub>cal</sub> ÷ 1000</span>
+        {% if mouvement.poids_kg %}<span class="calc-val">{{ mouvement.poids_kg|floatformat:0 }} kg</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+    </div>
+
+    <p class="ss-title">Horaires</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Heure d'arrivée</span>
+        <span class="detail-value {% if mouvement.heure_arrivee is None %}tiret{% endif %}">{{ mouvement.heure_arrivee|time:"H:i"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de dépotage</span>
+        <span class="detail-value {% if mouvement.heure_depotage is None %}tiret{% endif %}">{{ mouvement.heure_depotage|time:"H:i"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de fin</span>
+        <span class="detail-value {% if mouvement.heure_fin is None %}tiret{% endif %}">{{ mouvement.heure_fin|time:"H:i"|default:"—" }}</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION SORTIE ════════════════════════════════ -->
+{% if mouvement.type_mouvement == 'SORTIE' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-sortie">
+    <svg viewBox="0 0 24 24"><path d="M21 12H3M9 19l-7-7 7-7"/></svg>
+    <h3>Données de sortie</h3>
+  </div>
+  <div class="detail-card-body">
+
+    <p class="ss-title">Client & Destination</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Référence client externe</span>
+        <span class="detail-value {% if not mouvement.reference_client_externe %}tiret{% endif %}">{{ mouvement.reference_client_externe|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Destination</span>
+        <span class="detail-value {% if not mouvement.destination %}tiret{% endif %}">{{ mouvement.destination|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Code destination</span>
+        <span class="detail-value {% if not mouvement.code_destination %}tiret{% endif %}">{{ mouvement.code_destination|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Permis douanier</p>
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Date du permis</span>
+        <span class="detail-value {% if not mouvement.date_permis %}tiret{% endif %}">{{ mouvement.date_permis|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° Permis</span>
+        <span class="detail-value {% if not mouvement.numero_permis_sortie %}tiret{% endif %}">{{ mouvement.numero_permis_sortie|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° S</span>
+        <span class="detail-value {% if not mouvement.numero_s %}tiret{% endif %}">{{ mouvement.numero_s|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° C</span>
+        <span class="detail-value {% if not mouvement.numero_c %}tiret{% endif %}">{{ mouvement.numero_c|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Volumes & Densité</p>
+    <div class="dg-4">
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant sortie (L)</span>
+        <span class="detail-value {% if mouvement.volume_ambiant_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.volume_ambiant_sortie %}{{ mouvement.volume_ambiant_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Densité @15°C sortie (kg/m³)</span>
+        <span class="detail-value {% if mouvement.densite_15c_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.densite_15c_sortie %}{{ mouvement.densite_15c_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Température sortie (°C)</span>
+        <span class="detail-value {% if mouvement.temperature_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.temperature_sortie %}{{ mouvement.temperature_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">D<sub>OBS</sub> sortie (kg/m³)</span>
+        <span class="detail-value {% if mouvement.densite_observee_sortie %}num{% else %}tiret{% endif %}">{% if mouvement.densite_observee_sortie %}{{ mouvement.densite_observee_sortie|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+    </div>
+    {% if mouvement.mode_reglement %}
+    <div class="dg-2" style="margin-top:12px">
+      <div class="detail-field">
+        <span class="detail-label">Mode de règlement</span>
+        <span class="detail-value">{{ mouvement.get_mode_reglement_display }}</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <p class="ss-title">Données opérationnelles</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">N° autorisation Marketeur</span>
+        <span class="detail-value {% if not mouvement.numero_autorisation_marketeur %}tiret{% endif %}">{{ mouvement.numero_autorisation_marketeur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° bon d'enlèvement</span>
+        <span class="detail-value {% if not mouvement.numero_bon_enlevement %}tiret{% endif %}">{{ mouvement.numero_bon_enlevement|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Compartiments chargés</span>
+        <span class="detail-value {% if not mouvement.compartiments_charges %}tiret{% endif %}">{{ mouvement.compartiments_charges|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Horaires</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Heure d'arrivée</span>
+        <span class="detail-value {% if mouvement.heure_arrivee is None %}tiret{% endif %}">{{ mouvement.heure_arrivee|time:"H:i"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de chargement</span>
+        <span class="detail-value {% if mouvement.heure_depotage is None %}tiret{% endif %}">{{ mouvement.heure_depotage|time:"H:i"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Heure de fin</span>
+        <span class="detail-value {% if mouvement.heure_fin is None %}tiret{% endif %}">{{ mouvement.heure_fin|time:"H:i"|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Contrôle automatique (API MPMS)</p>
+    <div class="calc-band">
+      <div class="calc-band-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Calculés via API MPMS (TVCF_15)
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">K<sub>conv</sub> @15°C sortie</span>
+        {% if mouvement.coefficient_conversion_sortie %}<span class="calc-val">{{ mouvement.coefficient_conversion_sortie }}</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Vol. @15°C sortie (L)</span>
+        {% if mouvement.volume_15c_sortie %}<span class="calc-val">{{ mouvement.volume_15c_sortie|floatformat:0 }} L</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Poids sortie (kg)</span>
+        {% if mouvement.poids_sortie_kg %}<span class="calc-val">{{ mouvement.poids_sortie_kg|floatformat:0 }} kg</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION CESSION ═══════════════════════════════ -->
+{% if mouvement.type_mouvement == 'CESSION' %}
+<div class="detail-card">
+  <div class="detail-card-header dcheader-cession">
+    <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+    <h3>Données de cession</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-2">
+      <div class="detail-field">
+        <span class="detail-label">Marketeur source (cédant)</span>
+        <span class="detail-value">{{ mouvement.marketeur.raison_sociale }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Marketeur destinataire</span>
+        {% if mouvement.cession_marketeur_destinataire %}
+          <span class="detail-value">{{ mouvement.cession_marketeur_destinataire.raison_sociale }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant cédé (L)</span>
+        <span class="detail-value {% if mouvement.cession_volume_ambiant %}num{% else %}tiret{% endif %}">{% if mouvement.cession_volume_ambiant %}{{ mouvement.cession_volume_ambiant|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. @15°C cédé (L)</span>
+        <span class="detail-value {% if mouvement.cession_volume_15c %}num{% else %}tiret{% endif %}">{% if mouvement.cession_volume_15c %}{{ mouvement.cession_volume_15c|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field dg-full">
+        <span class="detail-label">Motif de la cession</span>
+        <span class="detail-value {% if not mouvement.cession_motif %}tiret{% endif %}">{{ mouvement.cession_motif|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Cuve (cession)</span>
+        {% if mouvement.cession_cuve %}
+          <span class="detail-value">{{ mouvement.cession_cuve.numero }} — {{ mouvement.cession_cuve.designation }}</span>
+        {% else %}
+          <span class="detail-value tiret">—</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="ss-title">Autorisation & Contrat</p>
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">N° autorisation Direction</span>
+        <span class="detail-value {% if not mouvement.cession_numero_autorisation_direction %}tiret{% endif %}">{{ mouvement.cession_numero_autorisation_direction|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date autorisation</span>
+        <span class="detail-value {% if not mouvement.cession_date_autorisation %}tiret{% endif %}">{{ mouvement.cession_date_autorisation|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Référence contrat</span>
+        <span class="detail-value {% if not mouvement.cession_reference_contrat %}tiret{% endif %}">{{ mouvement.cession_reference_contrat|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Période d'imputation</span>
+        <span class="detail-value {% if not mouvement.cession_periode_imputation %}tiret{% endif %}">{{ mouvement.cession_periode_imputation|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Visa direction</span>
+        <span class="detail-value {% if not mouvement.cession_visa_direction %}tiret{% endif %}">{{ mouvement.cession_visa_direction|default:"—" }}</span>
+      </div>
+    </div>
+
+    <p class="ss-title">Contrôle automatique (API MPMS)</p>
+    <div class="calc-band">
+      <div class="calc-band-title">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Données labo & calculs via API MPMS (TVCF_15)
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">D<sub>OBS</sub> cession (kg/m³)</span>
+        {% if mouvement.cession_densite_observee %}<span class="calc-val">{{ mouvement.cession_densite_observee|floatformat:2 }} kg/m³</span>{% else %}<span class="calc-val empty">— non saisi —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Température cession (°C)</span>
+        {% if mouvement.cession_temperature %}<span class="calc-val">{{ mouvement.cession_temperature|floatformat:2 }} °C</span>{% else %}<span class="calc-val empty">— non saisi —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">Densité @15°C cession (kg/m³)</span>
+        {% if mouvement.cession_densite_15c %}<span class="calc-val">{{ mouvement.cession_densite_15c|floatformat:2 }} kg/m³</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+      <div class="calc-row">
+        <span class="calc-key">K<sub>conv</sub> (Vcf) cession</span>
+        {% if mouvement.cession_coefficient_vcf %}<span class="calc-val">{{ mouvement.cession_coefficient_vcf }}</span>{% else %}<span class="calc-val empty">— non calculé —</span>{% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+
+<!-- ═══════════ SECTION ACQUITTEMENT ══════════════════════════ -->
+{% if mouvement.type_mouvement == 'ACQUITTEMENT' %}
+
+{% if mouvement.entree_source %}
+<div class="detail-card">
+  <div class="detail-card-header" style="background:#4a148c">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <h3>Données du BL d'origine</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Mouvement d'entrée source</span>
+        <span class="detail-value {% if not mouvement.entree_source %}tiret{% endif %}">
+          {% if mouvement.entree_source %}{{ mouvement.entree_source.numero_enregistrement }}{% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Provenance origine</span>
+        <span class="detail-value {% if not mouvement.entree_source.provenance %}tiret{% endif %}">{{ mouvement.entree_source.provenance|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">BL d'origine</span>
+        <span class="detail-value {% if not mouvement.entree_source.bl_expediteur %}tiret{% endif %}">{{ mouvement.entree_source.bl_expediteur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. entré Ambiant (L)</span>
+        <span class="detail-value {% if mouvement.entree_source.volume_ambiant_recu %}num{% else %}tiret{% endif %}">{% if mouvement.entree_source.volume_ambiant_recu %}{{ mouvement.entree_source.volume_ambiant_recu|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. déjà acquitté (L)</span>
+        <span class="detail-value {% if mouvement.entree_source.volume_acquitte_total %}num{% else %}tiret{% endif %}">{% if mouvement.entree_source.volume_acquitte_total %}{{ mouvement.entree_source.volume_acquitte_total|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. restant sous douane (L)</span>
+        <span class="detail-value {% if mouvement.entree_source.volume_restant_sous_douane is not None %}num{% else %}tiret{% endif %}">
+          {% if mouvement.entree_source.volume_restant_sous_douane is not None %}{{ mouvement.entree_source.volume_restant_sous_douane|floatformat:2 }}{% else %}—{% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="detail-card">
+  <div class="detail-card-header dcheader-acquittement">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    <h3>Données d'acquittement</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Vol. ambiant à acquitter (L)</span>
+        <span class="detail-value {% if mouvement.acquittement_volume_ambiant %}num{% else %}tiret{% endif %}">{% if mouvement.acquittement_volume_ambiant %}{{ mouvement.acquittement_volume_ambiant|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Vol. @15°C à acquitter (L)</span>
+        <span class="detail-value {% if mouvement.acquittement_volume_15c %}num{% else %}tiret{% endif %}">{% if mouvement.acquittement_volume_15c %}{{ mouvement.acquittement_volume_15c|floatformat:2 }}{% else %}—{% endif %}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-card">
+  <div class="detail-card-header" style="background:#1565c0">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <h3>Déclaration douanière</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Référence déclaration</span>
+        <span class="detail-value {% if not mouvement.acquittement_reference_declaration %}tiret{% endif %}">{{ mouvement.acquittement_reference_declaration|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de la déclaration</span>
+        <span class="detail-value {% if not mouvement.acquittement_date_declaration %}tiret{% endif %}">{{ mouvement.acquittement_date_declaration|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Bureau de douane</span>
+        <span class="detail-value {% if not mouvement.acquittement_bureau_douane %}tiret{% endif %}">{{ mouvement.acquittement_bureau_douane|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Code bureau</span>
+        <span class="detail-value {% if not mouvement.acquittement_code_bureau %}tiret{% endif %}">{{ mouvement.acquittement_code_bureau|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">N° quittance</span>
+        <span class="detail-value {% if not mouvement.acquittement_numero_quittance %}tiret{% endif %}">{{ mouvement.acquittement_numero_quittance|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date paiement</span>
+        <span class="detail-value {% if not mouvement.acquittement_date_paiement %}tiret{% endif %}">{{ mouvement.acquittement_date_paiement|date:"d/m/Y"|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Commissionnaire en douane</span>
+        <span class="detail-value {% if not mouvement.acquittement_commissionnaire %}tiret{% endif %}">{{ mouvement.acquittement_commissionnaire|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Agent dédouaneur</span>
+        <span class="detail-value {% if not mouvement.acquittement_agent_dedouaneur %}tiret{% endif %}">{{ mouvement.acquittement_agent_dedouaneur|default:"—" }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+
+<!-- ═══════════ NOTES & SUIVI ══════════════════════════════════ -->
+<div class="detail-card">
+  <div class="detail-card-header dcheader-notes">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <h3>Notes & Suivi</h3>
+  </div>
+  <div class="detail-card-body">
+    <div class="dg-3">
+      <div class="detail-field">
+        <span class="detail-label">Collaborateur (saisie)</span>
+        <span class="detail-value {% if not mouvement.collaborateur %}tiret{% endif %}">{{ mouvement.collaborateur|default:"—" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Date de saisie</span>
+        <span class="detail-value">{{ mouvement.date_saisie|date:"d/m/Y à H:i" }}</span>
+      </div>
+      <div class="detail-field">
+        <span class="detail-label">Dernière modification</span>
+        <span class="detail-value">{{ mouvement.date_modification|date:"d/m/Y à H:i" }}</span>
+      </div>
+      {% if mouvement.notes %}
+      <div class="detail-field dg-full">
+        <span class="detail-label">Notes / Observations</span>
+        <span class="detail-value" style="align-items:flex-start;min-height:60px;white-space:pre-wrap">{{ mouvement.notes }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════ DOCUMENTS JUSTIFICATIFS (lecture seule) ═══════ -->
+<div class="detail-card" id="section-documents">
+  <div class="detail-card-header" style="background:#0f4c8a">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18">
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+    </svg>
+    <h3>Documents justificatifs
+      {% with nb=documents|length %}
+        {% if nb > 0 %}<span style="font-size:12px;font-weight:600;background:rgba(255,255,255,.2);border-radius:20px;padding:1px 9px;margin-left:8px">{{ nb }}</span>{% endif %}
+      {% endwith %}
+    </h3>
+  </div>
+  <div class="detail-card-body">
+    {% if documents %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      {% for doc in documents %}
+      <div style="border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden;background:var(--surface,#fff)">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface-2,#f8fafc);border-bottom:1px solid var(--border,#e5e7eb)">
+          {% if doc.est_pdf %}
+          <div style="width:32px;height:32px;background:#fef2f2;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          {% else %}
+          <div style="width:32px;height:32px;background:#eff6ff;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          {% endif %}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600;color:var(--ink,#0f172a);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ doc.nom_original }}">{{ doc.nom_original }}</div>
+            <div style="font-size:11px;color:var(--muted,#6b7280)">{{ doc.taille_lisible }}</div>
+          </div>
+          <span style="
+            font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;
+            {% if doc.type_document == 'BL_EXPEDITEUR' %}background:#dbeafe;color:#1e40af
+            {% elif doc.type_document == 'BL_CLIENT' %}background:#d1fae5;color:#065f46
+            {% elif doc.type_document == 'PERMIS_SORTIE' %}background:#fef3c7;color:#92400e
+            {% elif doc.type_document == 'BON_LIVRAISON' %}background:#f3e8ff;color:#6b21a8
+            {% elif doc.type_document == 'ORDRE_CESSION' %}background:#ffe4e6;color:#9f1239
+            {% elif doc.type_document == 'DECLARATION_DOUANE' %}background:#e0e7ff;color:#3730a3
+            {% else %}background:#f1f5f9;color:#475569{% endif %}
+          ">{{ doc.get_type_document_display }}</span>
+        </div>
+        <div style="padding:10px 14px">
+          {% if doc.description %}
+          <p style="font-size:12px;color:var(--muted,#6b7280);margin:0 0 8px">{{ doc.description }}</p>
+          {% endif %}
+          <div style="font-size:11px;color:var(--muted,#94a3b8);margin-bottom:10px">
+            {{ doc.date_upload|date:"d/m/Y à H:i" }}
+          </div>
+          <a href="{% url 'mouvement_document_voir' document_uuid=doc.uuid %}" target="_blank"
+             style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font-size:12px;font-weight:600;border-radius:6px;background:#0f4c8a;color:#fff;text-decoration:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Voir
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:28px 16px;color:var(--muted,#94a3b8)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36" style="display:block;margin:0 auto 8px;opacity:.4">
+        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+      </svg>
+      <span style="font-size:13px">Aucun document justificatif attaché</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

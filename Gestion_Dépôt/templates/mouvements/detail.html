@@ -441,15 +441,15 @@
     <div class="dg-3">
       <div class="detail-field">
         <span class="detail-label">Heure d'arrivée</span>
-        <span class="detail-value {% if not mouvement.heure_arrivee %}tiret{% endif %}">{{ mouvement.heure_arrivee|default:"—" }}</span>
+        <span class="detail-value {% if mouvement.heure_arrivee is None %}tiret{% endif %}">{{ mouvement.heure_arrivee|time:"H:i"|default:"—" }}</span>
       </div>
       <div class="detail-field">
         <span class="detail-label">Heure de dépotage</span>
-        <span class="detail-value {% if not mouvement.heure_depotage %}tiret{% endif %}">{{ mouvement.heure_depotage|default:"—" }}</span>
+        <span class="detail-value {% if mouvement.heure_depotage is None %}tiret{% endif %}">{{ mouvement.heure_depotage|time:"H:i"|default:"—" }}</span>
       </div>
       <div class="detail-field">
         <span class="detail-label">Heure de fin</span>
-        <span class="detail-value {% if not mouvement.heure_fin %}tiret{% endif %}">{{ mouvement.heure_fin|default:"—" }}</span>
+        <span class="detail-value {% if mouvement.heure_fin is None %}tiret{% endif %}">{{ mouvement.heure_fin|time:"H:i"|default:"—" }}</span>
       </div>
     </div>
 
@@ -551,15 +551,15 @@
     <div class="dg-3">
       <div class="detail-field">
         <span class="detail-label">Heure d'arrivée</span>
-        <span class="detail-value {% if not mouvement.heure_arrivee %}tiret{% endif %}">{{ mouvement.heure_arrivee|default:"—" }}</span>
+        <span class="detail-value {% if mouvement.heure_arrivee is None %}tiret{% endif %}">{{ mouvement.heure_arrivee|time:"H:i"|default:"—" }}</span>
       </div>
       <div class="detail-field">
         <span class="detail-label">Heure de chargement</span>
-        <span class="detail-value {% if not mouvement.heure_depotage %}tiret{% endif %}">{{ mouvement.heure_depotage|default:"—" }}</span>
+        <span class="detail-value {% if mouvement.heure_depotage is None %}tiret{% endif %}">{{ mouvement.heure_depotage|time:"H:i"|default:"—" }}</span>
       </div>
       <div class="detail-field">
         <span class="detail-label">Heure de fin</span>
-        <span class="detail-value {% if not mouvement.heure_fin %}tiret{% endif %}">{{ mouvement.heure_fin|default:"—" }}</span>
+        <span class="detail-value {% if mouvement.heure_fin is None %}tiret{% endif %}">{{ mouvement.heure_fin|time:"H:i"|default:"—" }}</span>
       </div>
     </div>
 

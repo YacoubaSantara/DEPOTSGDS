@@ -1009,7 +1009,7 @@ def valider_jaugeage(request, uuid, slug):
     jaugeage.save(update_fields=['est_valide', 'date_validation', 'valide_par'])
 
     # Mise Ã  jour automatique des stocks produits
-    Produit.mettre_a_jour_stocks(jaugeage)
+    # Le signal on_jaugeage_saved gère le recalcul (Produit.mettre_a_jour_stocks supprimé)
 
     messages.success(
         request,
@@ -1511,8 +1511,15 @@ def mouvement_supprimer(request, uuid, slug):
     mouvement = get_object_or_404(Mouvement, uuid=uuid)
 
     if request.method == 'POST':
+        produit = mouvement.produit
+        cuves = list(produit.cuves.select_related('parametre_jaugeage').all())
         mouvement.delete()
-        messages.success(request, "Mouvement supprimé.")
+        # Recalcul explicite (ceinture + bretelles en plus du signal post_delete)
+        from .services.recalcul_stock import recalculer_stock_cuve, recalculer_stock_produit
+        for cuve in cuves:
+            recalculer_stock_cuve(cuve)
+        recalculer_stock_produit(produit)
+        messages.success(request, "Mouvement supprimé. Stock recalculé.")
         return redirect('mouvement_liste')
 
     return render(request, 'mouvements/confirmer_suppression.html', {'mouvement': mouvement})

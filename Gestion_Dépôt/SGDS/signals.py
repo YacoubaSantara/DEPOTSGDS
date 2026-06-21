@@ -2,6 +2,7 @@
 Signaux Django pour mise à jour automatique des stocks cuves/produits.
 Chargés via SgdsConfig.ready() dans apps.py.
 """
+from django.db import transaction
 from django.db.models.signals import post_save, post_delete, pre_save, m2m_changed
 from django.dispatch import receiver
 
@@ -12,6 +13,25 @@ from SGDS.services.recalcul_stock import (
     recalculer_tous_stocks,
 )
 
+
+
+# ── JaugeageJour ────────────────────────────────────────────
+
+@receiver(post_save, sender=JaugeageJour)
+def on_jaugeage_saved(sender, instance, **kwargs):
+    """
+    Recalcule les cuves et produits dès que le statut du jaugeage change
+    (validation ou dévalidation). Sans ce signal, le passage est_valide=True
+    via jaugeage.save(update_fields=[...]) ne déclenchait aucun recalcul
+    automatique des Cuve.niveau_actuel ni de Produit.stock_actuel.
+    """
+    produits_touches = set()
+    for mesure in instance.mesures.select_related('cuve__produit').all():
+        recalculer_stock_cuve(mesure.cuve)
+        if mesure.cuve.produit:
+            produits_touches.add(mesure.cuve.produit)
+    for produit in produits_touches:
+        recalculer_stock_produit(produit)
 
 def _recalculer_cuves(cuves_set):
     """Recalcule le stock pour un ensemble de cuves et leurs produits."""
@@ -37,9 +57,10 @@ def on_mesure_saved(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=MesureCuve)
 def on_mesure_deleted(sender, instance, **kwargs):
     try:
-        recalculer_stock_cuve(instance.cuve)
-        if instance.cuve.produit:
-            recalculer_stock_produit(instance.cuve.produit)
+        with transaction.atomic():
+            recalculer_stock_cuve(instance.cuve)
+            if instance.cuve.produit:
+                recalculer_stock_produit(instance.cuve.produit)
     except Exception:
         pass
 
@@ -58,11 +79,16 @@ def on_ligne_mouvement_changed(sender, instance, **kwargs):
     """
     Met à jour le stock de la cuve affectée par la ligne de mouvement.
     Couvre : création, modification et suppression d'une ligne.
+    Si la ligne n'a pas de cuve, on recalcule directement le stock produit
+    (les mouvements sans cuve sont intégrés au niveau produit).
     """
     if instance.cuve:
         recalculer_stock_cuve(instance.cuve)
         if instance.cuve.produit:
             recalculer_stock_produit(instance.cuve.produit)
+    elif instance.produit_id:
+        # Mouvement sans cuve : recalcul direct du stock produit
+        recalculer_stock_produit(instance.produit)
 
 
 # ── Inventaire Initial Marketeur ────────────────────────────
@@ -71,18 +97,23 @@ def on_ligne_mouvement_changed(sender, instance, **kwargs):
 def on_inventaire_initial_saved(sender, instance, **kwargs):
     """
     Recalcule Produit.stock_actuel dès qu'un inventaire initial est saisi ou modifié.
-    Les cuves associées sont recalculées via le signal m2m_changed (ci-dessous).
+    On recalcule TOUTES les cuves du produit (pas seulement celles liées à cet
+    inventaire via M2M) pour éviter que des cuves non liées conservent une valeur
+    niveau_actuel périmée, ce qui bloquerait le stock produit sur l'ancienne valeur.
     """
+    for cuve in instance.produit.cuves.all():
+        recalculer_stock_cuve(cuve)
     recalculer_stock_produit(instance.produit)
 
 
 @receiver(post_delete, sender=InventaireInitialMarketeur)
 def on_inventaire_initial_deleted(sender, instance, **kwargs):
-    """Recalcule Produit.stock_actuel et les cuves associées après suppression."""
+    """Recalcule Produit.stock_actuel et toutes les cuves du produit après suppression."""
     try:
-        for cuve in instance.cuves.all():
-            recalculer_stock_cuve(cuve)
-        recalculer_stock_produit(instance.produit)
+        with transaction.atomic():
+            for cuve in instance.produit.cuves.all():
+                recalculer_stock_cuve(cuve)
+            recalculer_stock_produit(instance.produit)
     except Exception:
         pass
 
@@ -96,15 +127,11 @@ def on_inventaire_cuves_changed(sender, instance, action, pk_set, **kwargs):
     if action not in ('post_add', 'post_remove', 'post_clear'):
         return
     try:
-        from SGDS.models import Cuve
-        # Recalculer les cuves actuellement liées
-        for cuve in instance.cuves.all():
-            recalculer_stock_cuve(cuve)
-        # Recalculer également les cuves qui viennent d'être retirées (pk_set)
-        if pk_set:
-            for cuve in Cuve.objects.filter(pk__in=pk_set):
+        with transaction.atomic():
+            # Recalculer TOUTES les cuves du produit pour éviter toute valeur périmée
+            for cuve in instance.produit.cuves.all():
                 recalculer_stock_cuve(cuve)
-        recalculer_stock_produit(instance.produit)
+            recalculer_stock_produit(instance.produit)
     except Exception:
         pass
 
@@ -122,6 +149,23 @@ def on_mouvement_saved(sender, instance, **kwargs):
     }
     if cuves:
         _recalculer_cuves(cuves)
+
+
+@receiver(post_delete, sender=Mouvement)
+def on_mouvement_deleted(sender, instance, **kwargs):
+    """
+    Recalcule le stock après suppression d'un mouvement.
+    Les LigneMouvement sont déjà supprimées en cascade à ce stade, donc on
+    recalcule toutes les cuves du produit concerné pour garantir la cohérence.
+    """
+    try:
+        with transaction.atomic():
+            produit = instance.produit
+            for cuve in produit.cuves.select_related('parametre_jaugeage').all():
+                recalculer_stock_cuve(cuve)
+            recalculer_stock_produit(produit)
+    except Exception:
+        pass
 
 
 # ── Notifications Marketeur ──────────────────────────────────
@@ -250,7 +294,7 @@ def on_periode_cloturee_notif(sender, instance, created, **kwargs):
             .values_list('marketeur_id', flat=True)
             .distinct()
         )
-        marketeurs = Marketeur.objects.filter(pk__in=marketeur_ids, statut='ACTIF')
+        marketeurs = list(Marketeur.objects.filter(pk__in=marketeur_ids, statut='ACTIF'))
 
         lien = (
             f"/mon-espace/mensuel/stock-a/?mois={instance.mois}&annee={instance.annee}"
@@ -261,14 +305,17 @@ def on_periode_cloturee_notif(sender, instance, created, **kwargs):
             f"disponibles : stock mensuel, répartition du coulage et frais de passage."
         )
 
-        for mkt in marketeurs:
-            Notification.objects.create(
-                marketeur=mkt,
-                type_notif='ETAT_MENSUEL_DISPONIBLE',
-                titre=titre,
-                message=message,
-                lien=lien,
-            )
+        # Savepoint dédié : une erreur DB ici (ex. contrainte) ne doit pas
+        # casser la transaction englobante (ex. cloturer_periode()).
+        with transaction.atomic():
+            for mkt in marketeurs:
+                Notification.objects.create(
+                    marketeur=mkt,
+                    type_notif='ETAT_MENSUEL_DISPONIBLE',
+                    titre=titre,
+                    message=message,
+                    lien=lien,
+                )
 
         # Email optionnel si backend SMTP configuré
         _envoyer_email_etats_mensuels(marketeurs, instance, titre, message)

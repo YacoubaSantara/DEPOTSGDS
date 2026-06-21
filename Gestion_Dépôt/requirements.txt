@@ -1,4 +1,7 @@
 
+# Variables d'environnement (.env)
+python-dotenv==1.2.2
+
 # Chiffrement des IDs dans les URLs
 hashids==1.3.1
 

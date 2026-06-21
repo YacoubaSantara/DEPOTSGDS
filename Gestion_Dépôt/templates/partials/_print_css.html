@@ -24,6 +24,9 @@
 /* ── Éléments d'impression masqués à l'écran ─────────────── */
 .print-header,.print-footer{ display:none }
 
+/* ── Wrapper table print-doc : neutralisé à l'écran ───────── */
+.print-doc,.pd-head,.pd-body,.pd-foot,.pd-row,.pd-cell{ display:contents }
+
 /* ═══════════════════════════════════════════════════════
    VARIABLES D'IMPRESSION
 ═══════════════════════════════════════════════════════ */
@@ -56,6 +59,7 @@
   .filters-bar,.filter-bar,.page-header,.ph,.ph-actions,
   .btn-print-main,.btn-export-main,.btn,.no-print,
   .btn-filter,.btn-reset,.toast-container,.btn-print,
+  .pagination,.step-links,
   nav,.nav,#sidebar,form.filter-form,
   .mkt-panel,.etat-layout > aside { display:none !important }
 
@@ -68,6 +72,40 @@
     width:100% !important;max-width:none !important;
     box-shadow:none !important
   }
+
+  /* ── Déverrouillage du layout app (CRUCIAL : pagination multi-pages) ──
+     À l'écran, .app est en 100vh/overflow:hidden et .content scrolle.
+     Sans ces resets, l'impression est tronquée à la zone visible (1 page). */
+  html,body{ height:auto !important;overflow:visible !important }
+  .app{ display:block !important;height:auto !important;overflow:visible !important }
+  .main{ display:block !important;height:auto !important;overflow:visible !important }
+  .content,main.content{ display:block !important;height:auto !important;overflow:visible !important;flex:none !important }
+  .page{ max-width:none !important;margin:0 !important;padding:0 !important }
+
+  /* Conteneurs de tableaux scrollables → laisser le contenu s'étendre */
+  .table-wrap,.pivot-wrap,.tbl-wrap,.produit-block,.mode-block,
+  .section-block,[class*="table-container"]{
+    overflow:visible !important;max-height:none !important;height:auto !important;
+    box-shadow:none !important
+  }
+
+  /* ── Wrapper print-doc : l'en-tête (thead) se répète sur CHAQUE page ──
+     Les paddings ci-dessous remplacent les marges @page (mises à 0 pour
+     masquer l'URL/date que le navigateur imprime dans les marges). */
+  .print-doc{ display:table !important;width:100% !important;border-collapse:collapse }
+  .pd-head{ display:table-header-group !important }
+  .pd-body{ display:table-row-group !important }
+  .pd-foot{ display:table-footer-group !important }
+  .pd-row{ display:table-row !important;page-break-inside:auto !important }
+  .pd-cell{
+    display:table-cell !important;vertical-align:top;
+    /* neutraliser les styles génériques de td */
+    padding:0 !important;border:none !important;
+    font-size:9pt;color:#000;text-align:left
+  }
+  .pd-head .pd-cell{ padding:10mm 10mm 8px !important }   /* marge haute, répétée chaque page */
+  .pd-body > .pd-row > .pd-cell{ padding:0 10mm !important } /* marges latérales */
+  .pd-foot-cell{ height:2mm }                              /* marge basse minimale (le 9mm de @page suffit) */
 
   /* Afficher en-tête et pied de page */
   .print-header{ display:block !important }
@@ -155,7 +193,7 @@
     overflow:visible;margin-bottom:8px;
     -webkit-print-color-adjust:exact;print-color-adjust:exact
   }
-  table,table.tbl{ width:100%;border-collapse:collapse;font-size:7.6pt;page-break-inside:auto }
+  table,table.tbl{ width:100% !important;min-width:0 !important;border-collapse:collapse;font-size:7.6pt;page-break-inside:auto }
   thead,thead.tbl{ display:table-header-group }
   tfoot{ display:table-footer-group }
   tr{ page-break-inside:avoid }
@@ -346,6 +384,7 @@
   /* ── Pied de page d'état ── */
   .print-footer{
     border-top:1px solid var(--border-p);padding-top:5px;
+    margin-left:10mm;margin-right:10mm;margin-bottom:8mm;
     display:grid !important;
     grid-template-columns:1fr 1fr 1fr;
     gap:14px;align-items:end;
@@ -357,12 +396,14 @@
     text-transform:uppercase;letter-spacing:.08em;color:var(--muted-p2)
   }
   .pf-ref{ font-family:'SF Mono',Menlo,monospace;font-size:7pt;color:var(--ink-p);font-weight:600 }
-  .pf-sigs{ display:flex;gap:10px;justify-content:center;align-items:flex-end }
-  .pf-sig-block{ flex:1;text-align:center }
+  .pf-sigs{ display:flex;gap:28px;justify-content:center;align-items:flex-end }
+  .pf-sig-block{ flex:1;text-align:center;min-width:120px }
   .pf-sig{
-    border-top:1px solid var(--ink-p);padding-top:2px;margin-top:14px;
-    font-size:6.8pt;color:var(--muted-p);text-align:center
+    border-top:1px solid var(--ink-p);padding-top:4px;margin-top:52px;
+    font-size:8pt;font-weight:600;color:var(--ink-p);text-align:center
   }
+  /* Éviter qu'un saut de page coupe la zone de signature */
+  .print-footer{ page-break-inside:avoid }
   .pf-page{
     font-family:'SF Mono',Menlo,monospace;font-size:6.8pt;
     color:var(--muted-p);text-align:right
@@ -370,10 +411,27 @@
   .pf-page strong{ color:var(--ink-p);font-weight:700 }
   .tiny{ font-size:6.5pt;color:var(--muted-p) }
 
-  /* ── Réglage de page ── */
+  /* ── Réglage de page ──
+     margin:0 sur les 3 premiers côtés = le navigateur n'imprime plus ses
+     propres en-têtes/URL. La marge basse (9mm) sert de zone au counter CSS.
+     Les marges visuelles viennent des paddings du wrapper print-doc. */
+
+  /* Cacher le numéro de page codé en dur dans _print_footer.html
+     (remplacé automatiquement par le counter @page ci-dessous) */
+  .pf-page{ display:none !important }
+
   @page{
-    margin:12mm 10mm 16mm 10mm;
+    margin:0 0 9mm 0;
     size:A4 landscape;
+    @bottom-right{
+      content:"Page " counter(page) " / " counter(pages);
+      font-family:'SF Mono',Menlo,Consolas,monospace;
+      font-size:7pt;
+      font-weight:700;
+      color:#64748b;
+      padding-right:10mm;
+      vertical-align:middle;
+    }
   }
 }
 </style>

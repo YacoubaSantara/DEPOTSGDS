@@ -497,6 +497,8 @@
 
     /* ── IMPRESSION ──────────────────────────────── */
     @media print {
+      /* margin:0 = masque l'URL/date imprimées par le navigateur dans les marges. */
+      @page { margin: 0; }
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
       body {

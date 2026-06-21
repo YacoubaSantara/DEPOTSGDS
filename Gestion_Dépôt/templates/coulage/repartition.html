@@ -3,6 +3,22 @@
 {% block nav_coulage %}active{% endblock %}
 {% block title %}Coulage — {{ periode.libelle }}{% endblock %}
 
+{% block extra_head %}
+<style>
+/* Le tableau ci-dessous utilisait les classes .num/.tar du design system,
+   mais celles-ci ne s'appliquent qu'à l'intérieur d'un ancêtre .tbl (voir
+   sgds.css) — absent ici. Résultat : chiffres alignés à gauche, police non
+   monospace, aucun padding sur les cellules → colonnes illisibles, trop
+   denses. On rétablit l'effet voulu en le ciblant sur #coulage-pivot,
+   sans toucher au style global .tbl utilisé par les autres tableaux. */
+#coulage-pivot .num{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+#coulage-pivot .tar{text-align:right}
+#coulage-pivot .num-dim{color:var(--muted);font-size:.8rem}
+#coulage-pivot tbody td,
+#coulage-pivot tfoot td{padding:.55rem .65rem}
+</style>
+{% endblock %}
+
 {% block breadcrumb %}
 <a href="{% url 'coulage_liste' %}">Coulage</a><span class="breadcrumb-sep">/</span>
 <span class="breadcrumb-current">{{ periode.libelle }}</span>
@@ -59,7 +75,7 @@
 
 <!-- Tableau principal — colonnes dynamiques par produit -->
 <div class="card" style="overflow-x:auto;margin-bottom:20px">
-  <table style="width:100%;border-collapse:collapse;font-size:.78rem;white-space:nowrap">
+  <table id="coulage-pivot" style="width:100%;border-collapse:collapse;font-size:.86rem;white-space:nowrap">
     <thead>
       <tr style="background:var(--ink);color:#fff">
         <th rowspan="2" style="padding:.6rem .75rem;text-align:center;position:sticky;left:0;background:var(--ink);z-index:2;border-right:1px solid rgba(255,255,255,.15)">Code</th>
@@ -77,24 +93,24 @@
       </tr>
       <tr style="background:var(--ink);color:var(--border);filter:brightness(1.2)">
         {% for produit in rapport.produits %}
-        <th style="padding:.4rem .5rem;text-align:right;border-left:1px solid rgba(255,255,255,.1)">Brut</th>
-        <th style="padding:.4rem .5rem;text-align:right">Coul.</th>
-        <th style="padding:.4rem .5rem;text-align:right">Nette</th>
+        <th style="padding:.55rem .65rem;text-align:right;border-left:1px solid rgba(255,255,255,.1)">Brut</th>
+        <th style="padding:.55rem .65rem;text-align:right">Coul.</th>
+        <th style="padding:.55rem .65rem;text-align:right">Nette</th>
         {% endfor %}
         {% for produit in rapport.produits %}
-        <th style="padding:.4rem .5rem;text-align:right;{% if forloop.first %}border-left:1px solid rgba(255,255,255,.1){% endif %}">{{ produit.code }}</th>
+        <th style="padding:.55rem .65rem;text-align:right;{% if forloop.first %}border-left:1px solid rgba(255,255,255,.1){% endif %}">{{ produit.code }}</th>
         {% endfor %}
         {% for produit in rapport.produits %}
-        <th style="padding:.4rem .5rem;text-align:right;border-left:1px solid rgba(255,255,255,.1)">Base</th>
-        <th style="padding:.4rem .5rem;text-align:right">Coef.</th>
-        <th style="padding:.4rem .5rem;text-align:right">QP</th>
+        <th style="padding:.55rem .65rem;text-align:right;border-left:1px solid rgba(255,255,255,.1)">Base</th>
+        <th style="padding:.55rem .65rem;text-align:right">Coef.</th>
+        <th style="padding:.55rem .65rem;text-align:right">QP</th>
         {% endfor %}
       </tr>
     </thead>
     <tbody>
       {% for ligne in rapport.lignes %}
       <tr style="border-bottom:1px solid var(--border);{% cycle '' 'background:var(--bg)' %}">
-        <td class="mono" style="padding:.55rem .75rem;text-align:center;font-size:.75rem;position:sticky;left:0;background:inherit;z-index:1;border-right:1px solid var(--border)">MARK{{ ligne.marketeur.pk|stringformat:"03d" }}</td>
+        <td class="mono" style="padding:.55rem .75rem;text-align:center;position:sticky;left:0;background:inherit;z-index:1;border-right:1px solid var(--border)">MARK{{ ligne.marketeur.pk|stringformat:"03d" }}</td>
         <td style="padding:.55rem .75rem;font-weight:500;color:var(--ink);position:sticky;left:48px;background:inherit;z-index:1;border-right:1px solid var(--border)">{{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}</td>
         {% for produit in rapport.produits %}
           {% with pp=ligne.par_produit|get_item:produit.pk %}
@@ -111,12 +127,12 @@
         {% for produit in rapport.produits %}
           {% with pp=ligne.par_produit|get_item:produit.pk %}
           <td class="num tar" style="border-left:1px solid var(--border)">{{ pp.base_qp_coul|default:0|floatformat:0|intcomma }}</td>
-          <td class="mono tar" style="font-size:.72rem">{{ pp.coef_qp_coul }}</td>
+          <td class="mono tar num-dim">{{ pp.coef_qp_coul }}</td>
           <td class="num tar" style="{% if pp.qp_coul < 0 %}color:var(--err){% endif %}">{{ pp.qp_coul|default:0|floatformat:0|intcomma }}</td>
           {% endwith %}
         {% endfor %}
         <td class="num tar" style="border-left:1px solid var(--border)">{{ ligne.volume_global_sorti|floatformat:0|intcomma }}</td>
-        <td class="mono tar" style="font-size:.75rem">{{ ligne.prix_unitaire }}</td>
+        <td class="mono tar num-dim">{{ ligne.prix_unitaire }}</td>
         <td class="num tar" style="font-weight:700;color:var(--accent)">{{ ligne.montant|floatformat:0|intcomma }}</td>
       </tr>
       {% empty %}
@@ -141,12 +157,12 @@
         {% for produit in rapport.produits %}
           {% with tp=rapport.totaux.par_produit|get_item:produit.pk %}
           <td class="num tar" style="border-left:1px solid var(--border)">{{ tp.base_qp_coul|default:0|floatformat:0|intcomma }}</td>
-          <td class="mono tar" style="font-size:.72rem">{{ tp.coef_qp_coul }}</td>
+          <td class="mono tar num-dim">{{ tp.coef_qp_coul }}</td>
           <td class="num tar">{{ tp.qp_coul|default:0|floatformat:0|intcomma }}</td>
           {% endwith %}
         {% endfor %}
         <td class="num tar" style="border-left:1px solid var(--border)">{{ rapport.totaux.volume_global_sorti|floatformat:0|intcomma }}</td>
-        <td class="mono tar" style="font-size:.75rem">{{ rapport.totaux.prix_unitaire }}</td>
+        <td class="mono tar num-dim">{{ rapport.totaux.prix_unitaire }}</td>
         <td class="num tar" style="color:var(--accent);font-size:.9rem">{{ rapport.totaux.montant|floatformat:0|intcomma }}</td>
       </tr>
     </tfoot>

@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load humanize coulage_tags %}
 {% block title %}Mes Frais de Passage{% endblock %}
 {% block nav_client_mensuel_frais_passage %}active{% endblock %}
@@ -16,27 +16,64 @@
 .filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
 .filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
 .btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
-.mode-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;box-shadow:var(--shadow)}
-.mode-title{padding:11px 18px;font-weight:700;font-size:.9rem;background:#f0f4f8;border-bottom:1px solid var(--border);color:var(--navy)}
+
+/* ── KPI cards ────────────────────────────────────────────── */
+.fp-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.fp-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px 14px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.fp-kpi:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.08)}
+.fp-kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:3px}
+.fp-kpi.k-blue::before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.fp-kpi.k-amber::before{background:linear-gradient(90deg,var(--warn),#d4a017)}
+.fp-kpi.k-green::before{background:linear-gradient(90deg,var(--ok),#6db565)}
+.fp-kpi-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.k-blue .fp-kpi-icon{background:rgba(59,130,246,.1);color:#3b82f6}
+.k-amber .fp-kpi-icon{background:var(--warn-soft);color:var(--warn)}
+.k-green .fp-kpi-icon{background:var(--ok-soft);color:var(--ok)}
+.fp-kpi-icon svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+.fp-kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:5px}
+.fp-kpi-val{font-family:'JetBrains Mono',monospace;font-size:21px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-.02em}
+.fp-kpi-sub{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* ── Mode blocks ──────────────────────────────────────────── */
+.mode-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden;box-shadow:var(--shadow);border-left:4px solid var(--border)}
+.mode-block.m-esp{border-left-color:#16a34a}
+.mode-block.m-vir{border-left-color:#2563eb}
+.mode-block.m-cheq{border-left-color:#7c3aed}
+.mode-block.m-cred{border-left-color:#d97706}
+.mode-block.m-nd{border-left-color:var(--muted)}
+.mode-title{padding:13px 18px;font-weight:700;font-size:.9rem;background:#f0f4f8;border-bottom:1px solid var(--border);color:var(--navy);display:flex;align-items:center;gap:10px}
+.mode-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mode-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.m-esp .mode-icon{background:rgba(22,163,74,.12);color:#16a34a}
+.m-vir .mode-icon{background:rgba(37,99,235,.12);color:#2563eb}
+.m-cheq .mode-icon{background:rgba(124,58,237,.12);color:#7c3aed}
+.m-cred .mode-icon{background:rgba(217,119,6,.12);color:#d97706}
+.m-nd .mode-icon{background:var(--surface-2);color:var(--muted)}
+.mode-amount{margin-left:auto;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:.86rem;color:var(--navy)}
+
 table{width:100%;border-collapse:collapse;font-size:.84rem}
 th{padding:9px 12px;text-align:right;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--bg);border-bottom:2px solid var(--border);white-space:nowrap}
 th.left{text-align:left}
-td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
+td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:right;color:var(--text)}
 td.left{text-align:left}
-tr:hover td{background:rgba(240,244,248,.4)}
+tr:nth-child(even) td{background:rgba(248,250,252,.5)}
+tr:hover td{background:rgba(240,244,248,.6) !important}
 tr:last-child td{border-bottom:none}
 .num{font-family:'JetBrains Mono',monospace;font-size:.84rem}
-.summary-chips{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px}
-.chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;box-shadow:var(--shadow)}
-.chip-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px}
-.chip-val{font-family:inherit;font-weight:700;font-size:.96rem;color:var(--navy)}
-.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.num-zero{color:var(--muted);opacity:.45}
+.motif-pill{display:inline-block;font-size:.7rem;font-weight:600;padding:2px 9px;border-radius:20px;background:var(--surface-2);color:var(--muted)}
+.empty-state{text-align:center;padding:56px 20px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:14px}
+.empty-state svg{opacity:.22}
+.empty-state p{font-size:.88rem;max-width:320px;line-height:1.6}
+.info-note{background:#eff6ff;border:1px solid #bfdbfe;border-left:3px solid #3b82f6;border-radius:8px;padding:10px 14px;color:#1e40af;font-size:.78rem;margin-top:14px;display:flex;align-items:center;gap:8px}
 
 /* ── Dark mode ── */
-[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
+[data-theme="dark"] tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+[data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05) !important}
 [data-theme="dark"] .mode-title{background:var(--surface-2) !important;color:var(--ink)}
-[data-theme="dark"] .chip-val{color:var(--accent-ink)}
-
+[data-theme="dark"] .fp-kpi{background:var(--surface-2)}
+[data-theme="dark"] .info-note{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:var(--info)}
+[data-theme="dark"] .motif-pill{background:rgba(255,255,255,.06)}
 </style>
 {% include 'partials/_print_css.html' %}
 {% endblock %}
@@ -54,8 +91,8 @@ tr:last-child td{border-bottom:none}
   <div style="display:flex;gap:8px" class="no-print">
     <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
     {% if periode and rapport %}
-    <a href="{% url 'client_mensuel_frais_passage_export' %}?periode_id={{ periode.pk }}"
-       class="btn-export-main">↓ Excel</a>
+    <a href="{% url 'client_mensuel_frais_passage_export' %}?periode_id={{ periode.uuid }}"
+       class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
     {% endif %}
   </div>
 </div>
@@ -66,7 +103,7 @@ tr:last-child td{border-bottom:none}
       <div class="filter-group">
         <label>Période</label>
         <select name="periode_id">
-          {% for p in periodes %}<option value="{{ p.pk }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          {% for p in periodes %}<option value="{{ p.uuid }}" {% if periode and periode.pk == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}
         </select>
       </div>
       <div style="align-self:flex-end"><button type="submit" class="btn-filter">Afficher</button></div>
@@ -75,25 +112,52 @@ tr:last-child td{border-bottom:none}
 </div>
 
 {% if not rapport or not rapport.modes %}
-<div class="empty-state"><p>Aucune facturation de frais de passage pour cette période.</p></div>
+<div class="empty-state">
+  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+  <p>Aucune facturation de frais de passage pour cette période.</p>
+</div>
 {% else %}
 
 {% if rapport.total_general %}
-<div class="summary-chips">
-  <div class="chip">
-    <span class="chip-label">Volume Global Sorti</span>
-    <span class="chip-val">{{ rapport.total_general.volume_global|floatformat:2|intcomma }} L</span>
+<div class="fp-kpi-grid no-print">
+  <div class="fp-kpi k-blue">
+    <div class="fp-kpi-icon"><svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3"/></svg></div>
+    <div class="fp-kpi-label">Volume Global Sorti</div>
+    <div class="fp-kpi-val">{{ rapport.total_general.volume_global|floatformat:0|intcomma }}</div>
+    <div class="fp-kpi-sub">litres sur la période</div>
   </div>
-  <div class="chip">
-    <span class="chip-label">Montant Total (FCFA)</span>
-    <span class="chip-val">{{ rapport.total_general.montant|floatformat:2|intcomma }}</span>
+  <div class="fp-kpi k-amber">
+    <div class="fp-kpi-icon"><svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+    <div class="fp-kpi-label">Montant Total</div>
+    <div class="fp-kpi-val">{{ rapport.total_general.montant|floatformat:0|intcomma }}</div>
+    <div class="fp-kpi-sub">FCFA facturés</div>
   </div>
+  {% if rapport.parametres %}
+  <div class="fp-kpi k-green">
+    <div class="fp-kpi-icon"><svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg></div>
+    <div class="fp-kpi-label">PU Global</div>
+    <div class="fp-kpi-val" style="font-size:18px">{{ rapport.parametres.prix_unitaire_global|floatformat:4 }}</div>
+    <div class="fp-kpi-sub">FCFA / litre</div>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
 
 {% for mode_data in rapport.modes %}
-<div class="mode-block">
-  <div class="mode-title">{{ mode_data.mode_libelle }}</div>
+{% with mc=mode_data.mode %}
+<div class="mode-block {% if mc == 'ESP-IMMEDIAT' %}m-esp{% elif mc == 'VIREMENT' %}m-vir{% elif mc == 'CHEQUE' %}m-cheq{% elif mc == 'CREDIT' %}m-cred{% else %}m-nd{% endif %}">
+  <div class="mode-title">
+    <span class="mode-icon">
+      {% if mode_data.mode == 'ESP-IMMEDIAT' %}<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+      {% elif mode_data.mode == 'VIREMENT' %}<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V10M19 21V10M3 10l9-7 9 7M9 21v-6h6v6"/></svg>
+      {% elif mode_data.mode == 'CHEQUE' %}<svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20M6 14h6"/></svg>
+      {% elif mode_data.mode == 'CREDIT' %}<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      {% else %}<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      {% endif %}
+    </span>
+    {{ mode_data.mode_libelle }}
+    <span class="mode-amount">{{ mode_data.sous_totaux.montant|floatformat:0|intcomma }} FCFA</span>
+  </div>
   <table>
     <thead>
       <tr>
@@ -109,19 +173,27 @@ tr:last-child td{border-bottom:none}
     {% for ligne in mode_data.lignes %}
     <tr>
       <td class="left"><strong>{{ ligne.marketeur.sigle|default:ligne.marketeur.raison_sociale }}</strong></td>
-      {% for p in rapport.produits %}<td class="num">{{ ligne.volumes_par_produit|lookup_id:p|default:"—"|floatformat:2|intcomma }}</td>{% endfor %}
+      {% for p in rapport.produits %}
+      {% with v=ligne.volumes_par_produit|lookup_id:p %}
+      <td class="num {% if not v %}num-zero{% endif %}">{{ v|default:"—"|floatformat:2|intcomma }}</td>
+      {% endwith %}
+      {% endfor %}
       <td class="num">{{ ligne.volume_global|floatformat:2|intcomma }}</td>
-      <td style="font-size:.78rem;text-align:left">{{ ligne.motif|default:"Chargement" }}</td>
+      <td style="text-align:left"><span class="motif-pill">{{ ligne.motif|default:"Chargement" }}</span></td>
       <td class="num">{{ ligne.pu|floatformat:4 }}</td>
-      <td class="num"><strong>{{ ligne.montant|floatformat:2|intcomma }}</strong></td>
+      <td class="num" style="font-weight:700;color:var(--accent)">{{ ligne.montant|floatformat:2|intcomma }}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
 </div>
+{% endwith %}
 {% endfor %}
 
-<p style="font-size:.75rem;color:var(--muted)">ℹ Volumes détaillés par produit disponibles via <strong>↓ Excel</strong>.</p>
+<div class="info-note no-print">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+  Volumes détaillés par produit disponibles via <strong>Exporter Excel</strong>.
+</div>
 {% endif %}
 
 {% include 'partials/_print_footer.html' with reference_doc="MKT-FP" sig1="Le Marketeur" sig2="Le Gestionnaire" %}

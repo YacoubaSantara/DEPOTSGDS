@@ -24,6 +24,10 @@
     <div class="ph-sub">{{ mkt.raison_sociale }} — tous les mouvements de produits</div>
   </div>
   <div class="ph-actions">
+    <button type="button" onclick="imprimerTout()" class="btn-print-main" title="Charge tous les mouvements puis ouvre l'aperçu d'impression">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Aperçu / Imprimer
+    </button>
     <a href="{% url 'client_mouvements_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-ghost" title="Exporter en PDF (filtres actuels)">
       <svg viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;stroke:currentColor;fill:none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
       Export PDF
@@ -37,19 +41,14 @@
 
 <!-- Totaux -->
 <div class="kpi-strip" style="margin-bottom:20px">
+   <div class="kpi">
+    <div class="kpi-label">Vol. ambiant entré</div>
+    <div class="kpi-val mono">{{ totaux.vol_amb_entree|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
   <div class="kpi">
     <div class="kpi-label">Entrées @15°C</div>
     <div class="kpi-val mono" style="color:var(--ok)">{{ totaux.vol_15c_entree|floatformat:0|intcomma }}</div>
-    <div style="font-size:.72rem;color:var(--muted)">litres</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Sorties @15°C</div>
-    <div class="kpi-val mono" style="color:var(--err)">{{ totaux.vol_15c_sortie|floatformat:0|intcomma }}</div>
-    <div style="font-size:.72rem;color:var(--muted)">litres</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Vol. ambiant entré</div>
-    <div class="kpi-val mono">{{ totaux.vol_amb_entree|floatformat:0|intcomma }}</div>
     <div style="font-size:.72rem;color:var(--muted)">litres</div>
   </div>
   <div class="kpi">
@@ -57,6 +56,12 @@
     <div class="kpi-val mono">{{ totaux.vol_amb_sortie|floatformat:0|intcomma }}</div>
     <div style="font-size:.72rem;color:var(--muted)">litres</div>
   </div>
+  <div class="kpi">
+    <div class="kpi-label">Sorties @15°C</div>
+    <div class="kpi-val mono" style="color:var(--err)">{{ totaux.vol_15c_sortie|floatformat:0|intcomma }}</div>
+    <div style="font-size:.72rem;color:var(--muted)">litres</div>
+  </div>
+
   {% if totaux.vol_cession %}
   <div class="kpi">
     <div class="kpi-label">Cessions @15°C</div>
@@ -79,7 +84,7 @@
     <select name="produit" class="select">
       <option value="">— Tous les produits —</option>
       {% for p in produits %}
-      <option value="{{ p.pk }}" {% if produit_filtre == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
+      <option value="{{ p.uuid }}" {% if produit_filtre == p.uuid|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
       {% endfor %}
     </select>
     <select name="regime" class="select">
@@ -118,8 +123,10 @@
     </thead>
     <tbody>
       {% for mvt in page_obj %}
-      <tr>
-        <td class="mono" style="font-size:.75rem;color:var(--muted)">{{ mvt.numero_enregistrement|default:"—" }}</td>
+      <tr class="clickable" onclick="window.location='{% url 'client_mouvement_detail' uuid=mvt.uuid slug=mvt.slug %}'" style="cursor:pointer">
+        <td class="mono" style="font-size:.75rem;color:var(--accent-ink)">
+          <a href="{% url 'client_mouvement_detail' uuid=mvt.uuid slug=mvt.slug %}" onclick="event.stopPropagation()" style="color:var(--accent-ink);font-weight:600;text-decoration:underline;text-decoration-color:var(--accent-soft)">{{ mvt.numero_enregistrement|default:"—" }}</a>
+        </td>
         <td style="white-space:nowrap">{{ mvt.date_mouvement|date:"d/m/Y" }}</td>
         <td>
           {% if mvt.type_mouvement == 'ENTREE' %}<span class="bdg-type entree">Entrée</span>
@@ -190,4 +197,20 @@
 </div>
 
 {% include 'partials/_print_footer.html' with reference_doc="MKT-MVT" sig1="Le Marketeur" sig2="Le Gestionnaire" %}
+
+<script>
+/* Impression complète : recharge avec ?tout=1 (toutes les lignes, sans
+   pagination) puis lance automatiquement l'aperçu d'impression. */
+function imprimerTout(){
+  var p = new URLSearchParams(window.location.search);
+  if(p.get('tout') === '1'){ lancerImpression(); return; }
+  p.set('tout','1'); p.set('imprimer','1'); p.delete('page');
+  window.location.search = p.toString();
+}
+window.addEventListener('load', function(){
+  if(new URLSearchParams(window.location.search).get('imprimer') === '1'){
+    setTimeout(function(){ lancerImpression(); }, 300);
+  }
+});
+</script>
 {% endblock %}

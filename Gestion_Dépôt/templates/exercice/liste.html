@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Exercices comptables{% endblock %}
+{% block nav_exercice %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="#">Accueil</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Exercices comptables</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Exercices comptables</h1>
+    <div class="ph-sub">Cycle de vie annuel — créé automatiquement à l'ouverture de la première période de l'année, clôturé une fois les 12 mois clôturés</div>
+  </div>
+</div>
+
+<div class="card">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Exercice</th>
+        <th>Statut</th>
+        <th>Périodes clôturées</th>
+        <th>Date ouverture</th>
+        <th>Date clôture</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for exercice in exercices %}
+      <tr>
+        <td><div style="font-weight:700">{{ exercice.libelle }}</div></td>
+        <td>
+          {% if exercice.statut == 'OUVERT' %}
+            <span class="bdg ok">Ouvert</span>
+          {% else %}
+            <span class="bdg muted">Clôturé</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="mono">{{ exercice.periodes_clouturees_count }}/12</span>
+        </td>
+        <td>
+          {% if exercice.date_ouverture %}
+            <span class="mono" style="font-size:.82rem">{{ exercice.date_ouverture|date:"d/m/Y" }}</span>
+            <span style="display:block;font-size:.72rem;color:var(--muted)">{{ exercice.date_ouverture|date:"H:i" }}</span>
+          {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+        </td>
+        <td>
+          {% if exercice.date_cloture %}
+            <span class="mono" style="font-size:.82rem">{{ exercice.date_cloture|date:"d/m/Y" }}</span>
+            <span style="display:block;font-size:.72rem;color:var(--muted)">{{ exercice.date_cloture|date:"H:i" }}</span>
+          {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+        </td>
+        <td>
+          {% if exercice.statut == 'OUVERT' and request.user.is_staff %}
+            <a href="{% url 'exercice_cloturer' annee=exercice.annee %}" class="btn btn-sm btn-accent">Clôturer</a>
+          {% else %}
+            <span style="color:var(--muted)">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr class="tbl-empty">
+        <td colspan="6">
+          Aucun exercice — il sera créé automatiquement à l'ouverture de la première période comptable.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+  <div class="pagination">
+    <span>Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    <span class="step-links">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">‹</a>
+      {% endif %}
+      {% for i in page_obj.paginator.page_range %}
+        {% if page_obj.number == i %}
+          <span class="current">{{ i }}</span>
+        {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
+          <a href="?page={{ i }}">{{ i }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">›</a>
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

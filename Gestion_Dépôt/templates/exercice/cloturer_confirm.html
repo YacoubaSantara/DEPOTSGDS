@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Clôturer {{ exercice.libelle }}{% endblock %}
+{% block nav_exercice %}active{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'exercice_liste' %}">Exercices</a><span class="breadcrumb-sep">/</span>
+<span class="breadcrumb-current">Clôturer</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:560px;margin:0 auto">
+  <div class="card" style="overflow:hidden">
+    <!-- Header accent -->
+    <div style="background:var(--ink);padding:1.5rem 2rem;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;opacity:.1;background:radial-gradient(circle at 80% 50%,var(--accent) 0%,transparent 60%)"></div>
+      <div style="position:relative">
+        <div style="font-size:.72rem;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem">Gestion des exercices</div>
+        <h1 style="font-size:1.4rem;font-weight:700;color:#fff;margin:0">Clôturer {{ exercice.libelle }}</h1>
+      </div>
+    </div>
+
+    <div style="padding:1.5rem 2rem">
+      {% if peut_cloturer %}
+      <div style="background:var(--info-soft,#eff6ff);border:1px solid #bfdbfe;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem">
+        <p style="font-weight:700;color:var(--info);margin:0 0 .6rem;font-size:.875rem">Ce qui va se passer :</p>
+        <ul style="color:var(--info);font-size:.85rem;margin:0;padding-left:1.5rem;line-height:2">
+          <li>Les 12 périodes de {{ exercice.annee }} sont toutes clôturées — vérifié.</li>
+          <li>L'exercice passe en statut <strong>CLÔTURÉ</strong>, de façon définitive.</li>
+        </ul>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <div style="margin-bottom:1.25rem">
+          <label class="field-label">Notes (optionnel)</label>
+          <textarea name="notes" class="input" rows="3" style="width:100%"></textarea>
+        </div>
+        <div style="display:flex;gap:.75rem;justify-content:flex-end;padding-top:.5rem">
+          <a href="{% url 'exercice_liste' %}" class="btn btn-ghost">Annuler</a>
+          <button type="submit" class="btn btn-accent">
+            <svg viewBox="0 0 24 24" stroke-width="2.5" fill="none"><path d="M20 6L9 17l-5-5"/></svg>
+            Clôturer l'exercice
+          </button>
+        </div>
+      </form>
+      {% else %}
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1rem 1.1rem;margin-bottom:1.5rem">
+        <p style="font-size:.85rem;font-weight:600;color:#b91c1c;margin:0">{{ erreur }}</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <a href="{% url 'exercice_liste' %}" class="btn btn-ghost">Retour</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

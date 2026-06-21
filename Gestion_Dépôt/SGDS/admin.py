@@ -6,9 +6,9 @@ from django.contrib import messages
 from .models import (
     Marketeur, Camion, Chauffeur, Famille, Produit, Cuve,
     ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement,
-    PeriodeComptable, StockOuverture, StockOuvertureCuve,
+    PeriodeComptable, Exercice, StockOuverture, StockOuvertureCuve, StockOuvertureMarketeur,
     ParametresCoulage, ClotureCoulageMensuel, ClotureCoulageProduit, ClotureCoulageLigne,
-    InventaireInitialMarketeur,
+    InventaireInitialMarketeur, PerteGainInstallation, StockCloture,
 )
 
 
@@ -639,18 +639,58 @@ class PeriodeComptableAdmin(admin.ModelAdmin):
     # Ouverture/clôture via les vues dédiées uniquement, pas par l'admin direct
 
 
+@admin.register(Exercice)
+class ExerciceAdmin(admin.ModelAdmin):
+    list_display  = ('libelle', 'statut', 'date_ouverture', 'date_cloture', 'cloture_par')
+    list_filter   = ('statut',)
+    ordering      = ('-annee',)
+    readonly_fields = ('statut', 'date_ouverture', 'date_cloture', 'cloture_par')
+    # Ouverture automatique (via ouvrir_periode), clôture via la vue dédiée uniquement
+
+
 @admin.register(StockOuverture)
 class StockOuvertureAdmin(admin.ModelAdmin):
-    list_display = ('periode', 'produit', 'volume_ambiant', 'calcul_auto')
-    list_filter = ('produit', 'calcul_auto')
-    ordering = ('-periode__annee', '-periode__mois')
+    list_display  = ('periode', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'calcul_auto')
+    list_filter   = ('produit', 'regime_douanier', 'calcul_auto')
+    search_fields = ('produit__nom', 'produit__code')
+    ordering      = ('-periode__annee', '-periode__mois', 'produit__nom', 'regime_douanier')
+    fields        = ('periode', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'calcul_auto')
 
 
 @admin.register(StockOuvertureCuve)
 class StockOuvertureCuveAdmin(admin.ModelAdmin):
     list_display = ('periode', 'cuve', 'volume_ambiant', 'calcul_auto')
-    list_filter = ('calcul_auto', 'cuve__produit')
-    ordering = ('-periode__annee', '-periode__mois')
+    list_filter  = ('calcul_auto', 'cuve__produit')
+    ordering     = ('-periode__annee', '-periode__mois')
+
+
+@admin.register(StockOuvertureMarketeur)
+class StockOuvertureMarketeurAdmin(admin.ModelAdmin):
+    list_display  = ('periode', 'marketeur', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'calcul_auto')
+    list_filter    = ('marketeur', 'produit', 'regime_douanier', 'calcul_auto')
+    search_fields  = ('marketeur__raison_sociale', 'marketeur__sigle', 'produit__nom', 'produit__code')
+    ordering       = ('-periode__annee', '-periode__mois', 'marketeur__raison_sociale', 'produit__nom', 'regime_douanier')
+    fields         = ('periode', 'marketeur', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'calcul_auto')
+
+
+@admin.register(PerteGainInstallation)
+class PerteGainInstallationAdmin(admin.ModelAdmin):
+    list_display   = ('periode', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'saisi_par', 'date_modification')
+    list_filter    = ('produit', 'regime_douanier')
+    search_fields  = ('produit__nom', 'produit__code')
+    ordering       = ('-periode__annee', '-periode__mois', 'produit__nom')
+    readonly_fields = ('date_creation', 'date_modification', 'uuid')
+    fields         = ('periode', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'saisi_par', 'notes', 'date_creation', 'date_modification')
+
+
+@admin.register(StockCloture)
+class StockClotureAdmin(admin.ModelAdmin):
+    list_display   = ('periode', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'calcul_auto', 'date_modification')
+    list_filter    = ('produit', 'regime_douanier', 'calcul_auto')
+    search_fields  = ('produit__nom', 'produit__code')
+    ordering       = ('-periode__annee', '-periode__mois', 'produit__nom')
+    readonly_fields = ('date_modification',)
+    fields         = ('periode', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'calcul_auto')
 
 
 class ClotureCoulageProduitInline(admin.TabularInline):

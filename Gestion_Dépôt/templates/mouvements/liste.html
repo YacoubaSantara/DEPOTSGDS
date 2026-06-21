@@ -68,13 +68,13 @@
     <select class="select" name="marketeur">
       <option value="">Tous les marketeurs</option>
       {% for mkt in marketeurs %}
-      <option value="{{ mkt.pk }}" {% if filtres.marketeur == mkt.pk|stringformat:"s" %}selected{% endif %}>{{ mkt.sigle|default:mkt.raison_sociale }}</option>
+      <option value="{{ mkt.uuid }}" {% if filtres.marketeur == mkt.uuid|stringformat:"s" %}selected{% endif %}>{{ mkt.sigle|default:mkt.raison_sociale }}</option>
       {% endfor %}
     </select>
     <select class="select" name="produit">
       <option value="">Tous les produits</option>
       {% for p in produits %}
-      <option value="{{ p.pk }}" {% if filtres.produit == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
+      <option value="{{ p.uuid }}" {% if filtres.produit == p.uuid|stringformat:"s" %}selected{% endif %}>{{ p.nom }}</option>
       {% endfor %}
     </select>
     <input class="input" type="date" name="date_debut" value="{{ filtres.date_debut }}" style="width:130px"/>

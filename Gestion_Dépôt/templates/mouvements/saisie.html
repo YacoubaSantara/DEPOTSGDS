@@ -347,22 +347,6 @@ input.auto-calc::placeholder { color: var(--muted, #94a3b8); opacity:.7; }
       <div class="field-group"><label>N° C</label><input type="text" name="numero_c" value="{{ form.numero_c.value|default_if_none:'' }}"></div>
     </div>
 
-    <p class="subsection-title">Horaires d'opération</p>
-    <div class="fields-grid-3">
-      <div class="field-group">
-        <label>Heure d'arrivée</label>
-        <input type="time" name="heure_arrivee" value="{{ form.heure_arrivee.value|default_if_none:'' }}">
-      </div>
-      <div class="field-group">
-        <label>Heure de dépotage</label>
-        <input type="time" name="heure_depotage" value="{{ form.heure_depotage.value|default_if_none:'' }}">
-      </div>
-      <div class="field-group">
-        <label>Heure de fin</label>
-        <input type="time" name="heure_fin" value="{{ form.heure_fin.value|default_if_none:'' }}">
-      </div>
-    </div>
-
     <p class="subsection-title">Données BL Expéditeur</p>
     <div class="fields-grid-4">
       <div class="field-group"><label>Vol. ambiant expéditeur (L)</label><input type="number" step="0.01" min="0" name="volume_ambiant_expediteur" value="{{ form.volume_ambiant_expediteur.value|default_if_none:'' }}" placeholder="0.00"></div>
@@ -497,22 +481,6 @@ input.auto-calc::placeholder { color: var(--muted, #94a3b8); opacity:.7; }
       <div class="field-group col-full"><label>Compartiments chargés</label><input type="text" name="compartiments_charges" value="{{ form.compartiments_charges.value|default_if_none:'' }}" placeholder="Ex: C1=5000L, C2=8000L, C3=7000L"></div>
     </div>
 
-    <p class="subsection-title">Horaires d'opération</p>
-    <div class="fields-grid-3">
-      <div class="field-group">
-        <label>Heure d'arrivée</label>
-        <input type="time" name="heure_arrivee" value="{{ form.heure_arrivee.value|default_if_none:'' }}">
-      </div>
-      <div class="field-group">
-        <label>Heure de dépotage</label>
-        <input type="time" name="heure_depotage" value="{{ form.heure_depotage.value|default_if_none:'' }}">
-      </div>
-      <div class="field-group">
-        <label>Heure de fin</label>
-        <input type="time" name="heure_fin" value="{{ form.heure_fin.value|default_if_none:'' }}">
-      </div>
-    </div>
-
     <p class="subsection-title">Volumes & Densité</p>
     <div class="fields-grid-4">
       <div class="field-group">
@@ -561,6 +529,30 @@ input.auto-calc::placeholder { color: var(--muted, #94a3b8); opacity:.7; }
   </div>
 </div>
 
+
+<!-- SECTION HORAIRES (ENTREE + SORTIE) -->
+<div class="form-card" id="section-horaires" style="display:none">
+  <div class="form-card-header">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <h3>Horaires d'opération</h3>
+  </div>
+  <div class="form-card-body">
+    <div class="fields-grid-3">
+      <div class="field-group">
+        <label>Heure d'arrivée</label>
+        <input type="time" name="heure_arrivee" value="{{ form.heure_arrivee.value|default_if_none:''|stringformat:'s' }}">
+      </div>
+      <div class="field-group">
+        <label>Heure de dépotage</label>
+        <input type="time" name="heure_depotage" value="{{ form.heure_depotage.value|default_if_none:''|stringformat:'s' }}">
+      </div>
+      <div class="field-group">
+        <label>Heure de fin</label>
+        <input type="time" name="heure_fin" value="{{ form.heure_fin.value|default_if_none:''|stringformat:'s' }}">
+      </div>
+    </div>
+  </div>
+</div>
 <!-- SECTION CESSION -->
 <div class="form-card" id="section-cession" style="display:none">
   <div class="form-card-header fcheader-cession">
@@ -842,9 +834,7 @@ input.auto-calc::placeholder { color: var(--muted, #94a3b8); opacity:.7; }
 
 <!-- ACTIONS STICKY -->
 <div class="form-footer">
-  <div class="form-footer-left">
-    {% if mouvement %}<span>Mouvement #{{ mouvement.pk }} — Créé le {{ mouvement.date_saisie|date:"d/m/Y à H:i" }}</span>{% endif %}
-  </div>
+  <div class="form-footer-left"></div>
   <div style="display:flex;gap:8px;align-items:center">
     {% if mode == 'modification' and mouvement %}
     <a href="{% url 'mouvement_detail' uuid=mouvement.uuid slug=mouvement.slug %}" class="btn">
@@ -880,12 +870,12 @@ input.auto-calc::placeholder { color: var(--muted, #94a3b8); opacity:.7; }
 <script>
 (function() {
   const SECTIONS_PAR_TYPE = {
-    'ENTREE':       ['section-camion','section-entree','section-cuves'],
-    'SORTIE':       ['section-camion','section-sortie','section-cuves'],
+    'ENTREE':       ['section-camion','section-entree','section-horaires','section-cuves'],
+    'SORTIE':       ['section-camion','section-sortie','section-horaires','section-cuves'],
     'CESSION':      ['section-camion','section-cession'],
     'ACQUITTEMENT': ['section-acquittement','section-cuves']
   };
-  const TOUTES_SECTIONS=['section-camion','section-entree','section-sortie','section-cession','section-acquittement','section-cuves'];
+  const TOUTES_SECTIONS=['section-camion','section-entree','section-sortie','section-horaires','section-cession','section-acquittement','section-cuves'];
 
   function selectType(type){
     document.getElementById('id_type_mouvement').value=type;
@@ -1162,3 +1152,4 @@ window.confirmerSuppression=function(){
 })();
 </script>
 {% endblock %}
+                                                                      

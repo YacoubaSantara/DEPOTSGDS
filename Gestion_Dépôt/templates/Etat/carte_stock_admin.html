@@ -15,17 +15,7 @@
 {% include 'partials/_print_css.html' %}
 <style>
 /* ── Layout ── */
-.etat-layout{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
-@media(max-width:900px){.etat-layout{grid-template-columns:1fr}}
-
-/* ── Panneau latéral — sélection marketeur ── */
-.mkt-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);position:sticky;top:16px}
-.mkt-panel-title{padding:12px 16px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg)}
-.mkt-list{list-style:none;padding:0;margin:0;max-height:420px;overflow-y:auto}
-.mkt-list li a{display:block;padding:10px 16px;font-size:.82rem;color:var(--text);text-decoration:none;border-bottom:1px solid var(--border);transition:background .15s}
-.mkt-list li a:hover{background:var(--bg)}
-.mkt-list li a.active{background:var(--navy);color:#fff;font-weight:700}
-.mkt-list li:last-child a{border-bottom:none}
+.etat-layout{display:block}
 
 /* ── Filtres ── */
 .filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
@@ -152,7 +142,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Imprimer
     </button>
-    <a href="{% url 'etat_carte_stock_export' marketeur_uuid=mkt.uuid marketeur_slug=mkt.slug %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
+    <a href="{% url 'etat_carte_stock_export' marketeur_uuid=mkt.uuid marketeur_slug=mkt.slug %}?produit={{ produit_sel.uuid }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
        class="btn-export-main">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter Excel
@@ -163,21 +153,6 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
 
 <div class="etat-layout">
 
-  {# ── Panneau latéral marketeurs ── #}
-  <aside class="mkt-panel">
-    <div class="mkt-panel-title">Marketeurs</div>
-    <ul class="mkt-list">
-      {% for m in tous_marketeurs %}
-      <li>
-        <a href="{% url 'etat_carte_stock' marketeur_uuid=m.uuid marketeur_slug=m.slug %}{% if produit_sel %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}{% endif %}"
-           class="{% if m.pk == mkt.pk %}active{% endif %}">
-          {{ m.sigle|default:m.raison_sociale }}
-        </a>
-      </li>
-      {% endfor %}
-    </ul>
-  </aside>
-
   {# ── Contenu principal ── #}
   <main>
     {# Filtres #}
@@ -185,11 +160,22 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
       <form method="get" action="">
         <div class="filters-row">
           <div class="filter-group" style="min-width:200px">
+            <label>Marketeur</label>
+            <select onchange="window.location.href=this.value">
+              {% for m in tous_marketeurs %}
+              <option value="{% url 'etat_carte_stock' marketeur_uuid=m.uuid marketeur_slug=m.slug %}{% if produit_sel %}?produit={{ produit_sel.uuid }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}{% endif %}"
+                      {% if m.pk == mkt.pk %}selected{% endif %}>
+                {{ m.sigle|default:m.raison_sociale }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-group" style="min-width:200px">
             <label>Produit</label>
             <select name="produit">
               <option value="">— Choisir un produit —</option>
               {% for p in produits %}
-              <option value="{{ p.pk }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
+              <option value="{{ p.uuid }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
                 {{ p.nom }}{% if p.famille %} ({{ p.famille.nom }}){% endif %}
               </option>
               {% endfor %}
@@ -295,7 +281,6 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
           <tr>
             <th class="left" style="width:90px">Date</th>
             <th class="left">N° Doc</th>
-            <th class="left">N° C</th>
             {% if carte.is_tous %}<th>Régime</th>{% endif %}
             <th class="left">Origine / Destination</th>
             <th class="left">Type</th>
@@ -310,7 +295,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
         <tbody>
           {# REPORT #}
           <tr class="row-report">
-            <td class="left" colspan="{% if carte.is_tous %}8{% else %}10{% endif %}" style="font-weight:700;letter-spacing:.04em">REPORT</td>
+            <td class="left" colspan="{% if carte.is_tous %}8{% else %}9{% endif %}" style="font-weight:700;letter-spacing:.04em">REPORT</td>
             <td class="num num-stock">{{ carte.report_amb|floatformat:0|intcomma }}</td>
           </tr>
 
@@ -324,9 +309,6 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
             {% endif %}">
             <td class="left">{{ ligne.mouvement.date_mouvement|date:"d/m/Y" }}</td>
             <td class="left" style="font-size:.75rem">{{ ligne.mouvement.numero_enregistrement|default:"—" }}</td>
-            <td class="left" style="font-size:.75rem">
-              {% if ligne.mouvement.numero_c %}{{ ligne.mouvement.numero_c }}{% else %}—{% endif %}
-            </td>
             {% if carte.is_tous %}
             <td style="text-align:center">
               <span class="badge {% if ligne.regime_ligne == 'SD' %}badge-sd{% elif ligne.regime_ligne == 'AC' %}badge-ac{% else %}badge-transfert{% endif %}">
@@ -366,7 +348,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
           </tr>
           {% empty %}
           <tr>
-            <td colspan="{% if carte.is_tous %}9{% else %}11{% endif %}" style="text-align:center;padding:28px;color:var(--muted)">
+            <td colspan="{% if carte.is_tous %}8{% else %}10{% endif %}" style="text-align:center;padding:28px;color:var(--muted)">
               Aucun mouvement sur cette période.
             </td>
           </tr>
@@ -375,7 +357,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
           {# CUMUL #}
           {% if carte.lignes %}
           <tr class="row-cumul">
-            <td class="left" colspan="{% if carte.is_tous %}6{% else %}5{% endif %}" style="font-weight:700;letter-spacing:.04em">CUMUL PÉRIODE</td>
+            <td class="left" colspan="{% if carte.is_tous %}5{% else %}4{% endif %}" style="font-weight:700;letter-spacing:.04em">CUMUL PÉRIODE</td>
             {% if not carte.is_tous %}
             <td class="num num-pos">{{ carte.cumul_entrees_15c|floatformat:0|intcomma }}</td>
             {% endif %}

@@ -203,9 +203,11 @@ a{text-decoration:none;color:inherit}
     width:100%;
     min-height:0;
   }
+  /* margin:0 = masque l'URL/date imprimées par le navigateur dans les marges.
+     Les marges visuelles viennent du padding de .page ci-dessus. */
   @page{
     size:A4 landscape;
-    margin:8mm 10mm;
+    margin:0;
   }
 }
 </style>

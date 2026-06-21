@@ -1,7 +1,9 @@
 ﻿# â"€â"€ Espace Marketeur â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 from .client import (  # noqa: F401
     client_dashboard, client_mouvements, client_mouvements_pdf,
+    client_mouvement_detail,
     notif_marquer_lue, notif_tout_marquer_lu,
+    _uuid_valide,
 )
 
 # â"€â"€ États â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -17,14 +19,15 @@ from .etat import (  # noqa: F401
 from .mensuel import (  # noqa: F401
     etat_stock_ouverture_fermeture, etat_stock_ouverture_fermeture_export,
     etat_stock_fermeture, etat_stock_fermeture_export,
+    etat_stock_ouverture_marketeur, etat_stock_fermeture_marketeur,
     etat_global_mensuel_depot, etat_global_mensuel_depot_export,
     etat_global_mensuel_rjj, etat_global_mensuel_rjj_export,
     etat_coulage_repartition, etat_coulage_repartition_export,
     etat_coulage_repartition_marketeur, etat_coulage_repartition_marketeur_export,
-    etat_stock_mensuel_a, etat_stock_mensuel_a_export,
-    etat_stock_mensuel_a_marketeur, etat_stock_mensuel_a_marketeur_export,
-    etat_stock_mensuel_b, etat_stock_mensuel_b_export,
-    etat_stock_mensuel_b_marketeur, etat_stock_mensuel_b_marketeur_export,
+    etat_stock_mensuel_15, etat_stock_mensuel_15_export,
+    etat_stock_mensuel_15_marketeur, etat_stock_mensuel_15_marketeur_export,
+    etat_stock_ambiant, etat_stock_ambiant_export,
+    etat_stock_ambiant_marketeur, etat_stock_ambiant_marketeur_export,
     etat_frais_passage_mensuel, etat_frais_passage_mensuel_export,
     etat_frais_passage_mensuel_marketeur, etat_frais_passage_mensuel_marketeur_export,
 )
@@ -42,6 +45,9 @@ from .inventaire import (  # noqa: F401
 
 # Periodes comptables
 from .periode import ListePeriodesView, OuvrirPeriodeView  # noqa: F401
+
+# Exercices comptables
+from .exercice import ListeExercicesView, ClotureExerciceView  # noqa: F401
 
 # Documents justificatifs
 from .documents import (  # noqa: F401
@@ -217,12 +223,13 @@ def marketeur_delete(request, uuid, slug):
 @login_required
 def camion_list(request):
     from django.core.paginator import Paginator
-    qs = Camion.objects.select_related('marketeur').all()
+    base_qs = Camion.objects.select_related('marketeur').all()
     if request.user.is_marketeur_role and request.user.marketeur:
-        qs = qs.filter(marketeur=request.user.marketeur)
+        base_qs = base_qs.filter(marketeur=request.user.marketeur)
     q      = request.GET.get('q', '').strip()
     statut = request.GET.get('statut', '')
     type_p = request.GET.get('type_produit', '')
+    qs = base_qs
     if q:
         qs = qs.filter(
             Q(immatriculation__icontains=q) | Q(marque__icontains=q) |
@@ -236,10 +243,11 @@ def camion_list(request):
     camions   = paginator.get_page(request.GET.get('page', 1))
     filtres   = {'q': q, 'statut': statut, 'type_produit': type_p}
     ctx = {
-        'camions': camions, 'total': Camion.objects.count(),
-        'nb_service': Camion.objects.filter(statut='EN_SERVICE').count(),
-        'nb_maintenance': Camion.objects.filter(statut='EN_MAINTENANCE').count(),
-        'nb_hors_service': Camion.objects.filter(statut='HORS_SERVICE').count(),
+        'camions': camions,
+        'total':          base_qs.count(),
+        'nb_service':     base_qs.filter(statut='EN_SERVICE').count(),
+        'nb_maintenance': base_qs.filter(statut='EN_MAINTENANCE').count(),
+        'nb_hors_service':base_qs.filter(statut='HORS_SERVICE').count(),
         'type_choices': Camion.TYPE_PRODUIT_CHOICES, 'statut_choices': Camion.STATUT_CHOICES,
         'q': q, 'statut': statut, 'type_produit': type_p,
         'filtres': filtres,
@@ -259,19 +267,22 @@ def camion_detail(request, uuid, slug):
 
 @login_required
 def camion_create(request):
-    if _deny_marketeur(request):
-        return redirect('camion_list')
+    mkt = request.user.marketeur if request.user.is_marketeur_role else None
     if request.method == 'POST':
         form    = CamionForm(request.POST, request.FILES)
         formset = CompartimentCamionFormSet(request.POST, prefix='compartiments')
         if form.is_valid() and formset.is_valid():
-            cam = form.save()
+            cam = form.save(commit=False)
+            if mkt:
+                cam.marketeur = mkt
+            cam.save()
             formset.instance = cam
             formset.save()
             messages.success(request, f'Camion « {cam.immatriculation} » enregistré avec succès.')
             return redirect('camion_list')
     else:
-        form    = CamionForm()
+        initial = {'marketeur': mkt} if mkt else {}
+        form    = CamionForm(initial=initial)
         formset = CompartimentCamionFormSet(prefix='compartiments')
     return render(request, 'Camion/camion_form.html', {
         'form': form, 'formset': formset, 'action': 'Nouveau',
@@ -280,14 +291,19 @@ def camion_create(request):
 
 @login_required
 def camion_update(request, uuid, slug):
-    if _deny_marketeur(request):
-        return redirect('camion_detail', uuid=uuid, slug=slug)
     camion = get_object_or_404(Camion, uuid=uuid)
+    if request.user.is_marketeur_role:
+        if not request.user.marketeur or camion.marketeur_id != request.user.marketeur.pk:
+            messages.error(request, "Vous ne pouvez modifier que vos propres camions.")
+            return redirect('camion_detail', uuid=uuid, slug=slug)
     if request.method == 'POST':
         form    = CamionForm(request.POST, request.FILES, instance=camion)
         formset = CompartimentCamionFormSet(request.POST, instance=camion, prefix='compartiments')
         if form.is_valid() and formset.is_valid():
-            form.save()
+            cam = form.save(commit=False)
+            if request.user.is_marketeur_role and request.user.marketeur:
+                cam.marketeur = request.user.marketeur
+            cam.save()
             formset.save()
             messages.success(request, f'Camion « {camion.immatriculation} » modifié avec succès.')
             return redirect('camion_detail', uuid=camion.uuid, slug=camion.slug)
@@ -301,13 +317,15 @@ def camion_update(request, uuid, slug):
 
 @login_required
 def camion_delete(request, uuid, slug):
-    if _deny_marketeur(request):
-        return redirect('camion_detail', uuid=uuid, slug=slug)
     camion = get_object_or_404(Camion, uuid=uuid)
+    if request.user.is_marketeur_role:
+        if not request.user.marketeur or camion.marketeur_id != request.user.marketeur.pk:
+            messages.error(request, "Vous ne pouvez supprimer que vos propres camions.")
+            return redirect('camion_detail', uuid=uuid, slug=slug)
     if request.method == 'POST':
         immat = camion.immatriculation
         camion.delete()
-        messages.success(request, f'Camion a « {immat} » été supprimé.')
+        messages.success(request, f'Camion « {immat} » supprimé.')
         return redirect('camion_list')
     return render(request, 'Camion/camion_confirm_delete.html', {'camion': camion})
 
@@ -318,11 +336,13 @@ def camion_delete(request, uuid, slug):
 
 @login_required
 def chauffeur_list(request):
-    qs = Chauffeur.objects.select_related('marketeur', 'camion').all()
+    from django.core.paginator import Paginator
+    base_qs = Chauffeur.objects.select_related('marketeur', 'camion').all()
     if request.user.is_marketeur_role and request.user.marketeur:
-        qs = qs.filter(marketeur=request.user.marketeur)
+        base_qs = base_qs.filter(marketeur=request.user.marketeur)
     q      = request.GET.get('q', '').strip()
     statut = request.GET.get('statut', '')
+    qs = base_qs
     if q:
         qs = qs.filter(
             Q(nom__icontains=q) | Q(prenom__icontains=q) | Q(telephone__icontains=q) |
@@ -330,12 +350,16 @@ def chauffeur_list(request):
         )
     if statut:
         qs = qs.filter(statut=statut)
+    filtres  = {'q': q, 'statut': statut}
+    paginator  = Paginator(qs, 25)
+    chauffeurs = paginator.get_page(request.GET.get('page', 1))
     ctx = {
-        'chauffeurs': qs, 'total': Chauffeur.objects.count(),
-        'nb_actif': Chauffeur.objects.filter(statut='ACTIF').count(),
-        'nb_inactif': Chauffeur.objects.filter(statut='INACTIF').count(),
-        'nb_suspendu': Chauffeur.objects.filter(statut='SUSPENDU').count(),
-        'q': q, 'statut': statut,
+        'chauffeurs': chauffeurs,
+        'total':      base_qs.count(),
+        'nb_actif':   base_qs.filter(statut='ACTIF').count(),
+        'nb_inactif': base_qs.filter(statut='INACTIF').count(),
+        'nb_suspendu':base_qs.filter(statut='SUSPENDU').count(),
+        'q': q, 'statut': statut, 'filtres': filtres,
     }
     return render(request, 'Chauffeur/chauffeur_list.html', ctx)
 
@@ -352,30 +376,38 @@ def chauffeur_detail(request, uuid, slug):
 
 @login_required
 def chauffeur_create(request):
-    if _deny_marketeur(request):
-        return redirect('chauffeur_list')
+    mkt = request.user.marketeur if request.user.is_marketeur_role else None
     if request.method == 'POST':
         form = ChauffeurForm(request.POST, request.FILES)
         if form.is_valid():
             chf = form.save(commit=False)
-            chf.numero_employe = Chauffeur.get_next_numero()
+            if not chf.numero_employe:
+                chf.numero_employe = Chauffeur.get_next_numero()
+            if mkt:
+                chf.marketeur = mkt
             chf.save()
             messages.success(request, f'Chauffeur « {chf.nom_complet} » enregistré avec succès.')
             return redirect('chauffeur_list')
     else:
-        form = ChauffeurForm()
+        initial = {'marketeur': mkt} if mkt else {}
+        form = ChauffeurForm(initial=initial)
     return render(request, 'Chauffeur/chauffeur_form.html', {'form': form, 'action': 'Nouveau'})
 
 
 @login_required
 def chauffeur_update(request, uuid, slug):
-    if _deny_marketeur(request):
-        return redirect('chauffeur_detail', uuid=uuid, slug=slug)
     chauffeur = get_object_or_404(Chauffeur, uuid=uuid)
+    if request.user.is_marketeur_role:
+        if not request.user.marketeur or chauffeur.marketeur_id != request.user.marketeur.pk:
+            messages.error(request, "Vous ne pouvez modifier que vos propres chauffeurs.")
+            return redirect('chauffeur_detail', uuid=uuid, slug=slug)
     if request.method == 'POST':
         form = ChauffeurForm(request.POST, request.FILES, instance=chauffeur)
         if form.is_valid():
-            form.save()
+            chf = form.save(commit=False)
+            if request.user.is_marketeur_role and request.user.marketeur:
+                chf.marketeur = request.user.marketeur
+            chf.save()
             messages.success(request, f'Chauffeur « {chauffeur.nom_complet} » modifié avec succès.')
             return redirect('chauffeur_detail', uuid=chauffeur.uuid, slug=chauffeur.slug)
     else:
@@ -385,9 +417,11 @@ def chauffeur_update(request, uuid, slug):
 
 @login_required
 def chauffeur_delete(request, uuid, slug):
-    if _deny_marketeur(request):
-        return redirect('chauffeur_detail', uuid=uuid, slug=slug)
     chauffeur = get_object_or_404(Chauffeur, uuid=uuid)
+    if request.user.is_marketeur_role:
+        if not request.user.marketeur or chauffeur.marketeur_id != request.user.marketeur.pk:
+            messages.error(request, "Vous ne pouvez supprimer que vos propres chauffeurs.")
+            return redirect('chauffeur_detail', uuid=uuid, slug=slug)
     if request.method == 'POST':
         nom = chauffeur.nom_complet
         chauffeur.delete()
@@ -403,7 +437,9 @@ def chauffeur_badge(request, uuid, slug):
         if chauffeur.marketeur_id != request.user.marketeur.pk:
             messages.error(request, "Accès refusé.")
             return redirect('chauffeur_list')
-    badge_url = request.build_absolute_uri(f'/chauffeurs/{pk}/')
+    badge_url = request.build_absolute_uri(
+        f'/chauffeurs/{chauffeur.uuid}/{chauffeur.slug}/'
+    )
     qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=10, border=2)
     qr.add_data(badge_url)
     qr.make(fit=True)
@@ -583,8 +619,8 @@ def cuve_list(request):
         )
     if statut:
         qs = qs.filter(statut=statut)
-    if produit_id:
-        qs = qs.filter(produit_id=produit_id)
+    if produit_id and _uuid_valide(produit_id):
+        qs = qs.filter(produit__uuid=produit_id)
     ctx = {
         'cuves': qs, 'total': Cuve.objects.count(),
         'nb_active': Cuve.objects.filter(statut='ACTIVE').count(),
@@ -939,7 +975,10 @@ def valider_jaugeage(request, uuid, slug):
     jaugeage.date_validation = timezone.now()
     jaugeage.valide_par = request.user
     jaugeage.save(update_fields=['est_valide', 'date_validation', 'valide_par'])
-    Produit.mettre_a_jour_stocks(jaugeage)
+    # Le signal on_jaugeage_saved (signals.py) déclenche recalculer_stock_cuve +
+    # recalculer_stock_produit pour toutes les cuves du jaugeage.
+    # NOTE : Produit.mettre_a_jour_stocks(jaugeage) n'est plus appelé ici car
+    # cette ancienne méthode ignorait les mouvements (stock = jaugeage seul).
     messages.success(request, f"Jaugeage du {jaugeage.date_jaugeage.strftime('%d/%m/%Y')} validé.")
     return redirect('jaugeage_detail', uuid=uuid, slug=slug)
 
@@ -1066,10 +1105,10 @@ def mouvement_liste(request):
         qs = qs.filter(type_mouvement=type_m)
     if regime:
         qs = qs.filter(regime_douanier=regime)
-    if mkt_pk:
-        qs = qs.filter(marketeur_id=mkt_pk)
-    if produit_pk:
-        qs = qs.filter(produit_id=produit_pk)
+    if mkt_pk and _uuid_valide(mkt_pk):
+        qs = qs.filter(marketeur__uuid=mkt_pk)
+    if produit_pk and _uuid_valide(produit_pk):
+        qs = qs.filter(produit__uuid=produit_pk)
     if date_debut:
         qs = qs.filter(date_mouvement__gte=date_debut)
     if date_fin:
@@ -1080,7 +1119,8 @@ def mouvement_liste(request):
             Q(bl_expediteur__icontains=q) | Q(marketeur__raison_sociale__icontains=q)
         )
     nb_total = qs.count()
-    paginator = Paginator(qs, 50)
+    # ?tout=1 : tout afficher (impression complète sans pagination)
+    paginator = Paginator(qs, max(nb_total, 1) if request.GET.get('tout') == '1' else 50)
     mouvements = paginator.get_page(request.GET.get('page', 1))
     return render(request, 'mouvements/liste.html', {
         'mouvements': mouvements, 'nb_total': nb_total,
@@ -1156,7 +1196,7 @@ def mouvement_modifier(request, uuid, slug):
     marketeurs = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
     return render(request, 'mouvements/saisie.html', {
         'form': form, 'lignes_formset': lignes_formset, 'mouvement': mouvement,
-        'titre': f'Modifier â€" {mouvement.numero_enregistrement}',
+        'titre': f'Modification du "{mouvement.numero_enregistrement}"',
         'camions': camions, 'cuves': cuves, 'marketeurs': marketeurs, 'mode': 'modification',
     })
 
@@ -1189,8 +1229,15 @@ def mouvement_supprimer(request, uuid, slug):
         return redirect('mouvement_liste')
     mouvement = get_object_or_404(Mouvement, uuid=uuid)
     if request.method == 'POST':
+        produit = mouvement.produit
+        cuves = list(produit.cuves.select_related('parametre_jaugeage').all())
         mouvement.delete()
-        messages.success(request, "Mouvement supprimé.")
+        # Recalcul explicite (ceinture + bretelles en plus du signal post_delete)
+        from SGDS.services.recalcul_stock import recalculer_stock_cuve, recalculer_stock_produit
+        for cuve in cuves:
+            recalculer_stock_cuve(cuve)
+        recalculer_stock_produit(produit)
+        messages.success(request, "Mouvement supprimé. Stock recalculé.")
         return redirect('mouvement_liste')
     return render(request, 'mouvements/confirmer_suppression.html', {'mouvement': mouvement})
 
@@ -1477,8 +1524,8 @@ def mouvements_liste_pdf(request):
 
     if type_m:      qs = qs.filter(type_mouvement=type_m)
     if regime:      qs = qs.filter(regime_douanier=regime)
-    if mkt_pk:      qs = qs.filter(marketeur_id=mkt_pk)
-    if produit_pk:  qs = qs.filter(produit_id=produit_pk)
+    if mkt_pk and _uuid_valide(mkt_pk):     qs = qs.filter(marketeur__uuid=mkt_pk)
+    if produit_pk and _uuid_valide(produit_pk): qs = qs.filter(produit__uuid=produit_pk)
     if date_debut:  qs = qs.filter(date_mouvement__gte=date_debut)
     if date_fin:    qs = qs.filter(date_mouvement__lte=date_fin)
     if q:

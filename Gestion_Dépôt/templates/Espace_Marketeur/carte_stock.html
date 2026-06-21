@@ -148,7 +148,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Imprimer
     </button>
-    <a href="{% url 'client_carte_stock_export' %}?produit={{ produit_sel.pk }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
+    <a href="{% url 'client_carte_stock_export' %}?produit={{ produit_sel.uuid }}&regime={{ regime }}{% if date_debut %}&date_debut={{ date_debut }}{% endif %}{% if date_fin %}&date_fin={{ date_fin }}{% endif %}"
        class="btn-export-main">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exporter Excel
@@ -166,7 +166,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
         <select name="produit" required>
           <option value="">— Choisir un produit —</option>
           {% for p in produits %}
-          <option value="{{ p.pk }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
+          <option value="{{ p.uuid }}" {% if produit_sel and produit_sel.pk == p.pk %}selected{% endif %}>
             {{ p.nom }}{% if p.famille %} ({{ p.famille.nom }}){% endif %}
           </option>
           {% endfor %}
@@ -288,7 +288,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
     <tbody>
       {# ── Ligne REPORT ── #}
       <tr class="row-report">
-        <td class="left" colspan="{% if carte.is_tous %}8{% else %}10{% endif %}" style="font-weight:700;letter-spacing:.04em">REPORT</td>
+        <td class="left" colspan="{% if carte.is_tous %}9{% else %}10{% endif %}" style="font-weight:700;letter-spacing:.04em">REPORT</td>
         <td class="num num-stock">{{ carte.report_amb|floatformat:0|intcomma }}</td>
       </tr>
 
