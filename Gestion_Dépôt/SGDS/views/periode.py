@@ -9,16 +9,22 @@ from django.shortcuts import redirect, render
 from django.views import View
 from django.views.generic import ListView
 
+from SGDS.users.decorators import VoirRequiredMixin
 
-class ListePeriodesView(LoginRequiredMixin, ListView):
+
+class ListePeriodesView(LoginRequiredMixin, VoirRequiredMixin, ListView):
+    permission_codename = 'voir_periode'
     template_name = 'periode/liste.html'
     context_object_name = 'periodes'
     paginate_by = 24
 
     def get_queryset(self):
         from SGDS.models import PeriodeComptable
+        if self.request.depot is None:
+            return PeriodeComptable.objects.none()
         return (
             PeriodeComptable.objects
+            .filter(depot=self.request.depot)
             .select_related('cloture_par', 'cloture_coulage')
             .order_by('-annee', '-mois')
         )
@@ -28,8 +34,16 @@ class ListePeriodesView(LoginRequiredMixin, ListView):
         from SGDS.services.periode_comptable import mois_suivant, verifier_peut_ouvrir_periode
 
         ctx = super().get_context_data(**kwargs)
+        depot = self.request.depot
 
-        derniere = PeriodeComptable.objects.order_by('-annee', '-mois').first()
+        if depot is None:
+            ctx['peut_ouvrir_suivante'] = False
+            ctx['mois_a_ouvrir']        = None
+            ctx['annee_a_ouvrir']       = None
+            ctx['premiere_periode']     = False
+            return ctx
+
+        derniere = PeriodeComptable.objects.filter(depot=depot).order_by('-annee', '-mois').first()
         peut_ouvrir = False
         mois_a_ouvrir = annee_a_ouvrir = None
 
@@ -42,7 +56,7 @@ class ListePeriodesView(LoginRequiredMixin, ListView):
         elif derniere.statut == 'CLOTUREE':
             m, a = mois_suivant(derniere.mois, derniere.annee)
             try:
-                verifier_peut_ouvrir_periode(m, a)
+                verifier_peut_ouvrir_periode(depot, m, a)
                 peut_ouvrir = self.request.user.is_staff
                 mois_a_ouvrir, annee_a_ouvrir = m, a
             except ValidationError:
@@ -63,7 +77,11 @@ class OuvrirPeriodeView(LoginRequiredMixin, UserPassesTestMixin, View):
         from SGDS.models import PeriodeComptable
         from SGDS.services.periode_comptable import mois_suivant
 
-        derniere = PeriodeComptable.objects.order_by('-annee', '-mois').first()
+        if request.depot is None:
+            messages.error(request, "Choisissez un dépôt actif avant d'ouvrir une période.")
+            return redirect('periode_liste')
+
+        derniere = PeriodeComptable.objects.filter(depot=request.depot).order_by('-annee', '-mois').first()
 
         if derniere is None:
             from django.utils import timezone
@@ -88,6 +106,10 @@ class OuvrirPeriodeView(LoginRequiredMixin, UserPassesTestMixin, View):
     def post(self, request):
         from SGDS.services.periode_comptable import ouvrir_periode
 
+        if request.depot is None:
+            messages.error(request, "Choisissez un dépôt actif avant d'ouvrir une période.")
+            return redirect('periode_liste')
+
         try:
             mois  = int(request.POST.get('mois',  0))
             annee = int(request.POST.get('annee', 0))
@@ -96,7 +118,7 @@ class OuvrirPeriodeView(LoginRequiredMixin, UserPassesTestMixin, View):
             return redirect('periode_liste')
 
         try:
-            periode = ouvrir_periode(mois, annee, user=request.user)
+            periode = ouvrir_periode(request.depot, mois, annee, user=request.user)
             messages.success(
                 request,
                 f"Période {periode.libelle} ouverte avec succès. "

@@ -12,15 +12,15 @@ class PermissionsTests(TestCase):
 
     def setUp(self):
         self.superadmin = creer_utilisateur(
-            'superadmin', 'sa@sgds.ml', 'pass12345', Role.SUPERADMIN)
+            'superadmin', 'sa@sgds.ml', 'pass12345', 'SUPERADMIN')
         self.chef = creer_utilisateur(
-            'chef', 'chef@sgds.ml', 'pass12345', Role.CHEF_DEPOT)
+            'chef', 'chef@sgds.ml', 'pass12345', 'CHEF_DEPOT')
         self.operateur = creer_utilisateur(
-            'ope', 'ope@sgds.ml', 'pass12345', Role.OPERATEUR)
+            'ope', 'ope@sgds.ml', 'pass12345', 'OPERATEUR')
         self.comptable = creer_utilisateur(
-            'cpt', 'cpt@sgds.ml', 'pass12345', Role.COMPTABLE)
+            'cpt', 'cpt@sgds.ml', 'pass12345', 'COMPTABLE')
         self.lecteur = creer_utilisateur(
-            'lec', 'lec@sgds.ml', 'pass12345', Role.LECTEUR)
+            'lec', 'lec@sgds.ml', 'pass12345', 'MARKETEUR')
 
     # ── SUPERADMIN ─────────────────────────────────────────────────────────────
     def test_superadmin_a_tous_les_droits(self):
@@ -67,13 +67,14 @@ class PermissionsTests(TestCase):
         self.assertTrue(can_export(u))
         self.assertFalse(can_manage_users(u))
 
-    # ── LECTEUR ────────────────────────────────────────────────────────────────
+    # ── MARKETEUR (lecture seule) ──────────────────────────────────────────────
     def test_lecteur_ne_peut_rien(self):
         u = self.lecteur
         self.assertFalse(can_write(u))
         self.assertFalse(can_close_period(u))
         self.assertFalse(can_manage_users(u))
-        self.assertFalse(can_export(u))
+        # MARKETEUR peut exporter ses propres mouvements (exporter_mouvement)
+        self.assertTrue(can_export(u))
         self.assertFalse(can_view_audit(u))
 
     # ── Profil désactivé ───────────────────────────────────────────────────────

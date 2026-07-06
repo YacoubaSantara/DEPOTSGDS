@@ -22,18 +22,18 @@ def _D(x):
     return Decimal(str(x))
 
 
-def _produits_concernes(date_debut, date_fin):
+def _produits_concernes(date_debut, date_fin, depot):
     """
     Retourne la liste ordonnée des Produit ayant des mouvements ou des cuves
-    actives sur la période.
+    actives sur la période, dans le dépôt donné.
     """
     from django.db.models import Q
     from SGDS.models import Produit
     return list(
         Produit.objects
         .filter(
-            Q(mouvements__date_mouvement__range=(date_debut, date_fin))
-            | Q(cuves__statut='ACTIVE')
+            Q(mouvements__depot=depot, mouvements__date_mouvement__range=(date_debut, date_fin))
+            | Q(cuves__depot=depot, cuves__statut='ACTIVE')
         )
         .distinct()
         .order_by('nom')
@@ -61,6 +61,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
 
     date_debut = periode.date_debut
     date_fin   = periode.date_fin
+    depot      = periode.depot
 
     # ── Paramètres de coulage en vigueur ─────────────────────────
     params = ParametresCoulage.en_vigueur(date_fin)
@@ -68,14 +69,16 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
     motif_defaut  = params.motif_defaut if params else 'Chargement'
 
     # ── Produits concernés ────────────────────────────────────────
-    produits = _produits_concernes(date_debut, date_fin)
+    produits = _produits_concernes(date_debut, date_fin, depot)
 
     # ── Cumuls globaux (tous marketeurs) ──────────────────────────
     qs_entrees = Mouvement.objects.filter(
+        depot=depot,
         type_mouvement='ENTREE',
         date_mouvement__range=(date_debut, date_fin),
     )
     qs_sorties = Mouvement.objects.filter(
+        depot=depot,
         type_mouvement='SORTIE',
         date_mouvement__range=(date_debut, date_fin),
     )
@@ -98,6 +101,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
     dernier_j = (
         JaugeageJour.objects
         .filter(
+            depot=depot,
             date_jaugeage__gte=date_debut,
             date_jaugeage__lte=date_fin,
         )
@@ -125,6 +129,7 @@ def calculer_repartition_coulage(periode, *, marketeurs=None) -> dict:
     # ── Inventaires initiaux (fallback si pas de StockOuverture) ─
     inv_initiaux = {}   # {produit_pk: Decimal}
     for inv in InventaireInitialMarketeur.objects.filter(
+        depot=depot,
         date_inventaire__lte=date_fin,
     ).select_related('produit'):
         pid = inv.produit_id

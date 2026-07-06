@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — Profil — {{ mkt.raison_sociale }}{% endblock %}
+
+{% block breadcrumb %}
+  <a href="#">Paramètres</a><span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Profil</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.param-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.param-tab{
+  display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:999px;
+  font-size:12.5px;font-weight:600;color:var(--muted);border:1px solid var(--border);
+  background:var(--surface);transition:all .15s;
+}
+.param-tab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
+.param-tab:hover{color:var(--ink);border-color:var(--border-2)}
+.param-tab.active{color:#fff;background:var(--accent);border-color:var(--accent)}
+
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:4px}
+.form-grid .col-full{grid-column:1/-1}
+.form-section-title{
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);
+  grid-column:1/-1;
+}
+.field input,.field select,.field textarea{
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:8px 10px;font-size:13px;background:var(--surface);width:100%;
+  transition:border-color .15s,box-shadow .15s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,84,26,.08);
+}
+.field .errorlist{margin:3px 0 0;padding:0;list-style:none}
+.field .errorlist li{font-size:11.5px;color:var(--err);display:flex;align-items:center;gap:4px}
+
+.param-card{margin-bottom:20px}
+.param-card-header{
+  display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid var(--border);
+}
+.param-card-icon{
+  width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);color:var(--accent);flex-shrink:0;
+}
+.param-card-icon svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}
+.param-card-title{font-size:.95rem;font-weight:800;color:var(--ink);margin:0}
+.param-card-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.param-card-body{padding:20px 22px}
+
+.legal-chips{display:flex;flex-wrap:wrap;gap:10px}
+.legal-chip{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:8px 12px;min-width:140px;
+}
+.legal-chip-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.legal-chip-val{font-size:12.5px;font-weight:600;color:var(--ink)}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Paramètres</h1>
+    <p class="ph-sub">Gérez votre profil entreprise et votre sécurité</p>
+  </div>
+</div>
+
+<div class="param-tabs">
+  <a href="{% url 'client_parametres_profil' %}" class="param-tab active">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    Profil
+  </a>
+  <a href="{% url 'client_parametres_securite' %}" class="param-tab">
+    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    Sécurité
+  </a>
+</div>
+
+<!-- ═══════════════ INFOS LÉGALES (lecture seule) ═══════════════ -->
+<div class="card param-card">
+  <div class="param-card-header">
+    <div class="param-card-icon">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+    </div>
+    <div>
+      <h2 class="param-card-title">Identité de l'entreprise</h2>
+      <div class="param-card-sub">Lecture seule — contactez un administrateur SGDS pour toute correction</div>
+    </div>
+  </div>
+  <div class="param-card-body">
+    <div class="legal-chips">
+      <div class="legal-chip">
+        <div class="legal-chip-label">Raison sociale</div>
+        <div class="legal-chip-val">{{ mkt.raison_sociale }}</div>
+      </div>
+      <div class="legal-chip">
+        <div class="legal-chip-label">Forme juridique</div>
+        <div class="legal-chip-val">{{ mkt.get_forme_juridique_display }}</div>
+      </div>
+      {% if mkt.numero_registre_commerce %}
+      <div class="legal-chip">
+        <div class="legal-chip-label">RCCM</div>
+        <div class="legal-chip-val">{{ mkt.numero_registre_commerce }}</div>
+      </div>
+      {% endif %}
+      {% if mkt.numero_contribuable %}
+      <div class="legal-chip">
+        <div class="legal-chip-label">NIF</div>
+        <div class="legal-chip-val">{{ mkt.numero_contribuable }}</div>
+      </div>
+      {% endif %}
+      <div class="legal-chip">
+        <div class="legal-chip-label">Statut</div>
+        <div class="legal-chip-val">{{ mkt.get_statut_display }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ COORDONNÉES (éditable) ═══════════════ -->
+<div class="card param-card">
+  <div class="param-card-header">
+    <div class="param-card-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </div>
+    <div>
+      <h2 class="param-card-title">Mes coordonnées</h2>
+      <div class="param-card-sub">Adresse, contacts, représentant et coordonnées bancaires</div>
+    </div>
+  </div>
+  <div class="param-card-body">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="form-grid">
+        <div class="form-section-title">Adresse & contact</div>
+        <div class="field col-full">
+          <label class="field-label">Adresse complète<span style="color:var(--err)">*</span></label>
+          {{ form.adresse }}
+          {{ form.adresse.errors }}
+        </div>
+        <div class="field"><label class="field-label">Quartier / Secteur</label>{{ form.quartier }}</div>
+        <div class="field">
+          <label class="field-label">Ville<span style="color:var(--err)">*</span></label>
+          {{ form.ville }}
+          {{ form.ville.errors }}
+        </div>
+        <div class="field"><label class="field-label">Boîte postale</label>{{ form.boite_postale }}</div>
+        <div class="field">
+          <label class="field-label">Téléphone principal<span style="color:var(--err)">*</span></label>
+          {{ form.telephone }}
+          {{ form.telephone.errors }}
+        </div>
+        <div class="field"><label class="field-label">Téléphone secondaire</label>{{ form.telephone2 }}</div>
+        <div class="field"><label class="field-label">Email</label>{{ form.email }}</div>
+        <div class="field"><label class="field-label">Site web</label>{{ form.site_web }}</div>
+        <div class="field col-full"><label class="field-label">Logo de la société</label>{{ form.logo }}</div>
+      </div>
+
+      <div class="form-grid" style="margin-top:18px">
+        <div class="form-section-title">Représentant légal</div>
+        <div class="field">
+          <label class="field-label">Nom<span style="color:var(--err)">*</span></label>
+          {{ form.nom_representant }}
+          {{ form.nom_representant.errors }}
+        </div>
+        <div class="field">
+          <label class="field-label">Prénom<span style="color:var(--err)">*</span></label>
+          {{ form.prenom_representant }}
+          {{ form.prenom_representant.errors }}
+        </div>
+        <div class="field"><label class="field-label">Fonction / Titre</label>{{ form.fonction_representant }}</div>
+        <div class="field"><label class="field-label">Téléphone direct</label>{{ form.telephone_representant }}</div>
+        <div class="field col-full"><label class="field-label">Email professionnel</label>{{ form.email_representant }}</div>
+      </div>
+
+      <div class="form-grid" style="margin-top:18px">
+        <div class="form-section-title">Coordonnées bancaires</div>
+        <div class="field col-full"><label class="field-label">Banque domiciliataire</label>{{ form.banque }}</div>
+        <div class="field"><label class="field-label">N° Compte bancaire</label>{{ form.numero_compte }}</div>
+        <div class="field"><label class="field-label">Code SWIFT / BIC</label>{{ form.code_swift }}</div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;justify-content:flex-end">
+        <button type="submit" class="btn btn-accent" style="height:36px;padding:0 20px;font-size:13px">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+          Enregistrer mes coordonnées
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load user_tags %}
+{% load user_tags jaugeage_extras %}
 {% block title %}Utilisateurs{% endblock %}
 
 {% block breadcrumb %}
@@ -8,7 +8,6 @@
 {% endblock %}
 
 {% block content %}
-{% load user_tags %}
 <div class="ph">
   <div>
     <h1 class="ph-title">Gestion des utilisateurs</h1>
@@ -27,7 +26,7 @@
   {% for code, libelle in roles %}
   <div class="kpi">
     <div class="kpi-label">{{ libelle }}</div>
-    <div class="kpi-val mono">{{ stats_roles|default:"—" }}</div>
+    <div class="kpi-val mono">{{ stats_roles|get_item:code|default:0 }}</div>
   </div>
   {% endfor %}
 </div>
@@ -106,26 +105,7 @@
     </tbody>
   </table>
 
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div class="pagination">
-    <span>Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-    <span class="step-links">
-      {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if role_filtre %}&role={{ role_filtre }}{% endif %}">‹</a>
-      {% endif %}
-      {% for i in page_obj.paginator.page_range %}
-        {% if page_obj.number == i %}
-          <span class="current">{{ i }}</span>
-        {% elif i >= page_obj.number|add:"-2" and i <= page_obj.number|add:"2" %}
-          <a href="?page={{ i }}{% if q %}&q={{ q }}{% endif %}{% if role_filtre %}&role={{ role_filtre }}{% endif %}">{{ i }}</a>
-        {% endif %}
-      {% endfor %}
-      {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if role_filtre %}&role={{ role_filtre }}{% endif %}">›</a>
-      {% endif %}
-    </span>
-  </div>
-  {% endif %}
+  {% include 'partials/_pagination.html' with page_obj=page_obj filtres=filtres %}
 
   {% else %}
   <div class="tbl-empty" style="padding:56px 24px;text-align:center">

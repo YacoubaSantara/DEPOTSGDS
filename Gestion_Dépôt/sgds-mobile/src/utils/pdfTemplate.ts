@@ -141,6 +141,7 @@ export interface CarteStockPdfParams {
   produitSigle: string;
   periodeLabel: string;
   lignes: StockLigne[];
+  stock_ouverture_ambiant?: number;
   cumul_entrees_ambiant: number;
   cumul_sorties_ambiant: number;
   stock_final_ambiant: number;
@@ -191,6 +192,12 @@ export function buildCarteStockHtml(p: CarteStockPdfParams): string {
   </div>
 
   <div class="summary-row">
+    ${p.stock_ouverture_ambiant ? `
+    <div class="sum-card" style="background:#EDE9FE">
+      <div class="sum-label">Stock d'ouverture (report)</div>
+      <div class="sum-value" style="color:#5B21B6">${fmtN(p.stock_ouverture_ambiant)}</div>
+      <div class="sum-unit">litres ambiant</div>
+    </div>` : ''}
     <div class="sum-card navy">
       <div class="sum-label">Stock final (ambiant)</div>
       <div class="sum-value">${fmtN(p.stock_final_ambiant)}</div>

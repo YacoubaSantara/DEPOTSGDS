@@ -23,10 +23,22 @@ _pre_save_state: dict = {}
 
 
 # ── Création automatique du UserProfile ────────────────────────────────────────
+# Mappe le CharField legacy accounts.UtilisateurSGDS.role vers le code RBAC
+# correspondant. Filet de sécurité pour les comptes créés hors du formulaire
+# CreerUtilisateurView (qui assigne déjà profil.role explicitement) — ex.
+# création via Django admin. 'LECTEUR' n'existe plus depuis la migration
+# users.0006_remove_lecteur_role : ne JAMAIS s'y référer ici.
+ROLE_LEGACY_VERS_RBAC = {
+    'MARKETEUR': 'MARKETEUR',
+    'OPERATEUR': 'OPERATEUR',
+}
+
+
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def creer_profil_utilisateur(sender, instance, created, **kwargs):
     if created:
-        role_defaut = Role.objects.filter(code='LECTEUR').first()
+        code_rbac = ROLE_LEGACY_VERS_RBAC.get(instance.role)
+        role_defaut = Role.objects.filter(code=code_rbac).first() if code_rbac else None
         UserProfile.objects.get_or_create(
             user=instance,
             defaults={'role': role_defaut},
@@ -82,7 +94,10 @@ def capturer_etat_avant(sender, instance, **kwargs):
         _pre_save_state[(sender.__name__, instance.pk)] = {
             f.name: getattr(ancien, f.name)
             for f in sender._meta.fields
-            if not f.is_relation or f.many_to_one
+            # auto_now change à chaque save() : l'inclure ferait logger un
+            # UPDATE même sans modification réelle
+            if (not f.is_relation or f.many_to_one)
+            and not getattr(f, 'auto_now', False)
         }
     except sender.DoesNotExist:
         pass
@@ -100,10 +115,19 @@ def auditer_modification(sender, instance, created, **kwargs):
     if not created:
         ancien = _pre_save_state.pop((sender.__name__, instance.pk), None)
         if ancien:
+            from django.db.models.fields.files import FieldFile
+
+            def _norm(v):
+                # FieldFile vide : name peut valoir None ou '' selon la
+                # provenance (mémoire vs DB) — les considérer équivalents
+                if isinstance(v, FieldFile):
+                    return v.name or ''
+                return v
+
             changements = {}
             for k, v_avant in ancien.items():
                 v_apres = getattr(instance, k, None)
-                if v_avant != v_apres:
+                if _norm(v_avant) != _norm(v_apres):
                     changements[k] = {
                         'avant': str(v_avant) if v_avant is not None else None,
                         'apres': str(v_apres) if v_apres is not None else None,

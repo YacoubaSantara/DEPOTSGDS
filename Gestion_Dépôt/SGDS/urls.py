@@ -10,6 +10,7 @@ urlpatterns = [
 
     # Inventaire initial marketeur
     path('inventaire-initial/',                                    views.inventaire_initial_liste,    name='inventaire_initial_liste'),
+    path('inventaire-initial/marketeur/<uuid:uuid>/',              views.inventaire_initial_detail,   name='inventaire_initial_detail'),
     path('inventaire-initial/saisir/',                             views.inventaire_initial_saisir,   name='inventaire_initial_saisir'),
     path('inventaire-initial/saisie-masse/',                       views.inventaire_initial_masse,    name='inventaire_initial_masse'),
     path('inventaire-initial/<uuid:uuid>/supprimer/',              views.inventaire_initial_supprimer, name='inventaire_initial_supprimer'),
@@ -23,6 +24,8 @@ urlpatterns = [
     path('mon-espace/carte-stock/export/',       views.carte_stock_export,            name='client_carte_stock_export'),
     path('mon-espace/stock-global/',             views.stock_global_marketeur,        name='client_stock_global'),
     path('mon-espace/stock-global/export/',      views.stock_global_marketeur_export, name='client_stock_global_export'),
+    path('mon-espace/parametres/',               views.client_parametres_profil,      name='client_parametres_profil'),
+    path('mon-espace/parametres/securite/',      views.client_parametres_securite,    name='client_parametres_securite'),
 
     # Espace Marketeur - Etats mensuels
     path('mon-espace/mensuel/stock-ouverture/',            views.etat_stock_ouverture_marketeur,              name='client_mensuel_stock_ouverture'),
@@ -61,8 +64,17 @@ urlpatterns = [
     path('etat/mensuel/frais-passage/',              views.etat_frais_passage_mensuel,             name='etat_mensuel_frais_passage'),
     path('etat/mensuel/frais-passage/export/',       views.etat_frais_passage_mensuel_export,      name='etat_mensuel_frais_passage_export'),
 
-    # Societe / Depot
-    path('administration/societe/', views.societe_detail, name='societe_detail'),
+    # Paramètres (Societe / Depot + Configuration email)
+    path('administration/societe/',            views.societe_detail,      name='societe_detail'),
+    path('administration/parametres/email/',   views.configuration_email, name='configuration_email'),
+    path('administration/parametres/email-etats-mensuels/', views.gabarit_email_etat_mensuel, name='gabarit_email_etat_mensuel'),
+    path('administration/parametres/envois-etats-mensuels/', views.historique_envoi_etat_mensuel, name='historique_envoi_etat_mensuel'),
+    path('administration/parametres/envois-etats-mensuels/<int:pk>/renvoyer/', views.renvoyer_etat_mensuel, name='renvoyer_etat_mensuel'),
+    path('administration/parametres/email-mouvements/', views.gabarit_email_mouvement, name='gabarit_email_mouvement'),
+    path('administration/parametres/depots/',                          views.depot_liste,         name='depot_liste'),
+    path('administration/parametres/depots/nouveau/',                  views.depot_create,        name='depot_create'),
+    path('administration/parametres/depots/<uuid:uuid>/<slug:slug>/modifier/', views.depot_update, name='depot_update'),
+    path('administration/parametres/depot-actif/',                     views.changer_depot_actif, name='changer_depot_actif'),
 
     # Marketeurs
     path('marketeurs/',                                               views.marketeur_list,   name='marketeur_list'),

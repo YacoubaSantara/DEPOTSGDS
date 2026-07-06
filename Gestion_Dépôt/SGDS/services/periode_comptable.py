@@ -26,55 +26,57 @@ def _noms_mois():
 
 # ─── Lecture (sans écriture) ─────────────────────────────────────
 
-def periode_pour_date(d):
+def periode_pour_date(d, depot):
     """
-    Retourne la PeriodeComptable (OUVERTE ou CLOTUREE) pour la date `d`,
-    ou None si aucune n'existe. NE CRÉE RIEN.
+    Retourne la PeriodeComptable (OUVERTE ou CLOTUREE) du dépôt `depot`
+    pour la date `d`, ou None si aucune n'existe. NE CRÉE RIEN.
     """
     from SGDS.models import PeriodeComptable
     try:
         return PeriodeComptable.objects.filter(
-            mois=d.month, annee=d.year,
+            depot=depot, mois=d.month, annee=d.year,
         ).first()
     except Exception:
         return None
 
 
-def periode_ouverte_pour_date(d):
+def periode_ouverte_pour_date(d, depot):
     """
-    Retourne la PeriodeComptable OUVERTE pour la date `d`, ou None.
+    Retourne la PeriodeComptable OUVERTE du dépôt `depot` pour la date `d`, ou None.
     """
     from SGDS.models import PeriodeComptable
     try:
         return PeriodeComptable.objects.filter(
-            mois=d.month, annee=d.year, statut='OUVERTE',
+            depot=depot, mois=d.month, annee=d.year, statut='OUVERTE',
         ).first()
     except Exception:
         return None
 
 
-def periode_courante_ou_alerte():
+def periode_courante_ou_alerte(depot=None):
     """
-    Retourne la PeriodeComptable OUVERTE, quelle que soit le mois, ou None.
-    Si une période est ouverte (même sur un mois passé non encore clôturé),
-    elle reste la période active jusqu'à sa clôture explicite.
+    Retourne la PeriodeComptable OUVERTE du dépôt `depot`, quel que soit le
+    mois, ou None. Si `depot` est None (vue consolidée / non authentifié),
+    retourne None — il n'y a pas de "période courante" globale multi-dépôt.
     Utilisée par le templatetag du bandeau d'alerte et le context processor.
     """
     from SGDS.models import PeriodeComptable
+    if depot is None:
+        return None
     return PeriodeComptable.objects.filter(
-        statut='OUVERTE'
+        depot=depot, statut='OUVERTE'
     ).order_by('-annee', '-mois').first()
 
 
 # ─── Vérification ────────────────────────────────────────────────
 
-def verifier_peut_ouvrir_periode(mois, annee):
+def verifier_peut_ouvrir_periode(depot, mois, annee):
     """
-    Vérifie qu'on peut ouvrir (mois, annee).
+    Vérifie qu'on peut ouvrir (mois, annee) pour ce dépôt.
 
     Règles :
-    1. La période ne doit pas déjà exister.
-    2. Si aucune période en base → OK (première période).
+    1. La période ne doit pas déjà exister pour ce dépôt.
+    2. Si aucune période en base pour ce dépôt → OK (première période).
     3. Sinon, la dernière par ordre chronologique doit être CLOTUREE
        ET la nouvelle doit être exactement M+1.
 
@@ -83,13 +85,13 @@ def verifier_peut_ouvrir_periode(mois, annee):
     from SGDS.models import PeriodeComptable
 
     # Déjà existante ?
-    if PeriodeComptable.objects.filter(mois=mois, annee=annee).exists():
+    if PeriodeComptable.objects.filter(depot=depot, mois=mois, annee=annee).exists():
         noms = _noms_mois()
         raise ValidationError(
-            f"La période {noms[mois]} {annee} existe déjà."
+            f"La période {noms[mois]} {annee} existe déjà pour ce dépôt."
         )
 
-    derniere = PeriodeComptable.objects.order_by('-annee', '-mois').first()
+    derniere = PeriodeComptable.objects.filter(depot=depot).order_by('-annee', '-mois').first()
 
     # Première période ?
     if derniere is None:
@@ -118,9 +120,9 @@ def verifier_peut_ouvrir_periode(mois, annee):
 # ─── Ouverture ───────────────────────────────────────────────────
 
 @transaction.atomic
-def ouvrir_periode(mois, annee, user=None):
+def ouvrir_periode(depot, mois, annee, user=None):
     """
-    Ouvre la période (mois, annee) après vérification.
+    Ouvre la période (mois, annee) pour ce dépôt après vérification.
     Crée PeriodeComptable en statut OUVERTE.
     Résout les stocks d'ouverture depuis le dernier jaugeage de la
     période précédente si elle existe.
@@ -132,9 +134,10 @@ def ouvrir_periode(mois, annee, user=None):
     from SGDS.services.stock_ouverture_marketeur import resoudre_stock_ouverture_marketeur
     from SGDS.services.exercice import ouvrir_exercice_si_necessaire
 
-    verifier_peut_ouvrir_periode(mois, annee)
+    verifier_peut_ouvrir_periode(depot, mois, annee)
 
     periode = PeriodeComptable.objects.create(
+        depot=depot,
         mois=mois,
         annee=annee,
         statut='OUVERTE',
@@ -142,7 +145,7 @@ def ouvrir_periode(mois, annee, user=None):
     )
 
     # Crée l'Exercice de l'année si nécessaire (idempotent)
-    ouvrir_exercice_si_necessaire(annee)
+    ouvrir_exercice_si_necessaire(depot, annee)
 
     # Résoudre les stocks d'ouverture depuis la période précédente
     precedente = periode.periode_precedente()
@@ -180,6 +183,7 @@ def cloturer_periode(periode, user=None, notes=None):
         raise ValidationError(f"La période {periode} n'est pas ouverte.")
 
     if not JaugeageJour.objects.filter(
+        depot=periode.depot,
         date_jaugeage__gte=periode.date_debut,
         date_jaugeage__lte=periode.date_fin,
     ).exists():

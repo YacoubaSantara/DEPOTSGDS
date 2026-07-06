@@ -10,63 +10,113 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 
 from SGDS.models import InventaireInitialMarketeur, Marketeur, Produit, Cuve
+from SGDS.services.depot_scope import depot_scope, depot_requis, get_object_or_404_depot
+from SGDS.users.decorators import voir_required
+
+
+def _d(v):
+    return Decimal(str(v)) if v is not None else Decimal('0')
+
+
+def _totaux_lignes(lignes_list):
+    """Totaux SD / AC (ambiant et @15°C) pour une liste de lignes d'inventaire."""
+    total_amb_sd = sum(_d(l.volume_ambiant) for l in lignes_list if l.regime_douanier == 'SOUS_DOUANE')
+    total_amb_ac = sum(_d(l.volume_ambiant) for l in lignes_list if l.regime_douanier == 'ACQUITTE')
+    total_15c_sd = sum(_d(l.volume_15c)     for l in lignes_list if l.regime_douanier == 'SOUS_DOUANE')
+    total_15c_ac = sum(_d(l.volume_15c)     for l in lignes_list if l.regime_douanier == 'ACQUITTE')
+    return {
+        'total_amb_sd': total_amb_sd,
+        'total_amb_ac': total_amb_ac,
+        'total_amb':    total_amb_sd + total_amb_ac,
+        'total_15c_sd': total_15c_sd,
+        'total_15c_ac': total_15c_ac,
+        'total_15c':    total_15c_sd + total_15c_ac,
+    }
 
 
 # ─────────────────────────────────────────────────────────────
-#  LISTE GLOBALE
+#  LISTE GLOBALE — un résumé par marketeur, cliquable vers le détail
 # ─────────────────────────────────────────────────────────────
 
-@login_required
+@voir_required('voir_inventaire')
 def inventaire_initial_liste(request):
-    """Liste tous les stocks initiaux, regroupés par marketeur avec totaux."""
-    if not request.user.is_staff:
-        messages.error(request, "Accès réservé aux administrateurs.")
-        return redirect('admin_dashboard')
+    """Liste résumée : une ligne par marketeur (totaux + nb de lignes).
+    Le clic sur une ligne ouvre le détail du marketeur pour modification."""
+    q = request.GET.get('q', '').strip()
 
-    inventaires = (
+    inventaires = depot_scope(request,
         InventaireInitialMarketeur.objects
-        .select_related('marketeur', 'produit', 'saisi_par')
-        .prefetch_related('cuves')
+        .select_related('marketeur', 'produit')
         .order_by('marketeur__raison_sociale', 'produit__nom', 'regime_douanier')
     )
+    if q:
+        inventaires = inventaires.filter(
+            Q(marketeur__raison_sociale__icontains=q) | Q(marketeur__sigle__icontains=q)
+        )
 
-    # Regroupement par marketeur + calcul des totaux SD / AC
+    # Regroupement par marketeur + totaux
     from itertools import groupby
     grouped = []
     for mkt, lignes in groupby(inventaires, key=lambda x: x.marketeur):
         lignes_list = list(lignes)
-
-        def _d(v):
-            return Decimal(str(v)) if v is not None else Decimal('0')
-
-        total_amb_sd = sum(_d(l.volume_ambiant) for l in lignes_list if l.regime_douanier == 'SOUS_DOUANE')
-        total_amb_ac = sum(_d(l.volume_ambiant) for l in lignes_list if l.regime_douanier == 'ACQUITTE')
-        total_15c_sd = sum(_d(l.volume_15c)     for l in lignes_list if l.regime_douanier == 'SOUS_DOUANE')
-        total_15c_ac = sum(_d(l.volume_15c)     for l in lignes_list if l.regime_douanier == 'ACQUITTE')
-
+        produits_set = {l.produit_id for l in lignes_list}
         grouped.append({
-            'marketeur':    mkt,
-            'lignes':       lignes_list,
-            'total_amb_sd': total_amb_sd,
-            'total_amb_ac': total_amb_ac,
-            'total_amb':    total_amb_sd + total_amb_ac,
-            'total_15c_sd': total_15c_sd,
-            'total_15c_ac': total_15c_ac,
-            'total_15c':    total_15c_sd + total_15c_ac,
+            'marketeur':   mkt,
+            'nb_lignes':   len(lignes_list),
+            'nb_produits': len(produits_set),
+            **_totaux_lignes(lignes_list),
         })
+
+    paginator = Paginator(grouped, 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
     marketeurs = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
     produits   = Produit.objects.filter(statut='ACTIF').order_by('nom')
-    cuves      = Cuve.objects.filter(statut='ACTIVE').select_related('produit').order_by('numero')
+    cuves      = depot_scope(request, Cuve.objects.filter(statut='ACTIVE')).select_related('produit').order_by('numero')
 
     return render(request, 'inventaire/liste.html', {
-        'grouped':    grouped,
+        'page_obj':   page_obj,
+        'grouped':    page_obj.object_list,
+        'q':          q,
+        'filtres':    {'q': q},
         'marketeurs': marketeurs,
         'produits':   produits,
         'cuves':      cuves,
+    })
+
+
+# ─────────────────────────────────────────────────────────────
+#  DÉTAIL PAR MARKETEUR — lignes complètes + modification
+# ─────────────────────────────────────────────────────────────
+
+@voir_required('voir_inventaire')
+def inventaire_initial_detail(request, uuid):
+    """Détail des stocks initiaux d'un marketeur : toutes les lignes,
+    avec modification / suppression / ajout pour ce marketeur."""
+    marketeur = get_object_or_404(Marketeur, uuid=uuid)
+
+    lignes = list(depot_scope(request,
+        InventaireInitialMarketeur.objects
+        .filter(marketeur=marketeur)
+        .select_related('marketeur', 'produit', 'saisi_par')
+        .prefetch_related('cuves')
+        .order_by('produit__nom', 'regime_douanier')
+    ))
+
+    produits = Produit.objects.filter(statut='ACTIF').order_by('nom')
+    cuves    = depot_scope(request, Cuve.objects.filter(statut='ACTIVE')).select_related('produit').order_by('numero')
+
+    return render(request, 'inventaire/detail.html', {
+        'marketeur': marketeur,
+        'lignes':    lignes,
+        'totaux':    _totaux_lignes(lignes),
+        'produits':  produits,
+        'cuves':     cuves,
     })
 
 
@@ -91,6 +141,9 @@ def inventaire_initial_saisir(request):
     if request.method != 'POST':
         return redirect('inventaire_initial_liste')
 
+    if depot_requis(request):
+        return redirect('inventaire_initial_liste')
+
     try:
         # ── Champs communs ────────────────────────────────────
         raw_vamb        = request.POST.get('volume_ambiant', '0').replace(',', '.') or '0'
@@ -110,7 +163,7 @@ def inventaire_initial_saisir(request):
         # ── Mode édition par PK ───────────────────────────────
         pk_edit = request.POST.get('pk_edit', '').strip()
         if pk_edit:
-            inv = get_object_or_404(InventaireInitialMarketeur, pk=int(pk_edit))
+            inv = get_object_or_404_depot(request, InventaireInitialMarketeur, pk=int(pk_edit))
             inv.volume_ambiant  = volume_ambiant
             inv.volume_15c      = volume_15c
             inv.date_inventaire = date_inventaire
@@ -134,6 +187,7 @@ def inventaire_initial_saisir(request):
             produit   = get_object_or_404(Produit,   pk=produit_id)
 
             inv, created = InventaireInitialMarketeur.objects.update_or_create(
+                depot=request.depot,
                 marketeur=marketeur,
                 produit=produit,
                 regime_douanier=regime,
@@ -148,7 +202,7 @@ def inventaire_initial_saisir(request):
 
         # ── Cuves M2M (commun aux deux modes) ────────────────
         if cuves_ids:
-            cuves_qs = Cuve.objects.filter(pk__in=cuves_ids)
+            cuves_qs = depot_scope(request, Cuve.objects.filter(pk__in=cuves_ids))
             inv.cuves.set(cuves_qs)
         else:
             inv.cuves.clear()
@@ -159,6 +213,8 @@ def inventaire_initial_saisir(request):
             f"Stock initial de {marketeur} — {produit.code} "
             f"({inv.get_regime_douanier_display()}) {action} avec succès."
         )
+        # Retour sur le détail du marketeur concerné
+        return redirect('inventaire_initial_detail', uuid=marketeur.uuid)
 
     except (KeyError, ValueError, Exception) as e:
         messages.error(request, f"Erreur de saisie : {e}")
@@ -177,13 +233,14 @@ def inventaire_initial_supprimer(request, uuid):
         messages.error(request, "Accès réservé aux administrateurs.")
         return redirect('inventaire_initial_liste')
 
-    inv = get_object_or_404(InventaireInitialMarketeur, uuid=uuid)
+    inv = get_object_or_404_depot(request, InventaireInitialMarketeur, uuid=uuid)
 
     if request.method == 'POST':
         label = str(inv)
+        marketeur_uuid = inv.marketeur.uuid
         inv.delete()
         messages.success(request, f"Stock initial supprimé : {label}.")
-        return redirect('inventaire_initial_liste')
+        return redirect('inventaire_initial_detail', uuid=marketeur_uuid)
 
     # GET → page de confirmation
     return render(request, 'inventaire/supprimer_confirm.html', {'inv': inv})
@@ -205,6 +262,9 @@ def inventaire_initial_masse(request):
         messages.error(request, "Accès réservé aux administrateurs.")
         return redirect('inventaire_initial_liste')
 
+    if depot_requis(request):
+        return redirect('inventaire_initial_liste')
+
     marketeurs = list(Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale'))
     produits   = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
     regimes    = [('SOUS_DOUANE', 'Sous douane (SD)'), ('ACQUITTE', 'Acquitté (AC)')]
@@ -212,7 +272,7 @@ def inventaire_initial_masse(request):
     # Charger les valeurs existantes dans un dict pour pré-remplissage
     existants = {
         (inv.marketeur_id, inv.produit_id, inv.regime_douanier): inv
-        for inv in InventaireInitialMarketeur.objects.select_related('marketeur', 'produit').all()
+        for inv in depot_scope(request, InventaireInitialMarketeur.objects.select_related('marketeur', 'produit'))
     }
 
     if request.method == 'POST':
@@ -249,7 +309,7 @@ def inventaire_initial_masse(request):
                         continue
 
                     _, created = InventaireInitialMarketeur.objects.update_or_create(
-                        marketeur=mkt, produit=prod, regime_douanier=regime_code,
+                        depot=request.depot, marketeur=mkt, produit=prod, regime_douanier=regime_code,
                         defaults={
                             'volume_ambiant':  v_amb,
                             'volume_15c':      v_15c,

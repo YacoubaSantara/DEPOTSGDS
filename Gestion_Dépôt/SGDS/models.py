@@ -510,7 +510,12 @@ class Cuve(models.Model):
     ]
 
     # --- Identification ---
-    numero      = models.CharField(max_length=50, unique=True, verbose_name="Numéro de cuve")
+    depot       = models.ForeignKey(
+        'Depot', on_delete=models.PROTECT,
+        related_name='cuves',
+        verbose_name="Dépôt"
+    )
+    numero      = models.CharField(max_length=50, verbose_name="Numéro de cuve")
     designation = models.CharField(max_length=200, verbose_name="Désignation")
     produit     = models.ForeignKey(
         'Produit', on_delete=models.SET_NULL,
@@ -554,6 +559,9 @@ class Cuve(models.Model):
         verbose_name        = "Cuve"
         verbose_name_plural = "Cuves"
         ordering            = ['numero']
+        constraints = [
+            models.UniqueConstraint(fields=['depot', 'numero'], name='unique_cuve_depot_numero')
+        ]
 
     def __str__(self):
         return f"{self.numero} — {self.designation}"
@@ -684,11 +692,10 @@ class JaugeageJour(models.Model):
         verbose_name="Heure du jaugeage",
         help_text="Permet de différencier plusieurs jaugeages le même jour"
     )
-    depot = models.CharField(
-        max_length=100, default='SGDS SANKE', verbose_name="Dépôt"
-    )
-    type_depot = models.CharField(
-        max_length=50, default='Dépôt de droit', verbose_name="Type de dépôt"
+    depot = models.ForeignKey(
+        'Depot', on_delete=models.PROTECT,
+        related_name='jaugeages',
+        verbose_name="Dépôt"
     )
     temperature_reference = models.DecimalField(
         max_digits=4, decimal_places=1, default=Decimal('15.0'),
@@ -725,8 +732,8 @@ class JaugeageJour(models.Model):
         ordering = ['-date_jaugeage', '-heure_jaugeage', '-date_creation']
         constraints = [
             models.UniqueConstraint(
-                fields=['date_jaugeage', 'type_jaugeage', 'heure_jaugeage'],
-                name='unique_jaugeage_date_type_heure'
+                fields=['depot', 'date_jaugeage', 'type_jaugeage', 'heure_jaugeage'],
+                name='unique_jaugeage_depot_date_type_heure'
             )
         ]
  
@@ -746,7 +753,7 @@ class JaugeageJour(models.Model):
         from django.core.exceptions import ValidationError as _VE
         try:
             from SGDS.services.periode_comptable import periode_pour_date
-            periode = periode_pour_date(self.date_jaugeage)
+            periode = periode_pour_date(self.date_jaugeage, depot=self.depot)
         except Exception:
             return
         if periode is None:
@@ -770,15 +777,16 @@ class JaugeageJour(models.Model):
         super().save(*args, **kwargs)
 
     @classmethod
-    def creer_nouveau_jaugeage(cls, date_jaugeage=None, type_jaugeage='J',
+    def creer_nouveau_jaugeage(cls, depot, date_jaugeage=None, type_jaugeage='J',
                                 heure_jaugeage=None, operateur=None, notes=None):
         """
         Crée un nouveau jaugeage en pré-remplissant les MesureCuve avec les
-        valeurs du dernier jaugeage existant.
- 
+        valeurs du dernier jaugeage existant *du même dépôt*.
+
         Usage :
             from datetime import date, time
             nouveau = JaugeageJour.creer_nouveau_jaugeage(
+                depot=depot,
                 date_jaugeage=date.today(),
                 type_jaugeage='APR',
                 heure_jaugeage=time(14, 30),
@@ -786,19 +794,20 @@ class JaugeageJour(models.Model):
             )
         """
         from datetime import date as _date
- 
+
         # 1. Créer l'en-tête
         nouveau = cls.objects.create(
+            depot=depot,
             date_jaugeage=date_jaugeage or _date.today(),
             type_jaugeage=type_jaugeage,
             heure_jaugeage=heure_jaugeage,
             operateur=operateur,
             notes=notes,
         )
- 
-        # 2. Récupérer le dernier jaugeage précédent (s'il existe)
-        precedent = cls.objects.exclude(pk=nouveau.pk).first()
- 
+
+        # 2. Récupérer le dernier jaugeage précédent du même dépôt (s'il existe)
+        precedent = cls.objects.filter(depot=depot).exclude(pk=nouveau.pk).first()
+
         if precedent:
             # Copier les mesures du jaugeage précédent
             for ancienne_mesure in precedent.mesures.all():
@@ -818,11 +827,11 @@ class JaugeageJour(models.Model):
                     volume_eau=ancienne_mesure.volume_eau,
                 )
         else:
-            # Pas de précédent : créer des mesures vides
-            cuves = Cuve.objects.filter(parametre_jaugeage__isnull=False)
+            # Pas de précédent : créer des mesures vides pour les cuves du dépôt
+            cuves = Cuve.objects.filter(depot=depot, parametre_jaugeage__isnull=False)
             for cuve in cuves:
                 MesureCuve.objects.create(jaugeage=nouveau, cuve=cuve)
- 
+
         return nouveau
  
  
@@ -1086,6 +1095,11 @@ class Mouvement(models.Model):
     ]
 
     # ── Champs communs ─────────────────────────────────────────
+    depot                 = models.ForeignKey(
+        'Depot', on_delete=models.PROTECT,
+        related_name='mouvements',
+        verbose_name="Dépôt"
+    )
     type_mouvement        = models.CharField(max_length=15, choices=TYPE_CHOICES, verbose_name="Type de mouvement")
     produit               = models.ForeignKey('Produit',   on_delete=models.PROTECT, related_name='mouvements', verbose_name="Produit")
     regime_douanier       = models.CharField(max_length=15, choices=REGIME_CHOICES, verbose_name="Régime douanier")
@@ -1408,9 +1422,11 @@ class Mouvement(models.Model):
         if not self.date_mouvement:
             return
         from django.core.exceptions import ValidationError as _VE
+        if not self.depot_id:
+            return  # Le champ depot est validé par ailleurs (FK requise)
         try:
             from SGDS.services.periode_comptable import periode_pour_date
-            periode = periode_pour_date(self.date_mouvement)
+            periode = periode_pour_date(self.date_mouvement, self.depot)
         except Exception:
             return  # Table pas encore créée (migrations initiales)
         if periode is None:
@@ -1772,6 +1788,11 @@ class PeriodeComptable(models.Model):
         ('CLOTUREE',  'Clôturée'),
     ]
 
+    depot  = models.ForeignKey(
+        'Depot', on_delete=models.PROTECT,
+        related_name='periodes_comptables',
+        verbose_name="Dépôt"
+    )
     mois   = models.PositiveIntegerField(verbose_name="Mois")
     annee  = models.PositiveIntegerField(verbose_name="Année")
     statut = models.CharField(
@@ -1789,14 +1810,14 @@ class PeriodeComptable(models.Model):
 
     # --- Identifiants URL ---
     uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
-    slug = models.SlugField(max_length=20, unique=True, blank=True, verbose_name="Slug URL")
+    slug = models.SlugField(max_length=60, unique=True, blank=True, verbose_name="Slug URL")
 
     class Meta:
         verbose_name        = "Période comptable"
         verbose_name_plural = "Périodes comptables"
         ordering            = ['-annee', '-mois']
         constraints = [
-            models.UniqueConstraint(fields=['mois', 'annee'], name='unique_periode_mois_annee')
+            models.UniqueConstraint(fields=['depot', 'mois', 'annee'], name='unique_periode_depot_mois_annee')
         ]
 
     def __str__(self):
@@ -1804,7 +1825,8 @@ class PeriodeComptable(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = f"{self.annee}-{self.mois:02d}"
+            prefixe = self.depot.code if self.depot_id else 'X'
+            self.slug = _slug_unique(PeriodeComptable, f"{prefixe}-{self.annee}-{self.mois:02d}", exclude_pk=self.pk)
         super().save(*args, **kwargs)
 
     @property
@@ -1836,13 +1858,13 @@ class PeriodeComptable(models.Model):
         mois, annee = self.mois - 1, self.annee
         if mois == 0:
             mois, annee = 12, annee - 1
-        return PeriodeComptable.objects.filter(mois=mois, annee=annee).first()
+        return PeriodeComptable.objects.filter(depot=self.depot, mois=mois, annee=annee).first()
 
     def periode_suivante(self):
         mois, annee = self.mois + 1, self.annee
         if mois == 13:
             mois, annee = 1, annee + 1
-        return PeriodeComptable.objects.filter(mois=mois, annee=annee).first()
+        return PeriodeComptable.objects.filter(depot=self.depot, mois=mois, annee=annee).first()
 
 
 class Exercice(models.Model):
@@ -1857,7 +1879,11 @@ class Exercice(models.Model):
         ('CLOTURE', 'Clôturé'),
     ]
 
-    annee  = models.PositiveIntegerField(unique=True, verbose_name="Année")
+    depot  = models.ForeignKey(
+        'Depot', on_delete=models.PROTECT, related_name='exercices',
+        verbose_name="Dépôt"
+    )
+    annee  = models.PositiveIntegerField(verbose_name="Année")
     statut = models.CharField(
         max_length=10, choices=STATUT_CHOICES, default='OUVERT',
         verbose_name="Statut"
@@ -1873,19 +1899,23 @@ class Exercice(models.Model):
 
     # --- Identifiants URL ---
     uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
-    slug = models.SlugField(max_length=10, unique=True, blank=True, verbose_name="Slug URL")
+    slug = models.SlugField(max_length=30, unique=True, blank=True, verbose_name="Slug URL")
 
     class Meta:
         verbose_name        = "Exercice comptable"
         verbose_name_plural = "Exercices comptables"
         ordering            = ['-annee']
+        constraints = [
+            models.UniqueConstraint(fields=['depot', 'annee'], name='unique_exercice_depot_annee'),
+        ]
 
     def __str__(self):
         return self.libelle
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = str(self.annee)
+            prefixe = self.depot.code if self.depot_id else 'X'
+            self.slug = _slug_unique(Exercice, f"{prefixe}-{self.annee}", exclude_pk=self.pk)
         super().save(*args, **kwargs)
 
     @property
@@ -1908,7 +1938,7 @@ class Exercice(models.Model):
 
     @property
     def periodes(self):
-        return PeriodeComptable.objects.filter(annee=self.annee).order_by('mois')
+        return PeriodeComptable.objects.filter(depot=self.depot, annee=self.annee).order_by('mois')
 
     @property
     def periodes_clouturees_count(self):
@@ -1920,10 +1950,10 @@ class Exercice(models.Model):
         return len(periodes) == 12 and all(p.statut == 'CLOTUREE' for p in periodes)
 
     def exercice_precedent(self):
-        return Exercice.objects.filter(annee=self.annee - 1).first()
+        return Exercice.objects.filter(depot=self.depot, annee=self.annee - 1).first()
 
     def exercice_suivant(self):
-        return Exercice.objects.filter(annee=self.annee + 1).first()
+        return Exercice.objects.filter(depot=self.depot, annee=self.annee + 1).first()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2497,6 +2527,10 @@ class InventaireInitialMarketeur(models.Model):
         ('ACQUITTE',    'Acquitté'),
     ]
 
+    depot           = models.ForeignKey(
+        'Depot', on_delete=models.PROTECT,
+        related_name='inventaires_initiaux', verbose_name="Dépôt"
+    )
     marketeur       = models.ForeignKey(
         'Marketeur', on_delete=models.CASCADE,
         related_name='inventaires_initiaux', verbose_name="Marketeur"
@@ -2549,8 +2583,8 @@ class InventaireInitialMarketeur(models.Model):
         verbose_name_plural = "Inventaires initiaux marketeurs"
         constraints = [
             models.UniqueConstraint(
-                fields=['marketeur', 'produit', 'regime_douanier'],
-                name='unique_inventaire_initial_mktr_prod_regime'
+                fields=['depot', 'marketeur', 'produit', 'regime_douanier'],
+                name='unique_inventaire_initial_depot_mktr_prod_regime'
             )
         ]
         ordering = ['marketeur__raison_sociale', 'produit__nom', 'regime_douanier']
@@ -2562,7 +2596,55 @@ class InventaireInitialMarketeur(models.Model):
         )
 
 # ─────────────────────────────────────────────────────────────
-#  SOCIÉTÉ / DÉPÔT (fiche singleton — 1 seule ligne)
+#  DÉPÔT (site physique — plusieurs dépôts possibles)
+# ─────────────────────────────────────────────────────────────
+class Depot(models.Model):
+    """
+    Site physique de stockage (dépôt pétrolier). Une société (Societe) peut
+    exploiter plusieurs dépôts. Cuves, jaugeage, mouvements et périodes
+    comptables sont rattachés à un dépôt précis.
+    """
+
+    STATUT_CHOICES = [
+        ('ACTIF',   'Actif'),
+        ('INACTIF', 'Inactif'),
+    ]
+
+    code             = models.CharField(max_length=20, unique=True, verbose_name="Code dépôt")
+    nom              = models.CharField(max_length=200, verbose_name="Nom du dépôt")
+    type_depot       = models.CharField(max_length=100, default='Dépôt de droit', verbose_name="Type de dépôt")
+    numero_agrement  = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° Agrément")
+    autorite_tutelle = models.CharField(max_length=200, blank=True, null=True, verbose_name="Autorité de tutelle")
+    date_creation    = models.DateField(blank=True, null=True, verbose_name="Date de création")
+
+    adresse          = models.TextField(blank=True, null=True, verbose_name="Adresse complète")
+    ville            = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ville")
+    telephone        = models.CharField(max_length=20, blank=True, null=True, verbose_name="Téléphone du dépôt")
+
+    statut           = models.CharField(max_length=10, choices=STATUT_CHOICES, default='ACTIF', verbose_name="Statut")
+
+    date_enregistrement = models.DateTimeField(auto_now_add=True, verbose_name="Date d'enregistrement")
+    date_modification   = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
+
+    uuid = models.UUIDField(default=uuid_lib.uuid4, unique=True, editable=False, verbose_name="UUID")
+    slug = models.SlugField(max_length=200, unique=True, blank=True, verbose_name="Slug URL")
+
+    class Meta:
+        verbose_name        = "Dépôt"
+        verbose_name_plural = "Dépôts"
+        ordering            = ['nom']
+
+    def __str__(self):
+        return self.nom
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _slug_unique(Depot, slugify(self.code), exclude_pk=self.pk)
+        super().save(*args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────
+#  SOCIÉTÉ (fiche singleton — 1 seule ligne, identité légale/branding)
 # ─────────────────────────────────────────────────────────────
 class Societe(models.Model):
     """
@@ -2586,31 +2668,21 @@ class Societe(models.Model):
     pied_de_page          = models.TextField(blank=True, null=True, verbose_name="Texte pied de page des états")
 
     # ── Coordonnées ────────────────────────────────────────────
-    adresse               = models.TextField(blank=True, null=True, verbose_name="Adresse complète")
-    ville                 = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ville")
     pays                  = models.CharField(max_length=100, default='Mali', verbose_name="Pays")
     boite_postale         = models.CharField(max_length=50, blank=True, null=True, verbose_name="Boîte postale")
     telephone             = models.CharField(max_length=20, blank=True, null=True, verbose_name="Téléphone principal")
-    telephone2            = models.CharField(max_length=20, blank=True, null=True, verbose_name="Téléphone secondaire")
     email                 = models.EmailField(blank=True, null=True, verbose_name="Email")
     site_web              = models.URLField(blank=True, null=True, verbose_name="Site web")
-
-    # ── Informations dépôt ───────────────────────────────────────────────────────────
-    nom_depot             = models.CharField(max_length=200, default='SGDS SANKE', verbose_name="Nom du dépôt")
-    type_depot            = models.CharField(max_length=100, default='Dépôt de droit', verbose_name="Type de dépôt")
-    numero_agrement       = models.CharField(max_length=100, blank=True, null=True, verbose_name="N° Agrément")
-    autorite_tutelle      = models.CharField(max_length=200, blank=True, null=True, verbose_name="Autorité de tutelle")
-    date_creation         = models.DateField(blank=True, null=True, verbose_name="Date de création")
 
     # ── Meta ──────────────────────────────────────────────────────────────────────
     date_modification     = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
 
     class Meta:
-        verbose_name        = "Société / Dépôt"
-        verbose_name_plural = "Société / Dépôt"
+        verbose_name        = "Société"
+        verbose_name_plural = "Société"
 
     def __str__(self):
-        return self.raison_sociale or self.nom_depot
+        return self.raison_sociale or self.sigle or "Société"
 
     @classmethod
     def get_instance(cls):
@@ -2622,8 +2694,6 @@ class Societe(models.Model):
             pk=1,
             defaults={
                 'raison_sociale': 'SGDS SANKE',
-                'nom_depot':      'SGDS SANKE',
-                'ville':          'Bamako',
                 'pays':           'Mali',
             }
         )
@@ -2633,3 +2703,289 @@ class Societe(models.Model):
         """Force pk=1 — singleton strict."""
         self.pk = 1
         super().save(*args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────
+#  CONFIGURATION EMAIL (fiche singleton — 1 seule ligne)
+# ─────────────────────────────────────────────────────────────
+class ConfigurationEmail(models.Model):
+    """
+    Paramètres SMTP utilisés pour l'envoi des emails (notifications, états
+    mensuels disponibles, etc.). SINGLETON : une seule ligne autorisée.
+    Modifiable depuis l'interface — ne nécessite pas de redémarrage du serveur.
+    """
+
+    actif               = models.BooleanField(default=False, verbose_name="Envoi d'emails activé")
+    host                = models.CharField(max_length=255, default='smtp.gmail.com', verbose_name="Serveur SMTP (host)")
+    port                = models.PositiveIntegerField(default=587, verbose_name="Port")
+    use_tls             = models.BooleanField(default=True, verbose_name="Utiliser TLS")
+    use_ssl             = models.BooleanField(default=False, verbose_name="Utiliser SSL")
+    host_user           = models.CharField(max_length=255, blank=True, verbose_name="Utilisateur SMTP (adresse email)")
+    host_password       = models.CharField(max_length=255, blank=True, verbose_name="Mot de passe / mot de passe d'application")
+    default_from_email  = models.CharField(max_length=255, blank=True, verbose_name="Adresse d'expédition par défaut")
+    date_modification   = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
+
+    class Meta:
+        verbose_name        = "Configuration email"
+        verbose_name_plural = "Configuration email"
+
+    def __str__(self):
+        return "Configuration email"
+
+    def save(self, *args, **kwargs):
+        """Force pk=1 — singleton strict."""
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls):
+        """
+        Retourne la configuration email (initialisée depuis les variables
+        d'environnement EMAIL_* au premier accès, si elles existent — pour ne
+        pas casser l'envoi déjà fonctionnel en .env). Garantit le singleton.
+        """
+        obj = cls.objects.filter(pk=1).first()
+        if obj:
+            return obj
+        from django.conf import settings as dj_settings
+        host_user = getattr(dj_settings, 'EMAIL_HOST_USER', '') or ''
+        return cls.objects.create(
+            pk=1,
+            actif=bool(host_user),
+            host=getattr(dj_settings, 'EMAIL_HOST', 'smtp.gmail.com') or 'smtp.gmail.com',
+            port=getattr(dj_settings, 'EMAIL_PORT', 587) or 587,
+            use_tls=getattr(dj_settings, 'EMAIL_USE_TLS', True),
+            use_ssl=getattr(dj_settings, 'EMAIL_USE_SSL', False),
+            host_user=host_user,
+            host_password=getattr(dj_settings, 'EMAIL_HOST_PASSWORD', '') or '',
+            default_from_email=getattr(dj_settings, 'DEFAULT_FROM_EMAIL', '') or host_user,
+        )
+
+    @property
+    def from_email(self):
+        return self.default_from_email or self.host_user
+
+    def get_connection(self):
+        """Connexion SMTP construite depuis cette configuration (pas celle de settings.py)."""
+        from django.core.mail import get_connection
+        return get_connection(
+            backend='django.core.mail.backends.smtp.EmailBackend',
+            host=self.host, port=self.port,
+            username=self.host_user, password=self.host_password,
+            use_tls=self.use_tls, use_ssl=self.use_ssl,
+        )
+
+
+# ─────────────────────────────────────────────────────────────
+#  GABARIT EMAIL — BUNDLE ÉTATS MENSUELS (fiche singleton)
+# ─────────────────────────────────────────────────────────────
+class ModeleEmailEtatMensuel(models.Model):
+    """
+    Sujet/corps personnalisables de l'email envoyé à chaque marketeur à la
+    clôture d'une période, avec les 6 états mensuels (Stock Ouverture, Stock
+    Fermeture, Coulage Répartition, Stock à 15°, Stock Ambiant, Frais de
+    passage) en pièces jointes — chacun son propre fichier Excel et PDF
+    (12 pièces jointes au total, jamais fusionnées). SINGLETON.
+    """
+
+    SUJET_DEFAUT = "[SGDS] Vos états mensuels {{ periode }} sont disponibles"
+    CORPS_DEFAUT = (
+        "Bonjour,\n\n"
+        "Les états mensuels de {{ societe }} pour la période {{ periode }} sont disponibles.\n"
+        "Vous trouverez ci-joint, en Excel et en PDF (un fichier par état), le Stock Ouverture, "
+        "le Stock Fermeture, la Répartition du coulage, le Stock à 15°, le Stock Ambiant et les "
+        "Frais de passage de {{ marketeur }}.\n\n"
+        "Cordialement."
+    )
+
+    sujet              = models.CharField(max_length=255, default=SUJET_DEFAUT, verbose_name="Sujet de l'email")
+    corps              = models.TextField(default=CORPS_DEFAUT, verbose_name="Corps de l'email")
+    date_modification  = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
+
+    class Meta:
+        verbose_name        = "Gabarit email — états mensuels"
+        verbose_name_plural = "Gabarit email — états mensuels"
+
+    def __str__(self):
+        return "Gabarit email — états mensuels"
+
+    def save(self, *args, **kwargs):
+        """Force pk=1 — singleton strict."""
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls):
+        obj = cls.objects.filter(pk=1).first()
+        if obj:
+            return obj
+        return cls.objects.create(pk=1)
+
+    def rendre(self, *, marketeur, periode, societe):
+        """Rend (sujet, corps) avec variables substituées (Django Template
+        Language) : marketeur, periode, mois, annee, societe."""
+        from django.template import Template, Context
+        ctx = Context({
+            'marketeur': marketeur,
+            'periode':   periode,
+            'mois':      periode.mois,
+            'annee':     periode.annee,
+            'societe':   societe,
+        })
+        return Template(self.sujet).render(ctx), Template(self.corps).render(ctx)
+
+
+# ─────────────────────────────────────────────────────────────
+#  GABARIT EMAIL — MOUVEMENTS (fiche singleton)
+# ─────────────────────────────────────────────────────────────
+class ModeleEmailMouvement(models.Model):
+    """
+    Sujet/corps personnalisables de l'email envoyé immédiatement au marketeur
+    à la création d'un mouvement (Entrée/Sortie/Cession/Acquittement), avec
+    le PDF du mouvement en pièce jointe. Un seul gabarit générique partagé
+    par les 4 types (variables communes). SINGLETON.
+    """
+
+    SUJET_DEFAUT = "[SGDS] {{ type_mouvement }} — {{ produit }} — N° {{ numero }}"
+    CORPS_DEFAUT = (
+        "Bonjour,\n\n"
+        "Une opération de type {{ type_mouvement }} a été enregistrée pour {{ marketeur }} :\n"
+        "Produit : {{ produit }}\n"
+        "Volume : {{ volume }} L @15°C\n"
+        "Date : {{ date_mouvement }}\n"
+        "N° d'enregistrement : {{ numero }}\n\n"
+        "{% if is_entree %}"
+        "DONNÉES D'ENTRÉE\n"
+        "Date de chargement : {{ date_chargement }}\n"
+        "N° BL Dépôt Chargeur : {{ bl_chargeur }}\n"
+        "Vol. ambiant expéditeur (L) : {{ vol_amb_expediteur }}\n"
+        "DONNÉES OBTENUES À LA RÉCEPTION\n"
+        "Vol. ambiant reçu (L) : {{ vol_amb_recu }}\n\n"
+        "{% elif is_sortie %}"
+        "DONNÉES DE SORTIE\n"
+        "Référence client externe : {{ reference_client }}\n"
+        "Destination : {{ destination }}\n"
+        "Vol. ambiant sortie (L) : {{ vol_amb_sortie }}\n\n"
+        "{% elif is_cession %}"
+        "DONNÉES DE CESSION\n"
+        "Marketeur source (cédant) : {{ marketeur_cedant }}\n"
+        "Marketeur destinataire : {{ marketeur_destinataire }}\n"
+        "Vol. ambiant cédé (L) : {{ vol_amb_cede }}\n"
+        "Motif de la cession : {{ motif_cession }}\n"
+        "N° autorisation Direction : {{ numero_autorisation }}\n"
+        "Date autorisation : {{ date_autorisation }}\n\n"
+        "{% elif is_acquittement %}"
+        "DONNÉES D'ACQUITTEMENT\n"
+        "Entrée Sous douane associée (N° BL Dépôt Chargeur) : {{ bl_chargeur_source }}\n"
+        "Volume à acquitter (L) : {{ vol_a_acquitter }}\n"
+        "Référence déclaration douanière : {{ reference_declaration }}\n"
+        "Date de la déclaration : {{ date_declaration }}\n\n"
+        "{% endif %}"
+        "Veuillez trouver ci-joint le document de ce mouvement.\n\n"
+        "Cordialement."
+    )
+
+    sujet              = models.CharField(max_length=255, default=SUJET_DEFAUT, verbose_name="Sujet de l'email")
+    corps              = models.TextField(default=CORPS_DEFAUT, verbose_name="Corps de l'email")
+    date_modification  = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
+
+    class Meta:
+        verbose_name        = "Gabarit email — mouvements"
+        verbose_name_plural = "Gabarit email — mouvements"
+
+    def __str__(self):
+        return "Gabarit email — mouvements"
+
+    def save(self, *args, **kwargs):
+        """Force pk=1 — singleton strict."""
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_instance(cls):
+        obj = cls.objects.filter(pk=1).first()
+        if obj:
+            return obj
+        return cls.objects.create(pk=1)
+
+    def rendre(self, *, marketeur, mouvement, societe):
+        """Rend (sujet, corps) avec variables substituées (Django Template
+        Language). Variables communes : marketeur, type_mouvement, produit,
+        volume, numero, date_mouvement, societe. Indicateurs de type :
+        is_entree/is_sortie/is_cession/is_acquittement (pour les blocs
+        {% if %} du corps). Variables spécifiques par type : voir le détail
+        ci-dessous (vides/non pertinentes si le mouvement n'est pas de ce
+        type)."""
+        from django.template import Template, Context
+        m = mouvement
+
+        ctx = Context({
+            'marketeur':       marketeur,
+            'type_mouvement':  m.get_type_mouvement_display(),
+            'produit':         m.produit,
+            'volume':          m.volume_principal,
+            'numero':          m.numero_enregistrement or m.pk,
+            'date_mouvement':  m.date_mouvement,
+            'societe':         societe,
+
+            'is_entree':       m.type_mouvement == 'ENTREE',
+            'is_sortie':       m.type_mouvement == 'SORTIE',
+            'is_cession':      m.type_mouvement == 'CESSION',
+            'is_acquittement': m.type_mouvement == 'ACQUITTEMENT',
+
+            # Entrée
+            'date_chargement':     m.date_chargement,
+            'bl_chargeur':         m.bl_expediteur,
+            'vol_amb_expediteur':  m.volume_ambiant_expediteur,
+            'vol_amb_recu':        m.volume_ambiant_recu,
+
+            # Sortie
+            'reference_client':  m.reference_client_externe,
+            'destination':       m.destination,
+            'vol_amb_sortie':    m.volume_ambiant_sortie,
+
+            # Cession
+            'marketeur_cedant':       m.marketeur,
+            'marketeur_destinataire': m.cession_marketeur_destinataire,
+            'vol_amb_cede':           m.cession_volume_ambiant,
+            'motif_cession':          m.cession_motif,
+            'numero_autorisation':    m.cession_numero_autorisation_direction,
+            'date_autorisation':      m.cession_date_autorisation,
+
+            # Acquittement
+            'bl_chargeur_source':    m.entree_source.bl_expediteur if m.entree_source_id else None,
+            'vol_a_acquitter':       m.acquittement_volume_ambiant,
+            'reference_declaration': m.acquittement_reference_declaration,
+            'date_declaration':      m.acquittement_date_declaration,
+        })
+        return Template(self.sujet).render(ctx), Template(self.corps).render(ctx)
+
+
+# ─────────────────────────────────────────────────────────────
+#  ENVOI ÉTAT MENSUEL — historique/traçabilité des envois
+# ─────────────────────────────────────────────────────────────
+class EnvoiEtatMensuel(models.Model):
+    """Trace chaque tentative d'envoi du bundle d'états mensuels (Excel + PDF)
+    à un marketeur, pour permettre le diagnostic et le renvoi manuel en cas
+    d'échec SMTP (jusqu'ici totalement silencieux)."""
+
+    STATUT_CHOICES = [
+        ('SUCCES', 'Succès'),
+        ('ECHEC',  'Échec'),
+    ]
+
+    periode            = models.ForeignKey('SGDS.PeriodeComptable', on_delete=models.CASCADE, related_name='envois_etat_mensuel', verbose_name="Période")
+    marketeur          = models.ForeignKey('SGDS.Marketeur', on_delete=models.CASCADE, related_name='envois_etat_mensuel', verbose_name="Marketeur")
+    email_destinataire = models.CharField(max_length=255, blank=True, verbose_name="Email destinataire")
+    statut             = models.CharField(max_length=10, choices=STATUT_CHOICES, verbose_name="Statut")
+    message_erreur     = models.TextField(blank=True, null=True, verbose_name="Message d'erreur")
+    date_envoi         = models.DateTimeField(auto_now_add=True, verbose_name="Date d'envoi")
+    declenche_par      = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Déclenché par")
+
+    class Meta:
+        verbose_name        = "Envoi d'état mensuel"
+        verbose_name_plural = "Envois d'états mensuels"
+        ordering            = ['-date_envoi']
+
+    def __str__(self):
+        return f"{self.marketeur} — {self.periode} — {self.get_statut_display()}"

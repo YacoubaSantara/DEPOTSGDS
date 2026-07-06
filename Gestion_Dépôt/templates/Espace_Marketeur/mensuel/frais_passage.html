@@ -13,7 +13,7 @@
 .filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
 .filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .filter-group{display:flex;flex-direction:column;gap:5px;min-width:200px}
-.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left}
 .filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
 .btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
 
@@ -66,6 +66,8 @@ tr:last-child td{border-bottom:none}
 .empty-state svg{opacity:.22}
 .empty-state p{font-size:.88rem;max-width:320px;line-height:1.6}
 .info-note{background:#eff6ff;border:1px solid #bfdbfe;border-left:3px solid #3b82f6;border-radius:8px;padding:10px 14px;color:#1e40af;font-size:.78rem;margin-top:14px;display:flex;align-items:center;gap:8px}
+.page-title{text-align:left}
+.page-subtitle{text-align:left}
 
 /* ── Dark mode ── */
 [data-theme="dark"] tr:nth-child(even) td{background:rgba(255,255,255,.02)}
@@ -164,7 +166,7 @@ tr:last-child td{border-bottom:none}
         <th class="left">Marketeur</th>
         {% for p in rapport.produits %}<th>{{ p.nom }} (L)</th>{% endfor %}
         <th>Vol. Global (L)</th>
-        <th>Motif</th>
+        <th class="left">Motif</th>
         <th>PU (FCFA/L)</th>
         <th>Montant (FCFA)</th>
       </tr>

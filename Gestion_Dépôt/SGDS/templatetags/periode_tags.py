@@ -9,8 +9,9 @@ def bandeau_periode(context):
     """Affiche le bandeau d'alerte si aucune période n'est ouverte (quel que soit le mois)."""
     from SGDS.services.periode_comptable import periode_courante_ou_alerte
     request = context.get('request')
+    depot = getattr(request, 'depot', None) if request else None
     return {
-        'periode_ouverte': periode_courante_ou_alerte(),
+        'periode_ouverte': periode_courante_ou_alerte(depot=depot),
         'request':         request,
     }
 
@@ -24,9 +25,10 @@ def periode_indicateur(context):
     from SGDS.services.periode_comptable import periode_courante_ou_alerte
     from SGDS.models import PeriodeComptable
     request = context.get('request')
-    periode = periode_courante_ou_alerte()
+    depot = getattr(request, 'depot', None) if request else None
+    periode = periode_courante_ou_alerte(depot=depot)
     # derniere = utile uniquement si periode est None (aucune ouverte)
-    derniere = PeriodeComptable.objects.order_by('-annee', '-mois').first()
+    derniere = PeriodeComptable.objects.filter(depot=depot).order_by('-annee', '-mois').first() if depot else None
     return {
         'periode':  periode,
         'derniere': derniere,

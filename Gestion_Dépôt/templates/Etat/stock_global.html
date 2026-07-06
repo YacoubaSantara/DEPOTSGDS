@@ -53,6 +53,7 @@ tr.row-entree td{background:rgba(220,252,231,.25)}
 tr.row-sortie td{background:rgba(254,226,226,.2)}
 tr.row-cession td{background:rgba(219,234,254,.2)}
 tr.row-acquittement td{background:rgba(254,243,199,.25)}
+tr.row-quote-part td{background:rgba(224,242,254,.35)}
 
 .num{font-family:'JetBrains Mono',monospace;font-size:.8rem}
 .num-pos{color:#16a34a;font-weight:600}
@@ -69,6 +70,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 .badge-ac{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
 .badge-sdac{background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe}
 .badge-mkt{background:#e0f2fe;color:#0c4a6e;border:1px solid #bae6fd;font-size:.7rem;font-weight:700}
+.badge-quote-part{background:#e0f2fe;color:#0369a1}
 
 .cumul-chips{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .cumul-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:.78rem;box-shadow:var(--shadow)}
@@ -82,6 +84,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
 .empty-state svg{margin-bottom:12px;opacity:.4}
 .empty-state p{font-size:.9rem}
+.page-subtitle{text-align: left;}
 
 /* ── Dark mode ── */
 [data-theme="dark"] tr:hover td{background:rgba(255,255,255,.05)}
@@ -91,6 +94,8 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 [data-theme="dark"] tr.row-sortie td{background:rgba(239,68,68,.07)}
 [data-theme="dark"] tr.row-cession td{background:rgba(59,130,246,.07)}
 [data-theme="dark"] tr.row-acquittement td{background:rgba(245,158,11,.07)}
+[data-theme="dark"] tr.row-quote-part td{background:rgba(56,189,248,.08)}
+[data-theme="dark"] .badge-quote-part{background:var(--info-soft);color:var(--info)}
 [data-theme="dark"] .badge-entree{background:var(--ok-soft);color:var(--ok)}
 [data-theme="dark"] .badge-sortie{background:var(--err-soft);color:var(--err)}
 [data-theme="dark"] .badge-cession{background:var(--info-soft);color:var(--info)}
@@ -194,6 +199,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
   tr.row-sortie td { background:#fef2f2 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   tr.row-cession td { background:#eff6ff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   tr.row-acquittement td { background:#fffbeb !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  tr.row-quote-part td { background:#e0f2fe !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
   .num { font-family:monospace; font-size:8pt; }
   .num-pos { color:#15803d !important; font-weight:700; }
@@ -320,7 +326,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
   <div class="carte-header-grid">
     <div class="ch-item">
       <span class="ch-label">Dépôt</span>
-      <span class="ch-value">{{ societe.nom_depot|default:"SGDS SANKE" }}</span>
+      <span class="ch-value">{{ depot.nom|default:"SGDS SANKE" }}</span>
     </div>
     <div class="ch-item">
       <span class="ch-label">Produit</span>
@@ -417,7 +423,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
 
       {# Mouvements #}
       {% for ligne in stock.lignes %}
-      <tr class="{% if ligne.sens == 'entree' %}row-entree{% elif ligne.sens == 'sortie' %}row-sortie{% elif ligne.sens == 'cession' %}row-cession{% elif ligne.sens == 'acquittement' %}row-acquittement{% endif %}">
+      <tr class="{% if ligne.sens == 'entree' %}row-entree{% elif ligne.sens == 'sortie' %}row-sortie{% elif ligne.sens == 'cession' %}row-cession{% elif ligne.sens == 'acquittement' %}row-acquittement{% elif ligne.sens == 'quote_part_coulage' %}row-quote-part{% endif %}">
         <td class="left">{{ ligne.mouvement.date_mouvement|date:"d/m/Y" }}</td>
         <td class="left" style="font-size:.75rem">{{ ligne.mouvement.numero_enregistrement|default:"—" }}</td>
         <td class="left" style="font-size:.75rem">
@@ -441,6 +447,7 @@ tr.row-acquittement td{background:rgba(254,243,199,.25)}
           {% elif ligne.sens == 'sortie' %}<span class="badge badge-sortie">Sortie</span>
           {% elif ligne.sens == 'cession' %}<span class="badge badge-cession">Cession</span>
           {% elif ligne.sens == 'acquittement' %}<span class="badge badge-acquittement">Acq.</span>
+          {% elif ligne.sens == 'quote_part_coulage' %}<span class="badge badge-quote-part">QP P/G Inst.</span>
           {% endif %}
         </td>
         <td class="num {% if ligne.vol_entree_amb %}num-pos{% endif %}">

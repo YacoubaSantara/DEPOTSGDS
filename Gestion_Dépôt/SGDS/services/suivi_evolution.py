@@ -30,7 +30,7 @@ def calculer_suivi_evolution(periode, produit) -> dict:
     from SGDS.models import Cuve, LigneMouvement, JaugeageJour, StockOuvertureCuve
 
     cuves = list(
-        Cuve.objects.filter(produit=produit, statut='ACTIVE').order_by('numero')
+        Cuve.objects.filter(depot=periode.depot, produit=produit, statut='ACTIVE').order_by('numero')
     )
 
     # Stock d'ouverture par cuve (1er jour du mois)
@@ -43,6 +43,7 @@ def calculer_suivi_evolution(periode, produit) -> dict:
     lignes = (
         LigneMouvement.objects
         .filter(
+            mouvement__depot=periode.depot,
             mouvement__produit=produit,
             cuve__in=cuves,
             mouvement__date_mouvement__range=(periode.date_debut, periode.date_fin),
@@ -58,7 +59,7 @@ def calculer_suivi_evolution(periode, produit) -> dict:
     # Jaugeages du mois indexés par date → dernière mesure par cuve
     jaugeages_qs = (
         JaugeageJour.objects
-        .filter(date_jaugeage__range=(periode.date_debut, periode.date_fin))
+        .filter(depot=periode.depot, date_jaugeage__range=(periode.date_debut, periode.date_fin))
         .prefetch_related('mesures__cuve__parametre_jaugeage')
         .order_by('date_jaugeage', 'heure_jaugeage', 'date_creation')
     )

@@ -23,14 +23,6 @@ function fmtN(n: number | null | undefined, dec = 0): string {
   return v.toLocaleString('fr-FR', { maximumFractionDigits: dec, minimumFractionDigits: dec });
 }
 
-function fmtCompact(n: number): string {
-  const v = Number(n);
-  if (isNaN(v)) return '0';
-  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1).replace('.0', '') + 'M';
-  if (Math.abs(v) >= 1_000)     return (v / 1_000).toFixed(1).replace('.0', '') + 'k';
-  return String(v);
-}
-
 export function DashboardScreen() {
   const { user } = useAuth();
   const navigation = useNavigation<BottomTabNavigationProp<TabParams, 'Dashboard'>>();
@@ -117,9 +109,6 @@ export function DashboardScreen() {
               </View>
             </View>
             <View style={styles.heroActions}>
-              <TouchableOpacity style={styles.iconBtn}>
-                <Ionicons name="search" size={18} color={Colors.white} />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconBtn}
                 onPress={() => navigation.navigate('Notifications')}
@@ -175,7 +164,7 @@ export function DashboardScreen() {
           <View style={styles.kpiGrid}>
             <KpiCard
               label="Entrées"
-              value={fmtCompact(data?.total_entrees ?? 0)}
+              value={fmtN(data?.total_entrees ?? 0)}
               unit="L"
               delta={`${(data?.total_mouvements ?? 0) > 0 ? Math.round((data?.nb_entrees ?? 0) / (data?.total_mouvements ?? 1) * 100) : 0}%`}
               up
@@ -184,7 +173,7 @@ export function DashboardScreen() {
             />
             <KpiCard
               label="Sorties"
-              value={fmtCompact(data?.total_sorties ?? 0)}
+              value={fmtN(data?.total_sorties ?? 0)}
               unit="L"
               delta={`${(data?.total_mouvements ?? 0) > 0 ? Math.round((data?.nb_sorties ?? 0) / (data?.total_mouvements ?? 1) * 100) : 0}%`}
               up={false}
@@ -348,9 +337,10 @@ function StockRow({ stock }: { stock: any }) {
 }
 
 function ActivityRow({ mvt }: { mvt: DernierMouvement }) {
-  const meta  = TypeMeta[mvt.type] ?? { label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·' };
-  const date  = new Date(mvt.date);
-  const time  = isNaN(date.getTime())
+  const meta    = TypeMeta[mvt.type] ?? { label: mvt.type, color: Colors.slate, soft: Colors.cloud, glyph: '·' };
+  const date    = new Date(mvt.date);
+  const hasTime = mvt.date?.includes('T');
+  const time    = !hasTime || isNaN(date.getTime())
     ? ''
     : date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
 

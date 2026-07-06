@@ -9,15 +9,22 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import ListView
 
+from SGDS.services.depot_scope import depot_scope, depot_requis
+from SGDS.users.decorators import VoirRequiredMixin
 
-class ListeExercicesView(LoginRequiredMixin, ListView):
+
+class ListeExercicesView(LoginRequiredMixin, VoirRequiredMixin, ListView):
+    permission_codename = 'voir_exercice'
     template_name = 'exercice/liste.html'
     context_object_name = 'exercices'
     paginate_by = 12
 
     def get_queryset(self):
         from SGDS.models import Exercice
-        return Exercice.objects.select_related('cloture_par').order_by('-annee')
+        return depot_scope(
+            self.request,
+            Exercice.objects.select_related('cloture_par'),
+        ).order_by('-annee')
 
 
 class ClotureExerciceView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -28,7 +35,10 @@ class ClotureExerciceView(LoginRequiredMixin, UserPassesTestMixin, View):
         from SGDS.models import Exercice
         from SGDS.services.exercice import verifier_peut_cloturer_exercice
 
-        exercice = get_object_or_404(Exercice, annee=annee)
+        if depot_requis(request):
+            return redirect('exercice_liste')
+
+        exercice = get_object_or_404(Exercice, depot=request.depot, annee=annee)
         peut_cloturer = True
         erreur = None
         try:
@@ -47,7 +57,10 @@ class ClotureExerciceView(LoginRequiredMixin, UserPassesTestMixin, View):
         from SGDS.models import Exercice
         from SGDS.services.exercice import cloturer_exercice
 
-        exercice = get_object_or_404(Exercice, annee=annee)
+        if depot_requis(request):
+            return redirect('exercice_liste')
+
+        exercice = get_object_or_404(Exercice, depot=request.depot, annee=annee)
         notes = request.POST.get('notes', '').strip() or None
 
         try:

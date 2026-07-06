@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Modal, FlatList,
+  ActivityIndicator, Modal, FlatList, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print   from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { Colors }    from '../../constants/colors';
 import { etatsApi }  from '../../api/etats';
@@ -113,6 +113,8 @@ export function StockOuvertureScreen() {
   const [periodes,    setPeriodes]    = useState<Periode[]>([]);
   const [selectedPer, setSelectedPer] = useState<Periode | null>(null);
   const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
   const [exporting,   setExporting]   = useState(false);
   const [showModal,   setShowModal]   = useState(false);
 
@@ -124,21 +126,24 @@ export function StockOuvertureScreen() {
   }, []);
 
   // Charger les données quand la période change
-  const load = useCallback(async (periodeId?: number) => {
-    setLoading(true);
+  const load = useCallback(async (periodeId?: number, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    setError(null);
     try {
       const r = await etatsApi.stockOuverture(periodeId);
       setData(r.data);
-    } catch (e) {
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? e?.message ?? 'Impossible de charger les données.');
       setData(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     load(selectedPer?.id);
-  }, [selectedPer]);
+  }, [load, selectedPer]));
 
   // Export PDF
   const exportPdf = async () => {
@@ -174,7 +179,7 @@ export function StockOuvertureScreen() {
         </TouchableOpacity>
         <View style={styles.heroContent}>
           <Text style={styles.heroSub}>État</Text>
-          <Text style={styles.heroTitle}>Stock Ouverture / Fermeture</Text>
+          <Text style={styles.heroTitle}>Stock Ambiant (Ouv. / Ferm.)</Text>
           {data && <Text style={styles.heroPeriode}>{data.periode_nom}</Text>}
         </View>
         <TouchableOpacity style={styles.pdfBtn} onPress={exportPdf} disabled={exporting || !data}>
@@ -203,6 +208,15 @@ export function StockOuvertureScreen() {
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.navy} />
         </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.red} />
+          <Text style={[styles.emptyText, { color: Colors.red }]}>Erreur de chargement</Text>
+          <Text style={styles.errorSub}>{error}</Text>
+          <TouchableOpacity onPress={() => load(selectedPer?.id)} style={styles.retryBtn}>
+            <Text style={styles.retryBtnText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
       ) : !data || data.lignes.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="layers-outline" size={48} color={Colors.silver} />
@@ -210,7 +224,14 @@ export function StockOuvertureScreen() {
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(selectedPer?.id, true)}
+              colors={[Colors.navy]}
+            />
+          }>
 
           {/* KPI globaux */}
           <View style={styles.kpiRow}>
@@ -255,10 +276,10 @@ export function StockOuvertureScreen() {
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>TOTAUX</Text>
             <View style={styles.totalCols}>
-              <ColVal label="Ouverture" value={data.total_ouverture} color={Colors.navy} />
+              <ColVal label="Ouverture" value={data.total_ouverture} color={Colors.white} />
               <ColVal label="Entrées"   value={data.total_entrees}   color={Colors.entree} />
               <ColVal label="Sorties"   value={data.total_sorties}   color={Colors.sortie} />
-              <ColVal label="Fermeture" value={data.total_fermeture} color={Colors.navy} bold />
+              <ColVal label="Fermeture" value={data.total_fermeture} color={Colors.white} bold />
             </View>
           </View>
         </ScrollView>
@@ -450,4 +471,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
   },
   openBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.entree },
+
+  retryBtn: {
+    marginTop: 12,
+    backgroundColor: Colors.navy,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
+  errorSub: { fontSize: 12, color: Colors.slate, textAlign: 'center', marginTop: 4, maxWidth: 260 },
 });

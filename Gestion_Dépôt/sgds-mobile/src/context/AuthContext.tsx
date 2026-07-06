@@ -14,9 +14,10 @@ import React, {
   ReactNode,
 } from 'react';
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../utils/secureStorage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { authApi, LoginPayload, UserInfo } from '../api/auth';
+import { profilApi } from '../api/profil';
 import { API_BASE_URL, STORAGE_KEYS } from '../api/client';
 
 /** Retourne true si le token JWT est expiré (ou invalide). */
@@ -46,6 +47,7 @@ interface AuthContextValue extends AuthState {
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   loginWithBiometric: () => Promise<void>;
+  refreshPermissions: () => Promise<void>;
 }
 
 // ── Contexte ──────────────────────────────────────────────────
@@ -76,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (!isTokenExpired(access)) {
             setState({ user, accessToken: access, refreshToken: refresh, isLoading: false, isAuthenticated: true });
+            refreshPermissions();
             return;
           }
 
@@ -92,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, newRefresh),
             ]);
             setState({ user, accessToken: newAccess, refreshToken: newRefresh, isLoading: false, isAuthenticated: true });
+            refreshPermissions();
           } catch {
             await Promise.all([
               SecureStore.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN),
@@ -109,6 +113,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     restoreSession();
+  }, []);
+
+  // ── Rafraîchir les permissions RBAC (sans reconnexion) ─────
+  // Nécessaire pour les sessions restaurées depuis un cache antérieur
+  // à l'ajout du champ `permissions` (ex. module Flotte), et pour
+  // refléter un retrait de permission fait entre-temps via l'écran
+  // Rôles web sans obliger l'utilisateur à se reconnecter.
+  const refreshPermissions = useCallback(async () => {
+    try {
+      const res = await profilApi.get();
+      const permissions = res.data.permissions;
+      setState((prev) => {
+        if (!prev.user) return prev;
+        const updatedUser: UserInfo = { ...prev.user, permissions };
+        SecureStore.setItemAsync(STORAGE_KEYS.USER, JSON.stringify(updatedUser)).catch(() => {});
+        return { ...prev, user: updatedUser };
+      });
+    } catch {
+      // silencieux — hors ligne ou session pas encore prête
+    }
   }, []);
 
   // ── Login ─────────────────────────────────────────────────
@@ -152,10 +176,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!result.success) {
-      if ((result as any).error === 'lockout' || (result as any).error === 'lockoutPermanent') {
+      const reason = (result as any).error;
+      if (reason === 'lockout' || reason === 'lockoutPermanent') {
         throw new Error('Trop de tentatives. Biométrie temporairement bloquée.');
       }
-      throw new Error('Authentification biométrique annulée.');
+      if (reason === 'user_cancel' || reason === 'app_cancel') {
+        throw new Error('Authentification biométrique annulée.');
+      }
+      if (reason === 'system_cancel') {
+        throw new Error('Authentification interrompue par le système. Veuillez réessayer.');
+      }
+      throw new Error(`Échec de l'authentification biométrique (${reason ?? 'raison inconnue'}).`);
     }
 
     const credJson = await SecureStore.getItemAsync(STORAGE_KEYS.BIOMETRIC_CREDENTIALS);
@@ -194,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, loginWithBiometric }}>
+    <AuthContext.Provider value={{ ...state, login, logout, loginWithBiometric, refreshPermissions }}>
       {children}
     </AuthContext.Provider>
   );

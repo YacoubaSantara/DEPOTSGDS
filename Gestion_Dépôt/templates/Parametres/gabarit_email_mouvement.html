@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Gabarit email — Mouvements — SGDS{% endblock %}
+{% block nav_gabarit_email_mouvement %}active{% endblock %}
+
+{% block breadcrumb %}
+  <span class="breadcrumb-current">Paramètres</span>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Gabarit email — Mouvements</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px}
+.section-title{padding:12px 20px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg);display:flex;align-items:center;gap:8px}
+.section-body{padding:20px}
+.field-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field-group label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field-group input,
+.field-group textarea,
+.field-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:.85rem;color:var(--text);font-family:inherit;transition:border .2s}
+.field-group textarea{font-family:monospace;line-height:1.5}
+.field-group input:focus,
+.field-group textarea:focus{border-color:var(--navy);outline:none}
+.field-help{font-size:.7rem;color:var(--muted);margin-top:3px}
+.field-error{font-size:.72rem;color:#dc2626;margin-top:3px}
+
+.var-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.var-chip{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:.76rem;font-family:monospace;color:var(--navy)}
+
+.btn-save{padding:10px 28px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.btn-save:hover{background:var(--navy-l)}
+.btn-secondary{padding:10px 22px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer}
+.btn-secondary:hover{background:var(--card)}
+
+.test-box{background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:16px;margin-top:6px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.test-box .field-group{flex:1;min-width:200px;margin-bottom:0}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Gabarit email — Mouvements</h1>
+    <p class="page-subtitle">Sujet et corps de l'email envoyé immédiatement au marketeur à la création d'un mouvement (Entrée/Sortie/Cession/Acquittement), PDF du mouvement en pièce jointe</p>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="field-error" style="margin-bottom:12px">{{ form.non_field_errors|join:", " }}</div>
+  {% endif %}
+
+  <div class="form-section">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+      Contenu de l'email
+    </div>
+    <div class="section-body">
+      <div class="field-group">
+        <label>Sujet *</label>
+        {{ form.sujet }}
+        {% if form.sujet.errors %}<span class="field-error">{{ form.sujet.errors|join:", " }}</span>{% endif %}
+      </div>
+      <div class="field-group">
+        <label>Corps *</label>
+        {{ form.corps }}
+        {% if form.corps.errors %}<span class="field-error">{{ form.corps.errors|join:", " }}</span>{% endif %}
+      </div>
+      <p class="field-help">Variables communes (tous types) :</p>
+      <div class="var-list">
+        <span class="var-chip">{% templatetag openvariable %} marketeur {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} type_mouvement {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} produit {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} volume {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} numero {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} date_mouvement {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} societe {% templatetag closevariable %}</span>
+      </div>
+
+      <p class="field-help" style="margin-top:14px">Indicateurs de type — pour des blocs <code>{% templatetag openblock %} if {% templatetag closeblock %}</code> conditionnels dans le corps :</p>
+      <div class="var-list">
+        <span class="var-chip">{% templatetag openvariable %} is_entree {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} is_sortie {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} is_cession {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} is_acquittement {% templatetag closevariable %}</span>
+      </div>
+
+      <p class="field-help" style="margin-top:14px">Variables Entrée (vides si autre type) :</p>
+      <div class="var-list">
+        <span class="var-chip">{% templatetag openvariable %} date_chargement {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} bl_chargeur {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} vol_amb_expediteur {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} vol_amb_recu {% templatetag closevariable %}</span>
+      </div>
+
+      <p class="field-help" style="margin-top:14px">Variables Sortie (vides si autre type) :</p>
+      <div class="var-list">
+        <span class="var-chip">{% templatetag openvariable %} reference_client {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} destination {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} vol_amb_sortie {% templatetag closevariable %}</span>
+      </div>
+
+      <p class="field-help" style="margin-top:14px">Variables Cession (vides si autre type) :</p>
+      <div class="var-list">
+        <span class="var-chip">{% templatetag openvariable %} marketeur_cedant {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} marketeur_destinataire {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} vol_amb_cede {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} motif_cession {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} numero_autorisation {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} date_autorisation {% templatetag closevariable %}</span>
+      </div>
+
+      <p class="field-help" style="margin-top:14px">Variables Acquittement (vides si autre type) :</p>
+      <div class="var-list">
+        <span class="var-chip">{% templatetag openvariable %} bl_chargeur_source {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} vol_a_acquitter {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} reference_declaration {% templatetag closevariable %}</span>
+        <span class="var-chip">{% templatetag openvariable %} date_declaration {% templatetag closevariable %}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px">
+    <button type="submit" class="btn-save">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Enregistrer
+    </button>
+  </div>
+</form>
+
+<div class="form-section" style="margin-top:20px">
+  <div class="section-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+    Tester l'envoi
+  </div>
+  <div class="section-body">
+    <p class="field-help" style="margin-bottom:6px">Envoie un email réel (avec le PDF du mouvement) pour un mouvement existant, vers l'adresse de votre choix — sans toucher à l'email réel du marketeur.</p>
+    <form method="post" class="test-box">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="test">
+      <div class="field-group">
+        <label>Mouvement (30 derniers)</label>
+        <select name="mouvement_id">
+          {% for m in mouvements %}
+          <option value="{{ m.uuid }}">{{ m.get_type_mouvement_display }} — {{ m.produit }} — {{ m.marketeur }} — N° {{ m.numero_enregistrement }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Destinataire du test</label>
+        <input type="email" name="email_test" placeholder="votre adresse email" required>
+      </div>
+      <button type="submit" class="btn-secondary">Envoyer un email de test</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

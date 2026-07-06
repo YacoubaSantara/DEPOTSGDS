@@ -22,7 +22,7 @@ class AuditTests(TestCase):
 
     def setUp(self):
         self.user = creer_utilisateur(
-            'yacouba', 'y@sgds.ml', 'pass12345', Role.CHEF_DEPOT)
+            'yacouba', 'y@sgds.ml', 'pass12345', 'CHEF_DEPOT')
 
     # ── CREATE ─────────────────────────────────────────────────────────────────
     def test_creation_objet_loggee(self):

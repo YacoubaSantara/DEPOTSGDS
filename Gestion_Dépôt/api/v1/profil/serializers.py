@@ -9,6 +9,8 @@ class ProfilSerializer(serializers.Serializer):
     id             = serializers.IntegerField()
     username       = serializers.CharField()
     full_name      = serializers.CharField()
+    first_name     = serializers.CharField(allow_blank=True)
+    last_name      = serializers.CharField(allow_blank=True)
     email          = serializers.EmailField(allow_blank=True)
     telephone      = serializers.CharField(allow_null=True)
     poste          = serializers.CharField(allow_null=True)
@@ -20,6 +22,7 @@ class ProfilSerializer(serializers.Serializer):
     photo_url            = serializers.CharField(allow_null=True)
     total_mouvements     = serializers.IntegerField()
     volume_total_ambiant = serializers.FloatField()
+    permissions          = serializers.DictField(child=serializers.BooleanField())
 
 
 class UpdateProfilSerializer(serializers.Serializer):

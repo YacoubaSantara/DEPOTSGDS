@@ -27,17 +27,22 @@ class RoleAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display  = ('user', 'role', 'actif', 'poste', 'telephone',
+    list_display  = ('user', 'role', 'liste_depots', 'actif', 'poste', 'telephone',
                      'derniere_ip', 'date_creation')
-    list_filter   = ('role', 'actif')
+    list_filter   = ('role', 'depots', 'actif')
     search_fields = ('user__username', 'user__email', 'poste', 'telephone')
     readonly_fields = ('derniere_ip', 'date_creation', 'date_modification')
+    filter_horizontal = ('depots',)
     fieldsets = (
-        (None, {'fields': ('user', 'role', 'actif')}),
+        (None, {'fields': ('user', 'role', 'depots', 'actif')}),
         ('Coordonnées', {'fields': ('telephone', 'poste', 'photo')}),
         ('Technique', {'fields': ('derniere_ip', 'notes_admin',
                                   'date_creation', 'date_modification')}),
     )
+
+    @admin.display(description='Depots assignes')
+    def liste_depots(self, obj):
+        return ", ".join(obj.depots.values_list('code', flat=True)) or '—'
 
 
 @admin.register(AuditLog)

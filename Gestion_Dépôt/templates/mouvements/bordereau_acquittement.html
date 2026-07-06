@@ -71,18 +71,18 @@
   </div>
 
   {% if show_sigs %}
-  <section class="sigs">
-    <div class="sig violet">
+  <section class="sigs" style="grid-template-columns:repeat(3,1fr)">
+    <div class="sig violet" style="min-height:38mm">
       <div><div class="role">Déclarant — Marketeur</div><div class="name">{{ mouvement.marketeur.raison_sociale }}</div></div>
       <div class="box"></div>
       <div class="footline"><span>{{ mouvement.collaborateur|default:"—" }}</span><span>Signature</span></div>
     </div>
-    <div class="sig violet">
+    <div class="sig violet" style="min-height:38mm">
       <div><div class="role">Chef de dépôt — SGDS</div><div class="name">—</div></div>
       <div class="box"></div>
       <div class="footline"><span>Date</span><span>Cachet</span></div>
     </div>
-    <div class="sig violet">
+    <div class="sig violet" style="min-height:38mm">
       <div><div class="role">Comptabilité — {{ societe.sigle|default:"SANKE" }}</div><div class="name">Service Trésorerie</div></div>
       <div class="box"></div>
       <div class="footline"><span>Date imputation</span><span>Visa</span></div>

@@ -41,4 +41,7 @@ def creer_utilisateur(username, email, password, role,
             setattr(profil, k, v)
     profil.save()
 
-    return user
+    # Le signal de création a mis en cache sur `user` l'ancien profil (rôle
+    # par défaut) via la relation inverse one-to-one : on retourne une
+    # instance fraîche pour que user.profile reflète le rôle assigné.
+    return User.objects.get(pk=user.pk)

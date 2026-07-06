@@ -4,7 +4,7 @@ from django.urls import path
 from django.shortcuts import redirect
 from django.contrib import messages
 from .models import (
-    Marketeur, Camion, Chauffeur, Famille, Produit, Cuve,
+    Marketeur, Camion, Chauffeur, Famille, Produit, Cuve, Depot,
     ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement,
     PeriodeComptable, Exercice, StockOuverture, StockOuvertureCuve, StockOuvertureMarketeur,
     ParametresCoulage, ClotureCoulageMensuel, ClotureCoulageProduit, ClotureCoulageLigne,
@@ -12,10 +12,18 @@ from .models import (
 )
 
 
+@admin.register(Depot)
+class DepotAdmin(admin.ModelAdmin):
+    list_display   = ('code', 'nom', 'ville', 'statut', 'numero_agrement', 'date_modification')
+    list_filter    = ('statut',)
+    search_fields  = ('code', 'nom', 'ville', 'numero_agrement')
+    readonly_fields = ('date_enregistrement', 'date_modification')
+
+
 @admin.register(InventaireInitialMarketeur)
 class InventaireInitialMarketeurAdmin(admin.ModelAdmin):
-    list_display   = ('marketeur', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'date_inventaire', 'saisi_par', 'date_modification')
-    list_filter    = ('regime_douanier', 'produit', 'marketeur')
+    list_display   = ('depot', 'marketeur', 'produit', 'regime_douanier', 'volume_ambiant', 'volume_15c', 'date_inventaire', 'saisi_par', 'date_modification')
+    list_filter    = ('depot', 'regime_douanier', 'produit', 'marketeur')
     search_fields  = ('marketeur__raison_sociale', 'marketeur__sigle', 'produit__code', 'produit__nom')
     readonly_fields = ('date_creation', 'date_modification')
     autocomplete_fields = []
@@ -145,12 +153,12 @@ class ProduitAdmin(admin.ModelAdmin):
 
 @admin.register(Cuve)
 class CuveAdmin(admin.ModelAdmin):
-    list_display    = ('numero', 'designation', 'produit', 'capacite_totale', 'niveau_actuel', 'statut')
-    list_filter     = ('statut', 'type_cuve', 'materiau')
+    list_display    = ('numero', 'designation', 'depot', 'produit', 'capacite_totale', 'niveau_actuel', 'statut')
+    list_filter     = ('depot', 'statut', 'type_cuve', 'materiau')
     search_fields   = ('numero', 'designation', 'localisation')
     readonly_fields = ('date_enregistrement', 'date_modification')
     fieldsets = (
-        ('Identification', {'fields': ('numero', 'designation', 'produit')}),
+        ('Identification', {'fields': ('depot', 'numero', 'designation', 'produit')}),
         ('Capacité & Niveau', {'fields': ('capacite_totale', 'niveau_actuel')}),
         ('Caractéristiques', {'fields': ('type_cuve', 'materiau', 'localisation')}),
         ('Dates', {
@@ -288,7 +296,7 @@ class JaugeageJourAdmin(admin.ModelAdmin):
             ),
         }),
         ("Dépôt", {
-            'fields': ('depot', 'type_depot', 'temperature_reference'),
+            'fields': ('depot', 'temperature_reference'),
         }),
         ("Notes", {
             'fields': ('notes',),
@@ -475,6 +483,7 @@ class MouvementAdmin(admin.ModelAdmin):
     inlines = [LigneMouvementInline]
     list_display = (
         'numero_enregistrement',
+        'depot',
         'date_mouvement',
         'type_mouvement',
         'regime_douanier',
@@ -485,6 +494,7 @@ class MouvementAdmin(admin.ModelAdmin):
         'date_saisie',
     )
     list_filter = (
+        'depot',
         'type_mouvement',
         'regime_douanier',
         'produit',
@@ -522,6 +532,7 @@ class MouvementAdmin(admin.ModelAdmin):
         ('Identification', {
             'fields': (
                 'numero_enregistrement',   # lecture seule — généré automatiquement
+                'depot',
                 'type_mouvement',
                 'produit',
                 'regime_douanier',
@@ -632,8 +643,8 @@ class ParametresCoulageAdmin(admin.ModelAdmin):
 
 @admin.register(PeriodeComptable)
 class PeriodeComptableAdmin(admin.ModelAdmin):
-    list_display  = ('libelle', 'statut', 'date_ouverture', 'date_cloture', 'cloture_par')
-    list_filter   = ('statut',)
+    list_display  = ('libelle', 'depot', 'statut', 'date_ouverture', 'date_cloture', 'cloture_par')
+    list_filter   = ('depot', 'statut')
     ordering      = ('-annee', '-mois')
     readonly_fields = ('statut', 'date_ouverture', 'date_cloture', 'cloture_par')
     # Ouverture/clôture via les vues dédiées uniquement, pas par l'admin direct

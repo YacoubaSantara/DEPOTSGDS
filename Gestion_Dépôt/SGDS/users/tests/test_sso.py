@@ -40,7 +40,7 @@ class SSOAdapterTests(TestCase):
     def test_adapter_accepte_email_existant(self):
         """Un email existant en base → pas d'exception levée."""
         creer_utilisateur(
-            'yacouba', 'yacouba@sgds.ml', 'pass12345', Role.OPERATEUR)
+            'yacouba', 'yacouba@sgds.ml', 'pass12345', 'OPERATEUR')
         request = self._make_request()
         sociallogin = self._make_social_login('yacouba@sgds.ml')
         adapter = SGDSSocialAccountAdapter()

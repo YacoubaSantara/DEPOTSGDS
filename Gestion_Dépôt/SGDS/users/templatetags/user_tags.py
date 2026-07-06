@@ -1,5 +1,7 @@
 from django import template
 
+from ..permissions import has_perm as _has_perm
+
 register = template.Library()
 
 ROLE_STYLES = {
@@ -79,3 +81,9 @@ def has_role(user, *roles):
         return False
     role_code = profil.role.code if profil.role else ''
     return role_code in roles
+
+
+@register.simple_tag
+def has_perm(user, codename):
+    """Retourne True si user a la permission donnée (référentiel PERMISSIONS_REGISTRY)."""
+    return _has_perm(user, codename)

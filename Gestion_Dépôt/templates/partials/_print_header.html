@@ -12,10 +12,10 @@
     <div class="ph-co">
       <div class="ph-co-name">{{ societe.raison_sociale|default:"SGDS SANKE" }}</div>
       <div class="ph-co-sub">
-        <strong>{{ societe.nom_depot|default:"Dépôt Pétrolier" }}</strong>{% if societe.adresse %} — {{ societe.adresse|truncatechars:80 }}{% endif %}{% if societe.ville %}, {{ societe.ville }}{% endif %}
+        <strong>{{ depot.nom|default:"Dépôt Pétrolier" }}</strong>{% if depot.adresse %} — {{ depot.adresse|truncatechars:80 }}{% endif %}{% if depot.ville %}, {{ depot.ville }}{% endif %}
       </div>
       <div class="ph-co-sub">
-        {% if societe.telephone %}Tél&nbsp;: {{ societe.telephone }}{% endif %}{% if societe.rccm %} · {{ societe.rccm }}{% endif %}{% if societe.nif %} · {{ societe.nif }}{% endif %}
+        {% if depot.telephone %}Tél&nbsp;: {{ depot.telephone }}{% endif %}{% if societe.numero_contribuable %} · {{ societe.numero_contribuable }}{% endif %}{% if societe.numero_ifu %} · {{ societe.numero_ifu }}{% endif %}
       </div>
     </div>
     <div class="ph-meta">

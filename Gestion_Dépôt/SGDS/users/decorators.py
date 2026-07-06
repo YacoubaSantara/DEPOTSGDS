@@ -6,7 +6,7 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import redirect
 
 from .permissions import (
-    _has_role, is_superadmin, is_chef_depot,
+    _has_role, is_superadmin, is_chef_depot, has_perm,
     can_write, can_manage_users, can_view_audit, can_export, can_manage_roles,
 )
 
@@ -45,6 +45,27 @@ def can_write_required(view_func):
     return role_required('SUPERADMIN', 'CHEF_DEPOT', 'OPERATEUR')(view_func)
 
 
+def voir_required(codename):
+    """
+    Restreint une vue en lecture à la permission donnée (référentiel
+    PERMISSIONS_REGISTRY). Redirige vers login si non authentifié, 403 sinon.
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                messages.warning(request, "Veuillez vous connecter.")
+                return redirect('connexion')
+            if not has_perm(request.user, codename):
+                messages.error(request, "Accès refusé : permission insuffisante.")
+                return HttpResponseForbidden(
+                    "Vous n'avez pas les droits pour accéder à cette ressource."
+                )
+            return view_func(request, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
 # ── Mixins class-based views ───────────────────────────────────────────────────
 class SuperAdminRequiredMixin(UserPassesTestMixin):
     def test_func(self):
@@ -79,3 +100,11 @@ class CanViewAuditMixin(UserPassesTestMixin):
 class CanExportMixin(UserPassesTestMixin):
     def test_func(self):
         return can_export(self.request.user)
+
+
+class VoirRequiredMixin(UserPassesTestMixin):
+    """Mixin CBV équivalent à voir_required(codename). Définir permission_codename sur la vue."""
+    permission_codename = None
+
+    def test_func(self):
+        return has_perm(self.request.user, self.permission_codename)

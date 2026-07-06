@@ -44,6 +44,7 @@ def calculer_frais_passage(periode) -> dict:
     sorties = (
         Mouvement.objects
         .filter(
+            depot=periode.depot,
             type_mouvement='SORTIE',
             date_mouvement__range=(periode.date_debut, periode.date_fin),
             volume_ambiant_sortie__isnull=False,

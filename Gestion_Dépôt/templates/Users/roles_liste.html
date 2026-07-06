@@ -82,15 +82,15 @@
 
   <div class="stat-strip">
     <div class="stat-chip">
-      <span class="stat-chip-num">{{ roles|length }}</span>
-      <span class="stat-chip-lbl">Rôle{{ roles|length|pluralize }} total{{ roles|length|pluralize }}</span>
+      <span class="stat-chip-num">{{ page_obj.paginator.count }}</span>
+      <span class="stat-chip-lbl">Rôle{{ page_obj.paginator.count|pluralize }} total{{ page_obj.paginator.count|pluralize }}</span>
     </div>
     <div class="stat-chip">
       <span class="stat-chip-num">5</span>
       <span class="stat-chip-lbl">Rôles système 🔒</span>
     </div>
     <div class="stat-chip">
-      <span class="stat-chip-num">{{ roles|length|add:"-5" }}</span>
+      <span class="stat-chip-num">{{ page_obj.paginator.count|add:"-5" }}</span>
       <span class="stat-chip-lbl">Rôles personnalisés</span>
     </div>
   </div>
@@ -171,6 +171,8 @@
     </div>
     {% endif %}
   </div>
+
+  {% include 'partials/_pagination.html' with page_obj=page_obj %}
 
   <div style="margin-top:16px;text-align:right">
     <a href="{% url 'permissions_liste' %}" style="font-size:.8rem;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:color .2s"

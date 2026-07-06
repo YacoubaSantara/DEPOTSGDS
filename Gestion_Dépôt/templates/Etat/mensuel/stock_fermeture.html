@@ -67,12 +67,13 @@ tr.ac-row td{background:#f0f9f4}
       {% if periode %}{{ periode }}{% else %}Sélectionnez une période{% endif %}
       {% if date_filtre %} — Fermeture du {{ date_filtre|date:"d/m/Y" }}{% endif %}
       {% if produit_filtre %} — {{ produit_filtre.nom|upper }}{% endif %}
+      {% if marketeur_sel %} — {{ marketeur_sel.sigle|default:marketeur_sel.raison_sociale }}{% endif %}
     </p>
   </div>
   <div style="display:flex;gap:8px" class="no-print">
     <button onclick="lancerImpression()" class="btn-print-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Aperçu / Imprimer</button>
     {% if periode and lignes and not date_filtre %}
-    <a href="{% url 'etat_mensuel_stock_fermeture_export' %}?periode_id={{ periode.uuid }}{% if produit_filtre %}&produit_id={{ produit_filtre.uuid }}{% endif %}"
+    <a href="{% url 'etat_mensuel_stock_fermeture_export' %}?periode_id={{ periode.uuid }}{% if produit_filtre %}&produit_id={{ produit_filtre.uuid }}{% endif %}{% if marketeur_sel %}&marketeur={{ marketeur_sel.uuid }}{% endif %}"
        class="btn-export-main"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exporter Excel</a>
     {% endif %}
   </div>
@@ -92,6 +93,13 @@ tr.ac-row td{background:#f0f9f4}
         <select name="produit_id">
           <option value="">— Tous les produits —</option>
           {% for p in produits %}<option value="{{ p.uuid }}" {% if produit_filtre and produit_filtre.pk == p.pk %}selected{% endif %}>{{ p.nom }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Marketeur (optionnel)</label>
+        <select name="marketeur">
+          <option value="">— Tous les marketeurs —</option>
+          {% for m in marketeurs %}<option value="{{ m.uuid }}" {% if marketeur_sel and marketeur_sel.pk == m.pk %}selected{% endif %}>{{ m.sigle|default:m.raison_sociale }}</option>{% endfor %}
         </select>
       </div>
       <div class="filter-group">

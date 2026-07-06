@@ -18,7 +18,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 
-from api.v1.permissions import IsMarketeurActif
+from api.v1.permissions import HasVoirMouvement, HasVoirDetailMouvement
 from SGDS.models import Mouvement, MouvementDocument
 from .serializers import MouvementListSerializer, MouvementDetailSerializer
 
@@ -114,7 +114,7 @@ class MouvementListView(APIView):
       - page         : numéro de page (défaut 1)
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirMouvement]
 
     def get(self, request):
         marketeur = request.user.marketeur
@@ -182,7 +182,7 @@ class MouvementDetailView(APIView):
     L'utilisateur ne peut accéder qu'aux mouvements de son propre marketeur.
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirDetailMouvement]
 
     def get(self, request, pk):
         marketeur = request.user.marketeur
@@ -216,7 +216,7 @@ class MouvementDocumentsView(APIView):
     POST /api/v1/mouvements/{pk}/documents/ → upload (multipart/form-data)
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirDetailMouvement]
     parser_classes         = [MultiPartParser, FormParser]
 
     def get(self, request, pk):
@@ -267,7 +267,7 @@ class MouvementBordereauPdfView(APIView):
     Authentification : Bearer JWT.
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirDetailMouvement]
 
     def get(self, request, pk):
         from django.http import HttpResponse
@@ -305,7 +305,7 @@ class MouvementBordereauPdfView(APIView):
 
         try:
             from SGDS.services.periode_comptable import periode_pour_date
-            periode = periode_pour_date(mouvement.date_mouvement)
+            periode = periode_pour_date(mouvement.date_mouvement, mouvement.depot)
             periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
         except Exception:
             periode_label = mouvement.date_mouvement.strftime("%B %Y")
@@ -379,7 +379,7 @@ class MouvementBordereauPdfView(APIView):
 class DocumentDetailView(APIView):
     """GET /api/v1/documents/{pk}/ → détail d'un document (restriction marketeur)"""
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirDetailMouvement]
 
     def get(self, request, pk):
         marketeur = request.user.marketeur

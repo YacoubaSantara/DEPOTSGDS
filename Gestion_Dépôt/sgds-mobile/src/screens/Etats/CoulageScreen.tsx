@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Modal, FlatList,
+  ActivityIndicator, Modal, FlatList, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print   from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { Colors }   from '../../constants/colors';
 import { etatsApi } from '../../api/etats';
@@ -139,6 +139,8 @@ export function CoulageScreen() {
   const [periodes,    setPeriodes]    = useState<Periode[]>([]);
   const [selectedPer, setSelectedPer] = useState<Periode | null>(null);
   const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [error,       setError]       = useState<string | null>(null);
   const [exporting,   setExporting]   = useState(false);
   const [showModal,   setShowModal]   = useState(false);
 
@@ -146,19 +148,22 @@ export function CoulageScreen() {
     etatsApi.periodes().then(r => setPeriodes(r.data)).catch(() => {});
   }, []);
 
-  const load = useCallback(async (periodeId?: number) => {
-    setLoading(true);
+  const load = useCallback(async (periodeId?: number, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    setError(null);
     try {
       const r = await etatsApi.coulage(periodeId);
       setData(r.data);
-    } catch {
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? e?.message ?? 'Impossible de charger les données.');
       setData(null);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { load(selectedPer?.id); }, [selectedPer]);
+  useFocusEffect(useCallback(() => { load(selectedPer?.id); }, [load, selectedPer]));
 
   const exportPdf = async () => {
     if (!data) return;
@@ -230,6 +235,15 @@ export function CoulageScreen() {
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#5B21B6" />
         </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.red} />
+          <Text style={[styles.emptyText, { color: Colors.red }]}>Erreur de chargement</Text>
+          <Text style={styles.errorSub}>{error}</Text>
+          <TouchableOpacity onPress={() => load(selectedPer?.id)} style={styles.retryBtn}>
+            <Text style={styles.retryBtnText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
       ) : !data || data.lignes.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="analytics-outline" size={48} color={Colors.silver} />
@@ -240,7 +254,14 @@ export function CoulageScreen() {
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(selectedPer?.id, true)}
+              colors={['#5B21B6']}
+            />
+          }>
 
           {/* KPI totaux */}
           <View style={styles.kpiRow}>
@@ -512,4 +533,14 @@ const styles = StyleSheet.create({
   perItemText:   { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.ink },
   clotureBadge:  { backgroundColor: Colors.cloud, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   clotureBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.slate },
+
+  retryBtn: {
+    marginTop: 12,
+    backgroundColor: '#5B21B6',
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
+  errorSub: { fontSize: 12, color: Colors.slate, textAlign: 'center', marginTop: 4, maxWidth: 260 },
 });

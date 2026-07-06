@@ -12,6 +12,7 @@ export interface UserInfo {
   marketeur_id: number;
   marketeur_nom: string;
   marketeur_sigle: string;
+  permissions: Record<string, boolean>;
 }
 
 export interface LoginResponse {

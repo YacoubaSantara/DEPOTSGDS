@@ -172,9 +172,6 @@ export function MouvementsScreen() {
             <TouchableOpacity style={styles.addBtn} onPress={handleExportPdf}>
               <Ionicons name="document-outline" size={18} color={Colors.white} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.addBtn}>
-              <Ionicons name="add" size={18} color={Colors.white} />
-            </TouchableOpacity>
           </View>
         </View>
 

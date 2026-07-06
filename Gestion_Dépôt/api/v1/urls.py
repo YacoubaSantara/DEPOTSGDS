@@ -35,9 +35,11 @@ from django.urls import path
 from api.v1.auth.views          import LoginView, LogoutView, TokenRefreshAPIView
 from api.v1.dashboard.views     import DashboardView
 from api.v1.mouvements.views    import MouvementListView, MouvementDetailView, MouvementBordereauPdfView, MouvementDocumentsView, DocumentDetailView
+from api.v1.camions.views       import CamionListCreateView, CamionDetailView
+from api.v1.chauffeurs.views    import ChauffeurListCreateView, ChauffeurDetailView
 from api.v1.etats.views         import (
     StockGlobalView, RecapView, ProduitsView, PeriodesView,
-    StockOuvertureFermetureView, FraisPassageView, CoulageView,
+    StockOuvertureFermetureView, Stock15View, FraisPassageView, CoulageView,
 )
 from api.v1.profil.views        import ProfilView, ChangePasswordView
 from api.v1.notifications.views import NotificationsView
@@ -58,10 +60,17 @@ urlpatterns = [
     path('mouvements/<int:pk>/documents/',           MouvementDocumentsView.as_view(),    name='api_mouvement_documents'),
     path('documents/<int:pk>/',                      DocumentDetailView.as_view(),     name='api_document_detail'),
 
+    # ── Flotte : camions & chauffeurs ─────────────────────────
+    path('camions/',            CamionListCreateView.as_view(),    name='api_camions_list'),
+    path('camions/<int:pk>/',   CamionDetailView.as_view(),        name='api_camion_detail'),
+    path('chauffeurs/',          ChauffeurListCreateView.as_view(), name='api_chauffeurs_list'),
+    path('chauffeurs/<int:pk>/', ChauffeurDetailView.as_view(),     name='api_chauffeur_detail'),
+
     # ── États ─────────────────────────────────────────────────
     path('etats/stock-global/',    StockGlobalView.as_view(),            name='api_stock_global'),
     path('etats/recap/',           RecapView.as_view(),                  name='api_recap'),
     path('etats/stock-ouverture/', StockOuvertureFermetureView.as_view(), name='api_stock_ouverture'),
+    path('etats/stock-15/',        Stock15View.as_view(),                name='api_stock_15'),
     path('etats/frais-passage/',   FraisPassageView.as_view(),           name='api_frais_passage'),
     path('etats/coulage/',         CoulageView.as_view(),                name='api_coulage'),
     path('etats/produits/',        ProduitsView.as_view(),               name='api_produits'),

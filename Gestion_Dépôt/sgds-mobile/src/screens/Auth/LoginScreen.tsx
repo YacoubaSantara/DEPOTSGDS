@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../../utils/secureStorage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAuth } from '../../context/AuthContext';
 import { STORAGE_KEYS } from '../../api/client';
@@ -43,8 +44,11 @@ export function LoginScreen() {
           setBioIcon('finger-print');
         }
         setBioEnabled(true);
-        // Auto-prompt biométrique au chargement
-        setTimeout(() => handleBiometricLogin(), 800);
+        // Auto-prompt biométrique au chargement, une fois les animations/transitions terminées
+        // (sinon l'OS annule le prompt trop tôt avec system_cancel pendant le montage de l'écran)
+        InteractionManager.runAfterInteractions(() => {
+          handleBiometricLogin(true);
+        });
       }
     })();
   }, []);
@@ -84,14 +88,19 @@ export function LoginScreen() {
     }
   };
 
-  const handleBiometricLogin = async () => {
+  const handleBiometricLogin = async (auto = false) => {
     if (bioLoading) return;
     setBioLoading(true);
     setError(null);
     try {
       await loginWithBiometric();
     } catch (err) {
-      setError(getErrorMessage(err));
+      // La tentative automatique au lancement peut être annulée par le système
+      // (transition d'écran, app pas encore au premier plan) : on ne l'affiche
+      // pas comme une erreur, l'utilisateur peut toujours appuyer sur le bouton.
+      if (!auto) {
+        setError(getErrorMessage(err));
+      }
     } finally {
       setBioLoading(false);
     }
@@ -225,7 +234,7 @@ export function LoginScreen() {
             {bioEnabled && (
               <TouchableOpacity
                 style={styles.bioRow}
-                onPress={handleBiometricLogin}
+                onPress={() => handleBiometricLogin()}
                 disabled={bioLoading}
                 activeOpacity={0.8}
               >

@@ -64,10 +64,13 @@ PERMISSIONS_REGISTRY = {
             ('ajouter_marketeur', 'Créer un marketeur'),
             ('modifier_marketeur','Modifier un marketeur'),
             ('supprimer_marketeur','Supprimer un marketeur'),
+            ('voir_inventaire',   "Consulter l'inventaire initial"),
             ('voir_cuve',         'Consulter les cuves'),
             ('modifier_cuve',     'Modifier une cuve'),
+            ('voir_parametre_jaugeage', 'Consulter les paramètres de jaugeage'),
             ('voir_produit',      'Consulter les produits'),
             ('modifier_produit',  'Modifier un produit'),
+            ('voir_famille',      'Consulter les familles'),
             ('voir_camion',       'Consulter les camions'),
             ('ajouter_camion',    'Créer un camion'),
             ('modifier_camion',   'Modifier un camion'),
@@ -76,6 +79,7 @@ PERMISSIONS_REGISTRY = {
             ('ajouter_chauffeur', 'Créer un chauffeur'),
             ('modifier_chauffeur','Modifier un chauffeur'),
             ('supprimer_chauffeur','Supprimer un chauffeur'),
+            ('voir_parametre_metrologique', 'Consulter les paramètres métrologiques'),
         ],
     },
     'administration': {
@@ -89,6 +93,24 @@ PERMISSIONS_REGISTRY = {
             ('modifier_parametres', 'Modifier les paramètres système'),
             ('voir_societe',        'Consulter la fiche société / dépôt'),
             ('modifier_societe',    'Modifier la fiche société / dépôt'),
+            ('gerer_depot',         'Gérer la liste des dépôts'),
+            ('voir_gabarit_email_etat_mensuel',    "Consulter/modifier le gabarit d'email des états mensuels"),
+            ('voir_historique_envoi_etat_mensuel', "Consulter l'historique des envois d'états mensuels"),
+            ('voir_gabarit_email_mouvement',       "Consulter/modifier le gabarit d'email des mouvements"),
+        ],
+    },
+    'etats': {
+        'libelle': 'États & rapports',
+        'icone': '📊',
+        'permissions': [
+            ('voir_etat', "Consulter les états et rapports de stock (espace marketeur)"),
+            ('voir_carte_stock',        'Consulter la carte de stock'),
+            ('voir_stock_global',       'Consulter le stock global'),
+            ('voir_stock_ouverture_fermeture', 'Consulter le stock ouverture/fermeture mensuel'),
+            ('voir_etat_global_depot',  "Consulter l'état global dépôt mensuel"),
+            ('voir_etat_rjj',           "Consulter l'état RJJ mensuel"),
+            ('voir_etat_stock_15',      'Consulter le stock à 15° mensuel'),
+            ('voir_etat_stock_ambiant', 'Consulter le stock ambiant mensuel'),
         ],
     },
 }
@@ -111,12 +133,18 @@ ROLES_SYSTEME_PERMISSIONS = {
         'voir_frais_passage', 'exporter_frais_passage',
         'voir_suivi_evolution',
         'voir_marketeur', 'ajouter_marketeur', 'modifier_marketeur',
-        'voir_cuve', 'modifier_cuve',
+        'voir_inventaire',
+        'voir_cuve', 'modifier_cuve', 'voir_parametre_jaugeage',
         'voir_produit', 'modifier_produit',
+        'voir_famille',
         'voir_camion', 'ajouter_camion', 'modifier_camion', 'supprimer_camion',
         'voir_chauffeur', 'ajouter_chauffeur', 'modifier_chauffeur', 'supprimer_chauffeur',
         'voir_utilisateur', 'voir_audit',
         'voir_societe', 'modifier_societe',
+        'voir_gabarit_email_etat_mensuel', 'voir_historique_envoi_etat_mensuel', 'voir_gabarit_email_mouvement',
+        'voir_parametre_metrologique',
+        'voir_carte_stock', 'voir_stock_global', 'voir_stock_ouverture_fermeture',
+        'voir_etat_global_depot', 'voir_etat_rjj', 'voir_etat_stock_15', 'voir_etat_stock_ambiant',
     ],
 
     'OPERATEUR': [
@@ -126,9 +154,12 @@ ROLES_SYSTEME_PERMISSIONS = {
         'valider_jaugeage',
         'voir_periode', 'voir_exercice',
         'voir_coulage', 'voir_frais_passage', 'voir_suivi_evolution',
-        'voir_marketeur', 'voir_cuve', 'voir_produit',
+        'voir_marketeur', 'voir_inventaire', 'voir_cuve', 'voir_produit', 'voir_famille',
+        'voir_parametre_jaugeage', 'voir_parametre_metrologique',
         'voir_camion', 'ajouter_camion', 'modifier_camion',
         'voir_chauffeur', 'ajouter_chauffeur', 'modifier_chauffeur',
+        'voir_carte_stock', 'voir_stock_global',
+        'voir_etat_global_depot', 'voir_etat_rjj', 'voir_etat_stock_15', 'voir_etat_stock_ambiant',
     ],
 
     'COMPTABLE': [
@@ -138,24 +169,34 @@ ROLES_SYSTEME_PERMISSIONS = {
         'voir_coulage', 'exporter_coulage',
         'voir_frais_passage', 'exporter_frais_passage',
         'voir_suivi_evolution',
-        'voir_marketeur', 'voir_cuve', 'voir_produit',
+        'voir_marketeur', 'voir_inventaire', 'voir_cuve', 'voir_produit', 'voir_famille',
+        'voir_parametre_jaugeage', 'voir_parametre_metrologique',
         'voir_camion', 'voir_chauffeur',
+        'voir_carte_stock', 'voir_stock_global',
+        'voir_etat_global_depot', 'voir_etat_rjj', 'voir_etat_stock_15', 'voir_etat_stock_ambiant',
     ],
 
     'LECTEUR': [
         'voir_mouvement', 'voir_detail_mouvement',
         'voir_jaugeage', 'voir_periode', 'voir_exercice',
         'voir_coulage', 'voir_frais_passage', 'voir_suivi_evolution',
-        'voir_marketeur', 'voir_cuve', 'voir_produit',
+        'voir_marketeur', 'voir_inventaire', 'voir_cuve', 'voir_produit', 'voir_famille',
+        'voir_parametre_jaugeage', 'voir_parametre_metrologique',
         'voir_camion', 'voir_chauffeur',
+        'voir_carte_stock', 'voir_stock_global',
+        'voir_etat_global_depot', 'voir_etat_rjj', 'voir_etat_stock_15', 'voir_etat_stock_ambiant',
     ],
 
-    # Accès espace marketeur : géré par @marketeur_required + user.role=='MARKETEUR'.
-    # Ces permissions sont enregistrées pour traçabilité et affichage dans l'admin.
+    # Accès espace marketeur : @marketeur_required vérifie le rôle légataire
+    # (user.is_marketeur_role), ET chaque vue est aussi décorée par
+    # voir_required(codename) — retirer une permission ici bloque réellement
+    # le menu/l'écran correspondant pour les marketeurs, ce n'est plus
+    # seulement déclaratif.
     'MARKETEUR': [
         'voir_mouvement', 'voir_detail_mouvement', 'exporter_mouvement',
         'voir_camion', 'ajouter_camion', 'modifier_camion', 'supprimer_camion',
         'voir_chauffeur', 'ajouter_chauffeur', 'modifier_chauffeur', 'supprimer_chauffeur',
         'voir_coulage', 'voir_frais_passage',
+        'voir_etat',
     ],
 }

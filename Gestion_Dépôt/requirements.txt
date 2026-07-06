@@ -12,3 +12,11 @@ django-cors-headers==4.7.0
 
 # Export PDF (fiche mouvement + listes)
 xhtml2pdf
+
+# Cachet virtuel + protection des PDF envoyés aux marketeurs
+pypdf
+cryptography
+
+# Export PDF fidèle au navigateur (bordereaux de mouvement) — après installation,
+# exécuter aussi : python -m playwright install chromium
+playwright

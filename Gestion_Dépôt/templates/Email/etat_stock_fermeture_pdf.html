@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Stock Fermeture — {{ marketeur.raison_sociale }}</title>
+<style>
+@page {
+  size: A4 portrait;
+  margin: 1.2cm 1.2cm 1.8cm 1.2cm;
+  @frame footer { -pdf-frame-content: footerContent; bottom: 0.6cm; left: 1.2cm; right: 1.2cm; height: 1.6cm; }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #0f2547; }
+
+.doc-header { background: #0e2a47; padding: 10px 14px; margin-bottom: 10px; }
+.logo-img  { height: 30px; }
+.logo-text { color: #fff; font-size: 16pt; font-weight: 900; }
+.logo-sub  { color: rgba(255,255,255,0.6); font-size: 8.5pt; }
+.header-right { text-align: right; color: #fff; }
+.header-title { font-size: 13pt; font-weight: 700; }
+.header-mkt  { font-size: 10.5pt; color: rgba(255,255,255,0.8); margin-top: 1px; }
+.header-meta  { font-size: 8.5pt; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+.produit-title {
+  background: #1e3a5f; color: #fff; font-size: 11pt; font-weight: 700;
+  padding: 5px 10px; margin: 12px 0 0 0; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.tbl { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+.tbl th { background: #64748b; color: #fff; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; padding: 5px 8px; text-align: left; }
+.tbl th.tar { text-align: right; }
+.tbl td { padding: 4px 8px; border-bottom: 1px solid #e2e8f0; font-size: 10pt; }
+.tbl td.num { font-family: monospace; text-align: right; }
+.section-header td { background: #f0f4f8; font-weight: 700; color: #1e3a5f; font-size: 9.5pt; text-transform: uppercase; }
+.sd-row td { background: #fef9ee; }
+.ac-row td { background: #f0f9f4; }
+.subtotal-row td { background: #eef2ff; font-weight: 700; }
+.total-row td { background: #e8f0fe; font-weight: 700; }
+.fin-row td { background: #fff9c4; font-weight: 700; }
+.perte-row td { background: #fce8e6; color: #c62828; font-weight: 700; }
+.gain-row td { background: #e8f5e9; color: #2e7d32; font-weight: 700; }
+.clot-row td { background: #e0ecff; font-weight: 700; }
+
+#footerContent { border-top: 1px solid #e2e8f0; padding-top: 4px; }
+.sig-block { text-align: center; padding-top: 30px; border-top: 1px solid #0f2547; font-size: 9pt; font-weight: 700; color: #0f2547; }
+</style>
+</head>
+<body>
+
+<table class="doc-header" width="100%" cellpadding="10" cellspacing="0">
+  <tr>
+    <td style="vertical-align:middle">
+      {% if societe.logo %}<img class="logo-img" src="{{ societe.logo.path }}" alt="">{% else %}<div class="logo-text">SGDS</div>{% endif %}
+      <div class="logo-sub">{{ societe.raison_sociale|default:"Système de Gestion des Dépôts pétroliers" }}</div>
+    </td>
+    <td style="vertical-align:middle" class="header-right">
+      <div class="header-title">STOCK DE FERMETURE — {{ periode }}</div>
+      <div class="header-mkt">{{ marketeur.raison_sociale }}{% if marketeur.sigle %} ({{ marketeur.sigle }}){% endif %}</div>
+      <div class="header-meta">Généré le {{ generated_at }}</div>
+    </td>
+  </tr>
+</table>
+
+{% for l in lignes %}
+<div class="produit-title">{{ l.produit.nom|upper }}</div>
+<table class="tbl" cellpadding="0" cellspacing="0">
+  <thead><tr><th style="width:55%">Désignation</th><th class="tar">V AMB (L)</th><th class="tar">V @15°C (L)</th></tr></thead>
+  <tbody>
+    <tr class="section-header"><td colspan="3">STOCK OUVERTURE</td></tr>
+    <tr class="sd-row"><td>&nbsp;&nbsp;Sous douane (SD)</td><td class="num">{{ l.ouv_sd_amb|floatformat:2 }}</td><td class="num">{{ l.ouv_sd_15c|floatformat:2 }}</td></tr>
+    <tr class="ac-row"><td>&nbsp;&nbsp;Acquitté (AC)</td><td class="num">{{ l.ouv_ac_amb|floatformat:2 }}</td><td class="num">{{ l.ouv_ac_15c|floatformat:2 }}</td></tr>
+    <tr class="total-row"><td>Total Stock Ouverture</td><td class="num">{{ l.stock_debut_amb|floatformat:2 }}</td><td class="num">{{ l.stock_debut_15c|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">ENTRÉES</td></tr>
+    <tr class="subtotal-row"><td>&nbsp;&nbsp;&nbsp;&nbsp;Total Entrées (SD)</td><td class="num">{{ l.total_entrees_sd_amb|floatformat:2 }}</td><td class="num">{{ l.total_entrees_sd_15c|floatformat:2 }}</td></tr>
+    <tr class="subtotal-row"><td>&nbsp;&nbsp;&nbsp;&nbsp;Total Entrées (AC)</td><td class="num">{{ l.total_entrees_ac_amb|floatformat:2 }}</td><td class="num">{{ l.total_entrees_ac_15c|floatformat:2 }}</td></tr>
+    <tr class="total-row"><td>Total Entrées</td><td class="num">{{ l.total_entrees_amb|floatformat:2 }}</td><td class="num">{{ l.total_entrees_15c|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">SORTIES</td></tr>
+    <tr class="subtotal-row"><td>&nbsp;&nbsp;&nbsp;&nbsp;Total Sorties (SD)</td><td class="num">{{ l.total_sorties_sd_amb|floatformat:2 }}</td><td class="num">{{ l.total_sorties_sd_15c|floatformat:2 }}</td></tr>
+    <tr class="subtotal-row"><td>&nbsp;&nbsp;&nbsp;&nbsp;Total Sorties (AC)</td><td class="num">{{ l.total_sorties_ac_amb|floatformat:2 }}</td><td class="num">{{ l.total_sorties_ac_15c|floatformat:2 }}</td></tr>
+    <tr class="total-row"><td>Total Sorties</td><td class="num">{{ l.total_sorties_amb|floatformat:2 }}</td><td class="num">{{ l.total_sorties_15c|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">STOCK COMPTABLE</td></tr>
+    <tr class="sd-row"><td>&nbsp;&nbsp;Stock Comptable (SD)</td><td class="num">{{ l.stk_c_sd_amb|floatformat:2 }}</td><td class="num">{{ l.stk_c_sd_15c|floatformat:2 }}</td></tr>
+    <tr class="ac-row"><td>&nbsp;&nbsp;Stock Comptable (AC)</td><td class="num">{{ l.stk_c_ac_amb|floatformat:2 }}</td><td class="num">{{ l.stk_c_ac_15c|floatformat:2 }}</td></tr>
+    <tr class="fin-row"><td>Total Stock Comptable (fermeture)</td><td class="num">{{ l.stock_fin_comptable_amb|floatformat:2 }}</td><td class="num">{{ l.stock_fin_comptable_15c|floatformat:2 }}</td></tr>
+
+    <tr class="section-header"><td colspan="3">QUOTE-PART P/G INSTALLATION</td></tr>
+    <tr class="{% if l.pg_inst_amb < 0 %}perte-row{% else %}gain-row{% endif %}">
+      <td>Quote-part P/G Installation (AC)</td><td class="num">{{ l.pg_inst_amb|floatformat:2 }}</td><td class="num">—</td>
+    </tr>
+
+    <tr class="section-header"><td colspan="3">RATIO</td></tr>
+    <tr><td>Ratio P/G / Sorties Acquittées (dépôt)</td><td class="num">{% if l.ratio %}{{ l.ratio|floatformat:6 }}{% else %}—{% endif %}</td><td class="num">—</td></tr>
+
+    <tr class="section-header"><td colspan="3">STOCKS CLÔTURE</td></tr>
+    <tr class="sd-row"><td>&nbsp;&nbsp;Stock Clôture (SD)</td><td class="num">{{ l.cloture_sd_amb|floatformat:2 }}</td><td class="num">{{ l.cloture_sd_15c|floatformat:2 }}</td></tr>
+    <tr class="ac-row"><td>&nbsp;&nbsp;Stock Clôture (AC)</td><td class="num">{{ l.cloture_ac_amb|floatformat:2 }}</td><td class="num">{{ l.cloture_ac_15c|floatformat:2 }}</td></tr>
+    <tr class="clot-row"><td>Total Stock Clôture</td><td class="num">{{ l.cloture_total_amb|floatformat:2 }}</td><td class="num">{{ l.cloture_total_15c|floatformat:2 }}</td></tr>
+  </tbody>
+</table>
+{% empty %}
+<p style="text-align:center;padding:20px;color:#94a3b8">Aucune activité sur la période pour ce marketeur.</p>
+{% endfor %}
+
+<div id="footerContent">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td width="33%" class="sig-block">Le Marketeur</td>
+      <td width="33%" class="sig-block">Le Gestionnaire</td>
+      <td width="34%" style="text-align:right;vertical-align:bottom;font-size:7pt;color:#94a3b8">Réf. ETAT-MENS-FERM-MKT · Page <pdf:pagenumber> / <pdf:pagecount></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

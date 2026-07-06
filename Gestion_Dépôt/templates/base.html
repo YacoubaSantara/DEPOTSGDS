@@ -1,4 +1,4 @@
-{% load static %}{% load periode_tags %}
+{% load static %}{% load periode_tags %}{% load depot_tags %}{% load user_tags %}
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -27,6 +27,12 @@
 
 {% if user.is_authenticated and user.is_marketeur_role %}
 {# ============================================================ MARKETEUR LAYOUT #}
+{% has_perm user 'voir_mouvement' as can_voir_mouvement %}
+{% has_perm user 'voir_camion' as can_voir_camion %}
+{% has_perm user 'voir_chauffeur' as can_voir_chauffeur %}
+{% has_perm user 'voir_etat' as can_voir_etat %}
+{% has_perm user 'voir_coulage' as can_voir_coulage %}
+{% has_perm user 'voir_frais_passage' as can_voir_frais_passage %}
   <aside class="sidebar">
     <div class="sb-brand">
       <div class="sb-logo"></div>
@@ -37,6 +43,7 @@
     </div>
 
     <nav class="sb-nav">
+      {# "Mon espace" reste toujours visible : c'est la page d'accueil après connexion marketeur. #}
       <div class="sb-section">
         <div class="sb-section-title">Mon espace</div>
         <a href="{% url 'client_dashboard' %}" class="sb-item {% if url_name == 'client_dashboard' %}active{% endif %}">
@@ -44,17 +51,24 @@
           <span>Tableau de bord</span>
         </a>
       </div>
+      {% if can_voir_camion or can_voir_chauffeur %}
       <div class="sb-section">
         <div class="sb-section-title">Flotte</div>
+        {% if can_voir_camion %}
         <a href="{% url 'camion_list' %}" class="sb-item {% if 'camion' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Camions</span>
         </a>
+        {% endif %}
+        {% if can_voir_chauffeur %}
         <a href="{% url 'chauffeur_list' %}" class="sb-item {% if 'chauffeur' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>Chauffeurs</span>
         </a>
+        {% endif %}
       </div>
+      {% endif %}
+      {% if can_voir_mouvement %}
       <div class="sb-section">
         <div class="sb-section-title">Opérations</div>
         <a href="{% url 'client_mouvements' %}" class="sb-item {% if 'client_mouvement' in url_name %}active{% endif %}">
@@ -62,8 +76,11 @@
           <span>Mes mouvements</span>
         </a>
       </div>
+      {% endif %}
+      {% if can_voir_etat or can_voir_coulage or can_voir_frais_passage %}
       <div class="sb-section">
         <div class="sb-section-title">Stocks & États</div>
+        {% if can_voir_etat %}
         <a href="{% url 'client_carte_stock' %}" class="sb-item {% if url_name == 'client_carte_stock' %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/></svg>
           <span>Carte de stock</span>
@@ -72,29 +89,57 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 21h18"/></svg>
           <span>Stock global</span>
         </a>
+        {% endif %}
         <details class="sb-group" {% if 'client_mensuel' in url_name %}open{% endif %}>
           <summary class="sb-item sb-group-summary {% if 'client_mensuel' in url_name %}active{% endif %}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span>États mensuels</span>
           </summary>
           <div class="sb-submenu">
+            {% if can_voir_etat %}
             <a href="{% url 'client_mensuel_stock_ouverture' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_stock_ouverture' %}active{% endif %}">
               <span>Stock Ouverture</span>
             </a>
             <a href="{% url 'client_mensuel_stock_fermeture' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_stock_fermeture' %}active{% endif %}">
               <span>Stock Fermeture</span>
             </a>
+            {% endif %}
+            {% if can_voir_coulage %}
             <a href="{% url 'client_mensuel_coulage_repartition' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_coulage_repartition' %}active{% endif %}">
               <span>Coulage répartition</span>
             </a>
+            {% endif %}
+            {% if can_voir_etat %}
             <a href="{% url 'client_mensuel_stock_15' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_stock_15' %}active{% endif %}">
               <span>Stock à 15°</span>
             </a>
             <a href="{% url 'client_mensuel_stock_ambiant' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_stock_ambiant' %}active{% endif %}">
               <span>Stock Ambiant</span>
             </a>
+            {% endif %}
+            {% if can_voir_frais_passage %}
             <a href="{% url 'client_mensuel_frais_passage' %}" class="sb-item sb-item-sub {% if url_name == 'client_mensuel_frais_passage' %}active{% endif %}">
               <span>Frais de passage</span>
+            </a>
+            {% endif %}
+          </div>
+        </details>
+      </div>
+      {% endif %}
+      {# "Paramètres" (Profil/Sécurité du compte) reste toujours visible : gestion de son propre compte, pas une permission métier. #}
+      <div class="sb-section">
+        <div class="sb-section-title">Paramètres</div>
+        <details class="sb-group" {% if 'client_parametres' in url_name %}open{% endif %}>
+          <summary class="sb-item sb-group-summary {% if 'client_parametres' in url_name %}active{% endif %}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 005 8.6a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6 1.65 1.65 0 0010 3.09V3a2 2 0 114 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <span>Paramètres</span>
+          </summary>
+          <div class="sb-submenu">
+            <a href="{% url 'client_parametres_profil' %}" class="sb-item sb-item-sub {% if url_name == 'client_parametres_profil' %}active{% endif %}">
+              <span>Profil</span>
+            </a>
+            <a href="{% url 'client_parametres_securite' %}" class="sb-item sb-item-sub {% if url_name == 'client_parametres_securite' %}active{% endif %}">
+              <span>Sécurité</span>
             </a>
           </div>
         </details>
@@ -115,6 +160,37 @@
 
 {% else %}
 {# ============================================================ ADMIN / OPÉRATEUR LAYOUT #}
+{% has_perm user 'voir_mouvement' as can_voir_mouvement %}
+{% has_perm user 'voir_jaugeage' as can_voir_jaugeage %}
+{% has_perm user 'voir_coulage' as can_voir_coulage %}
+{% has_perm user 'voir_periode' as can_voir_periode %}
+{% has_perm user 'voir_exercice' as can_voir_exercice %}
+{% has_perm user 'voir_cuve' as can_voir_cuve %}
+{% has_perm user 'voir_produit' as can_voir_produit %}
+{% has_perm user 'voir_famille' as can_voir_famille %}
+{% has_perm user 'voir_marketeur' as can_voir_marketeur %}
+{% has_perm user 'voir_inventaire' as can_voir_inventaire %}
+{% has_perm user 'voir_camion' as can_voir_camion %}
+{% has_perm user 'voir_chauffeur' as can_voir_chauffeur %}
+{% has_perm user 'voir_frais_passage' as can_voir_frais_passage %}
+{% has_perm user 'voir_audit' as can_voir_audit %}
+{% has_perm user 'gerer_utilisateur' as can_gerer_utilisateur %}
+{% has_perm user 'gerer_role' as can_gerer_role %}
+{% has_perm user 'voir_parametre_jaugeage' as can_voir_parametre_jaugeage %}
+{% has_perm user 'voir_parametre_metrologique' as can_voir_parametre_metrologique %}
+{% has_perm user 'gerer_depot' as can_gerer_depot %}
+{% has_perm user 'voir_stock_ouverture_fermeture' as can_voir_stock_ouverture_fermeture %}
+{% has_perm user 'voir_societe' as can_voir_societe %}
+{% has_perm user 'modifier_societe' as can_modifier_societe %}
+{% has_perm user 'voir_gabarit_email_etat_mensuel' as can_voir_gabarit_email_etat_mensuel %}
+{% has_perm user 'voir_historique_envoi_etat_mensuel' as can_voir_historique_envoi_etat_mensuel %}
+{% has_perm user 'voir_gabarit_email_mouvement' as can_voir_gabarit_email_mouvement %}
+{% has_perm user 'voir_carte_stock' as can_voir_carte_stock %}
+{% has_perm user 'voir_stock_global' as can_voir_stock_global %}
+{% has_perm user 'voir_etat_global_depot' as can_voir_etat_global_depot %}
+{% has_perm user 'voir_etat_rjj' as can_voir_etat_rjj %}
+{% has_perm user 'voir_etat_stock_15' as can_voir_etat_stock_15 %}
+{% has_perm user 'voir_etat_stock_ambiant' as can_voir_etat_stock_ambiant %}
   <aside class="sidebar">
     <div class="sb-brand">
       <div class="sb-logo"></div>
@@ -144,144 +220,253 @@
       </div>
 
       {# Opérations #}
+      {% if can_voir_mouvement or can_voir_jaugeage or can_voir_coulage or can_voir_periode or can_voir_exercice %}
       <div class="sb-section">
         <div class="sb-section-title">Opérations</div>
+        {% if can_voir_mouvement %}
         <a href="{% url 'mouvement_liste' %}" class="sb-item {% if 'mouvement' in url_name %}active{% endif %}{% if not current_periode %} sb-disabled{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
           <span>Mouvements</span>
           {% if not current_periode %}<span class="sb-lock-icon" title="Aucune période ouverte">🔒</span>{% endif %}
         </a>
+        {% endif %}
+        {% if can_voir_jaugeage %}
         <a href="{% url 'jaugeage_list' %}" class="sb-item {% if 'jaugeage' in url_name %}active{% endif %}{% if not current_periode %} sb-disabled{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4M12 18v4M5 5l3 3M16 16l3 3M2 12h4M18 12h4M5 19l3-3M16 8l3-3"/></svg>
           <span>Jaugeage RJJ</span>
           {% if not current_periode %}<span class="sb-lock-icon" title="Aucune période ouverte">🔒</span>{% endif %}
         </a>
+        {% endif %}
+        {% if can_voir_coulage %}
         <a href="{% url 'coulage_liste' %}" class="sb-item {% if 'coulage' in url_name or 'suivi_evolution' in url_name %}active{% endif %}{% if not current_periode %} sb-disabled{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2.5C12 2.5 6 9 6 14a6 6 0 0012 0c0-5-6-11.5-6-11.5z"/></svg>
           <span>Coulage mensuel</span>
           {% if not current_periode %}<span class="sb-lock-icon" title="Aucune période ouverte">🔒</span>{% endif %}
         </a>
+        {% endif %}
+        {% if can_voir_periode %}
         <a href="{% url 'periode_liste' %}" class="sb-item {% if 'periode' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           <span>Périodes</span>
         </a>
+        {% endif %}
+        {% if can_voir_exercice %}
         <a href="{% url 'exercice_liste' %}" class="sb-item {% if 'exercice' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
           <span>Exercices</span>
         </a>
+        {% endif %}
       </div>
+      {% endif %}
 
       {# Dépôt #}
+      {% if can_gerer_depot or can_voir_cuve or can_voir_parametre_jaugeage or can_voir_parametre_metrologique or can_voir_produit or can_voir_famille %}
       <div class="sb-section">
-        <div class="sb-section-title">Dépôt</div>
+        <div class="sb-section-title">Dépôts</div>
+        {% if can_gerer_depot %}
+        <a href="{% url 'depot_liste' %}" class="sb-item {% if url_name == 'depot_liste' or url_name == 'depot_create' or url_name == 'depot_update' %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Gestion des dépôts</span>
+        </a>
+        {% endif %}
+        {% if can_voir_cuve %}
         <a href="{% url 'cuve_list' %}" class="sb-item {% if 'cuve' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
           <span>Cuves</span>
         </a>
+        {% endif %}
+        {% if can_voir_parametre_jaugeage %}
         <a href="{% url 'parametre_list' %}" class="sb-item {% if 'parametre' in url_name and 'metrol' not in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           <span>Paramètres jaugeage</span>
         </a>
+        {% endif %}
+        {% if can_voir_parametre_metrologique %}
         <a href="{% url 'parametres_metrologiques' %}" class="sb-item {% if url_name == 'parametres_metrologiques' %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 116.93 19.07"/><path d="M12 8v4l3 3"/></svg>
           <span>Paramètres métrologiques</span>
         </a>
+        {% endif %}
+        {% if can_voir_produit %}
         <a href="{% url 'produit_list' %}" class="sb-item {% if 'produit' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4 8 4 8-4z"/><path d="M4 7v10l8 4 8-4V7"/><path d="M12 11v10"/></svg>
           <span>Produits</span>
         </a>
+        {% endif %}
+        {% if can_voir_famille %}
         <a href="{% url 'famille_list' %}" class="sb-item {% if 'famille' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
           <span>Familles</span>
         </a>
+        {% endif %}
       </div>
+      {% endif %}
 
       {# Tiers & flotte #}
+      {% if can_voir_marketeur or can_voir_inventaire or can_voir_camion or can_voir_chauffeur %}
       <div class="sb-section">
         <div class="sb-section-title">Tiers & flotte</div>
+        {% if can_voir_marketeur %}
         <a href="{% url 'marketeur_list' %}" class="sb-item {% if 'marketeur' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 20h20M3 20V8l5 3V8l5 3V4l8 5v11"/></svg>
           <span>Marketeurs</span>
         </a>
+        {% endif %}
+        {% if can_voir_inventaire %}
         <a href="{% url 'inventaire_initial_liste' %}" class="sb-item {% if 'inventaire' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
           <span>Inventaire initial</span>
         </a>
+        {% endif %}
+        {% if can_voir_camion %}
         <a href="{% url 'camion_list' %}" class="sb-item {% if 'camion' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Camions</span>
         </a>
+        {% endif %}
+        {% if can_voir_chauffeur %}
         <a href="{% url 'chauffeur_list' %}" class="sb-item {% if 'chauffeur' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
           <span>Chauffeurs</span>
         </a>
+        {% endif %}
       </div>
+      {% endif %}
 
       {# États & rapports #}
+      {% if can_voir_carte_stock or can_voir_stock_global or can_voir_audit or can_voir_stock_ouverture_fermeture or can_voir_etat_global_depot or can_voir_etat_rjj or can_voir_coulage or can_voir_etat_stock_15 or can_voir_etat_stock_ambiant or can_voir_frais_passage %}
       <div class="sb-section">
         <div class="sb-section-title">États & rapports</div>
+        {% if can_voir_carte_stock %}
         <a href="{% url 'etat_carte_stock_list' %}" class="sb-item {% if url_name == 'etat_carte_stock_list' or url_name == 'etat_carte_stock' %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/></svg>
           <span>Carte de stock</span>
         </a>
+        {% endif %}
+        {% if can_voir_stock_global %}
         <a href="{% url 'etat_stock_global' %}" class="sb-item {% if url_name == 'etat_stock_global' %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/><path d="M3 21h18"/></svg>
           <span>Stock global</span>
         </a>
+        {% endif %}
+        {% if can_voir_stock_ouverture_fermeture or can_voir_etat_global_depot or can_voir_etat_rjj or can_voir_coulage or can_voir_etat_stock_15 or can_voir_etat_stock_ambiant or can_voir_frais_passage %}
         <details class="sb-group" {% if 'etat_mensuel_' in url_name or 'frais_passage' in url_name %}open{% endif %}>
           <summary class="sb-item sb-group-summary {% if 'etat_mensuel_' in url_name or 'frais_passage' in url_name %}active{% endif %}">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
             <span>États mensuels</span>
           </summary>
           <div class="sb-submenu">
+            {% if can_voir_stock_ouverture_fermeture %}
             <a href="{% url 'etat_mensuel_stock_ouverture' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_ouverture' %}active{% endif %}">
               <span>Stock ouverture</span>
             </a>
             <a href="{% url 'etat_mensuel_stock_fermeture' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_fermeture' %}active{% endif %}">
               <span>Stock fermeture</span>
             </a>
+            {% endif %}
+            {% if can_voir_etat_global_depot %}
             <a href="{% url 'etat_mensuel_global_depot' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_global_depot' %}active{% endif %}">
               <span>Global dépôt</span>
             </a>
+            {% endif %}
+            {% if can_voir_etat_rjj %}
             <a href="{% url 'etat_mensuel_rjj' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_rjj' %}active{% endif %}">
               <span>RJJ</span>
             </a>
+            {% endif %}
+            {% if can_voir_coulage %}
             <a href="{% url 'etat_mensuel_coulage_repartition' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_coulage_repartition' %}active{% endif %}">
               <span>Coulage répartition</span>
             </a>
+            {% endif %}
+            {% if can_voir_etat_stock_15 %}
             <a href="{% url 'etat_mensuel_stock_15' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_15' %}active{% endif %}">
               <span>Stock à 15°</span>
             </a>
+            {% endif %}
+            {% if can_voir_etat_stock_ambiant %}
             <a href="{% url 'etat_mensuel_stock_ambiant' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_stock_ambiant' %}active{% endif %}">
               <span>Stock Ambiant</span>
             </a>
+            {% endif %}
+            {% if can_voir_frais_passage %}
             <a href="{% url 'etat_mensuel_frais_passage' %}" class="sb-item sb-item-sub {% if url_name == 'etat_mensuel_frais_passage' or 'frais_passage' in url_name %}active{% endif %}">
               <span>Frais de passage</span>
             </a>
+            {% endif %}
           </div>
         </details>
+        {% endif %}
+        {% if can_voir_audit %}
         <a href="{% url 'users_audit' %}" class="sb-item {% if 'audit' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           <span>Journal d'audit</span>
         </a>
+        {% endif %}
       </div>
+      {% endif %}
 
-      {# Administration (staff only) #}
-      {% if user.is_staff %}
+      {# Administration #}
+      {% if can_gerer_utilisateur or can_gerer_role %}
       <div class="sb-section">
         <div class="sb-section-title">Administration</div>
+        {% if can_gerer_utilisateur %}
         <a href="{% url 'users_liste' %}" class="sb-item {% if 'users' in url_name and 'audit' not in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
           <span>Utilisateurs</span>
         </a>
+        {% endif %}
+        {% if can_gerer_role %}
         <a href="{% url 'roles_liste' %}" class="sb-item {% if 'role' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 116.93 19.07"/></svg>
           <span>Rôles</span>
         </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# Paramètres (Société / Configuration email) #}
+      {% if can_voir_societe or can_modifier_societe or can_voir_gabarit_email_etat_mensuel or can_voir_historique_envoi_etat_mensuel or can_voir_gabarit_email_mouvement %}
+      <div class="sb-section">
+        <div class="sb-section-title">Paramètres</div>
+        {% if can_voir_societe %}
         <a href="{% url 'societe_detail' %}" class="sb-item {% if 'societe' in url_name %}active{% endif %}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span>Société</span>
         </a>
+        {% endif %}
+        {% if can_modifier_societe %}
+        <a href="{% url 'configuration_email' %}" class="sb-item {% if 'configuration_email' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+          <span>Configuration email</span>
+        </a>
+        {% endif %}
+        {% if can_voir_gabarit_email_etat_mensuel or can_voir_gabarit_email_mouvement %}
+        <details class="sb-group" {% if 'gabarit_email' in url_name %}open{% endif %}>
+          <summary class="sb-item sb-group-summary {% if 'gabarit_email' in url_name %}active{% endif %}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
+            <span>Gabarit</span>
+          </summary>
+          <div class="sb-submenu">
+            {% if can_voir_gabarit_email_etat_mensuel %}
+            <a href="{% url 'gabarit_email_etat_mensuel' %}" class="sb-item sb-item-sub {% if 'gabarit_email_etat_mensuel' in url_name %}active{% endif %}">
+              <span>Email — États mensuels</span>
+            </a>
+            {% endif %}
+            {% if can_voir_gabarit_email_mouvement %}
+            <a href="{% url 'gabarit_email_mouvement' %}" class="sb-item sb-item-sub {% if 'gabarit_email_mouvement' in url_name %}active{% endif %}">
+              <span>Email — Mouvements</span>
+            </a>
+            {% endif %}
+          </div>
+        </details>
+        {% endif %}
+        {% if can_voir_historique_envoi_etat_mensuel %}
+        <a href="{% url 'historique_envoi_etat_mensuel' %}" class="sb-item {% if 'historique_envoi_etat_mensuel' in url_name %}active{% endif %}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>Historique des envois</span>
+        </a>
+        {% endif %}
       </div>
       {% endif %}
 
@@ -340,6 +525,10 @@
           <div class="tb-time-line" id="tb-clock">--:--:--</div>
         </div>
         <div class="tb-divider"></div>
+        {% if not user.is_marketeur_role %}
+        {% depot_indicateur %}
+        <div class="tb-divider"></div>
+        {% endif %}
         {% periode_indicateur %}
         <div class="tb-divider"></div>
 

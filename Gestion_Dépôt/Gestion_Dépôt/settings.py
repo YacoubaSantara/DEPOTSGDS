@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-c((avpia_b!_uy5go!=ntpc-ca0sg97h&8ard5jj=9r&*$fe^+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.1.102', '192.168.1.105', '0.0.0.0','192.168.1.23']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.1.102', '192.168.1.105', '0.0.0.0','192.168.137.93']
 
 
 # Application definition
@@ -78,6 +78,7 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
     'SGDS.users.middleware.AuditContextMiddleware',
+    'SGDS.users.middleware.DepotContextMiddleware',
 ]
 
 ROOT_URLCONF = 'Gestion_Dépôt.urls'
@@ -94,6 +95,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'accounts.context_processors.current_periode',
                 'SGDS.context_processors.notifications_marketeur',
+                'SGDS.context_processors.depot_context',
             ],
         },
     },

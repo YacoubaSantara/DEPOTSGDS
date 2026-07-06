@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import dayjs from 'dayjs';
@@ -31,6 +32,7 @@ import { buildMouvementPdf } from '../../utils/pdfTemplate';
 import type { MouvementsStackParams } from '../../navigation/AppNavigator';
 
 type Route = RouteProp<MouvementsStackParams, 'MouvementDetail'>;
+type Nav   = NativeStackNavigationProp<MouvementsStackParams, 'MouvementDetail'>;
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -64,7 +66,7 @@ const typeIcon = (type: string): any => {
 // ── Composant principal ───────────────────────────────────────────
 
 export function MouvementDetailScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<Nav>();
   const route      = useRoute<Route>();
   const { id }     = route.params;
 
@@ -184,55 +186,58 @@ export function MouvementDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* ─────────────────── TOP NAV (navy) — fixe, hors ScrollView ─── */}
+      <View style={styles.topNav}>
+        <View style={styles.topNavRow}>
+          <TouchableOpacity
+            onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MouvementsList')}
+            style={styles.navBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="chevron-back" size={18} color={Colors.white} />
+          </TouchableOpacity>
+          <View style={styles.topNavCenter}>
+            <Text style={styles.topNavTitle}>Bordereau</Text>
+            <Text style={styles.topNavSub}>FICHE MOUVEMENT</Text>
+          </View>
+          <View style={styles.navBtn} />
+        </View>
+
+        <View style={styles.refRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.refLabel}>RÉFÉRENCE</Text>
+            <Text style={styles.refValue}>{mvt.reference}</Text>
+          </View>
+          <View style={[
+            styles.statutBadge,
+            { backgroundColor: isValide ? Colors.green : Colors.amber },
+          ]}>
+            {isValide && (
+              <Ionicons name="checkmark" size={12} color={Colors.white} style={{ marginRight: 4 }} />
+            )}
+            <Text style={styles.statutText}>{statut}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ─────────────── BANDEAU TYPE (couleur) — fixe, hors ScrollView ─ */}
+      <View style={[styles.typeBanner, { backgroundColor: meta.color }]}>
+        <View style={styles.typeBannerIcon}>
+          <Ionicons name={typeIcon(mvt.type)} size={16} color={Colors.white} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.typeBannerLabel}>TYPE DE MOUVEMENT</Text>
+          <Text style={styles.typeBannerTitle} numberOfLines={1}>
+            {meta.label.toUpperCase()} · {mvt.regime}
+          </Text>
+        </View>
+      </View>
+
       <ScrollView
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        {/* ─────────────────── TOP NAV (navy) ─────────────────── */}
-        <View style={styles.topNav}>
-          <View style={styles.topNavRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navBtn}>
-              <Ionicons name="chevron-back" size={18} color={Colors.white} />
-            </TouchableOpacity>
-            <View style={styles.topNavCenter}>
-              <Text style={styles.topNavTitle}>Bordereau</Text>
-              <Text style={styles.topNavSub}>FICHE MOUVEMENT</Text>
-            </View>
-            <TouchableOpacity style={styles.navBtn}>
-              <Ionicons name="ellipsis-horizontal" size={18} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.refRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.refLabel}>RÉFÉRENCE</Text>
-              <Text style={styles.refValue}>{mvt.reference}</Text>
-            </View>
-            <View style={[
-              styles.statutBadge,
-              { backgroundColor: isValide ? Colors.green : Colors.amber },
-            ]}>
-              {isValide && (
-                <Ionicons name="checkmark" size={12} color={Colors.white} style={{ marginRight: 4 }} />
-              )}
-              <Text style={styles.statutText}>{statut}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ─────────────── BANDEAU TYPE (couleur) ─────────────── */}
-        <View style={[styles.typeBanner, { backgroundColor: meta.color }]}>
-          <View style={styles.typeBannerIcon}>
-            <Ionicons name={typeIcon(mvt.type)} size={16} color={Colors.white} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.typeBannerLabel}>TYPE DE MOUVEMENT</Text>
-            <Text style={styles.typeBannerTitle} numberOfLines={1}>
-              {meta.label.toUpperCase()} · {mvt.regime}
-            </Text>
-          </View>
-        </View>
-
         {/* ─────────────── BODY ─────────────── */}
         <View style={styles.body}>
 

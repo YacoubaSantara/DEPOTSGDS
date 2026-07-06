@@ -8,20 +8,20 @@ from django.db import transaction
 from django.utils import timezone
 
 
-def exercice_pour_annee(annee):
-    """Retourne l'Exercice de `annee`, ou None si non créé. NE CRÉE RIEN."""
+def exercice_pour_annee(depot, annee):
+    """Retourne l'Exercice de `annee` pour ce dépôt, ou None si non créé. NE CRÉE RIEN."""
     from SGDS.models import Exercice
-    return Exercice.objects.filter(annee=annee).first()
+    return Exercice.objects.filter(depot=depot, annee=annee).first()
 
 
-def ouvrir_exercice_si_necessaire(annee):
+def ouvrir_exercice_si_necessaire(depot, annee):
     """
-    Crée l'Exercice de `annee` en statut OUVERT s'il n'existe pas encore.
+    Crée l'Exercice de `annee` pour ce dépôt en statut OUVERT s'il n'existe pas encore.
     Idempotent — appelé depuis ouvrir_periode() à chaque ouverture de période.
     """
     from SGDS.models import Exercice
     exercice, _ = Exercice.objects.get_or_create(
-        annee=annee,
+        depot=depot, annee=annee,
         defaults={'statut': 'OUVERT', 'date_ouverture': timezone.now()},
     )
     return exercice

@@ -67,18 +67,18 @@
   </div>
 
   {% if show_sigs %}
-  <section class="sigs">
-    <div class="sig">
+  <section class="sigs" style="grid-template-columns:repeat(3,1fr)">
+    <div class="sig" style="min-height:38mm">
       <div><div class="role">Validé · Chef de dépôt</div><div class="name">—</div></div>
       <div class="box"></div>
       <div class="footline"><span>Date</span><span>Signature</span></div>
     </div>
-    <div class="sig">
+    <div class="sig" style="min-height:38mm">
       <div><div class="role">Chauffeur — Réception BL</div><div class="name">{{ mouvement.chauffeur.nom_complet|default:"—" }}</div></div>
       <div class="box"></div>
       <div class="footline"><span>{{ mouvement.camion.immatriculation|default:"—" }}</span><span>Signature</span></div>
     </div>
-    <div class="sig">
+    <div class="sig" style="min-height:38mm">
       <div><div class="role">Réceptionnaire — Station</div><div class="name">{{ mouvement.destination|default:"—" }}</div></div>
       <div class="box"></div>
       <div class="footline"><span>Date / Heure</span><span>Cachet</span></div>

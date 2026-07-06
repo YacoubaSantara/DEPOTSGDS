@@ -131,6 +131,27 @@
       </div>
     </div>
 
+    <!-- Dépôts assignés -->
+    <div style="margin-bottom:28px;display:none" id="section-depot">
+      <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        Dépôts assignés <span style="color:var(--accent)">*</span>
+      </div>
+      <div class="field">
+        <label class="field-label">Choisir un ou plusieurs dépôts</label>
+        <select name="depot_ids" id="depot-select" class="select" style="width:100%;min-height:120px" multiple>
+          {% for dep in depots %}
+          <option value="{{ dep.pk }}" {% if dep.pk|stringformat:"s" in data_depot_ids %}selected{% endif %}>
+            {{ dep.nom }} ({{ dep.code }})
+          </option>
+          {% endfor %}
+        </select>
+        <span style="font-size:.75rem;color:var(--muted)">
+          Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs dépôts. S'il y en a plusieurs, l'utilisateur pourra basculer entre eux.
+          {% if not depots %}<strong style="color:var(--accent)">Aucun dépôt actif disponible — créez-en un d'abord.</strong>{% endif %}
+        </span>
+      </div>
+    </div>
+
   </form>
 
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:20px 32px;border-top:1px solid var(--border);background:var(--bg)">
@@ -159,6 +180,17 @@ function selectRole(code) {
     sectionMkt.style.display = 'none';
     selectMkt.required = false;
     selectMkt.value = '';
+  }
+
+  const sectionDepot = document.getElementById('section-depot');
+  const selectDepot  = document.getElementById('depot-select');
+  if (['CHEF_DEPOT', 'OPERATEUR', 'COMPTABLE'].includes(code)) {
+    sectionDepot.style.display = 'block';
+    selectDepot.required = true;
+  } else {
+    sectionDepot.style.display = 'none';
+    selectDepot.required = false;
+    Array.from(selectDepot.options).forEach(o => o.selected = false);
   }
 }
 

@@ -15,8 +15,13 @@
  *        │    ├── CarteStock
  *        │    ├── RecapMouvements
  *        │    ├── StockOuverture
+ *        │    ├── Stock15
  *        │    ├── FraisPassage
  *        │    └── Coulage
+ *        ├── Flotte
+ *        │    ├── FlotteMenu
+ *        │    ├── CamionsList / CamionDetail / CamionForm
+ *        │    └── ChauffeursList / ChauffeurDetail / ChauffeurForm
  *        └── Profil
  */
 import React, { useState, useCallback } from 'react';
@@ -38,13 +43,22 @@ import { EtatsMenuScreen }        from '../screens/Etats/EtatsMenuScreen';
 import { CarteStockScreen }       from '../screens/Etats/CarteStockScreen';
 import { RecapMouvementsScreen }  from '../screens/Etats/RecapMouvementsScreen';
 import { StockOuvertureScreen }   from '../screens/Etats/StockOuvertureScreen';
+import { Stock15Screen }          from '../screens/Etats/Stock15Screen';
 import { FraisPassageScreen }     from '../screens/Etats/FraisPassageScreen';
 import { CoulageScreen }          from '../screens/Etats/CoulageScreen';
 import { ProfilScreen }                   from '../screens/Profil/ProfilScreen';
 import { ConditionsUtilisationScreen }    from '../screens/Profil/ConditionsUtilisationScreen';
 import { SecurityScreen }                from '../screens/Profil/SecurityScreen';
+import { EditProfilScreen }              from '../screens/Profil/EditProfilScreen';
 import { NotificationsScreen }           from '../screens/Notifications/NotificationsScreen';
 import { notificationsApi }      from '../api/notifications';
+import { FlotteMenuScreen }        from '../screens/Flotte/FlotteMenuScreen';
+import { CamionsListScreen }       from '../screens/Flotte/CamionsListScreen';
+import { CamionDetailScreen }      from '../screens/Flotte/CamionDetailScreen';
+import { CamionFormScreen }        from '../screens/Flotte/CamionFormScreen';
+import { ChauffeursListScreen }    from '../screens/Flotte/ChauffeursListScreen';
+import { ChauffeurDetailScreen }   from '../screens/Flotte/ChauffeurDetailScreen';
+import { ChauffeurFormScreen }     from '../screens/Flotte/ChauffeurFormScreen';
 
 // ── Types navigation ──────────────────────────────────────────────
 
@@ -62,6 +76,7 @@ export type EtatsStackParams = {
   CarteStock:       { produitId?: number; produitNom?: string; produitSigle?: string } | undefined;
   RecapMouvements:  undefined;
   StockOuverture:   undefined;
+  Stock15:          undefined;
   FraisPassage:     undefined;
   Coulage:          undefined;
 };
@@ -70,12 +85,24 @@ export type ProfilStackParams = {
   ProfilMain:             undefined;
   ConditionsUtilisation:  undefined;
   Securite:               undefined;
+  ModifierProfil:         undefined;
+};
+
+export type FlotteStackParams = {
+  FlotteMenu:       undefined;
+  CamionsList:      undefined;
+  CamionDetail:     { id: number };
+  CamionForm:       { id?: number };
+  ChauffeursList:   undefined;
+  ChauffeurDetail:  { id: number };
+  ChauffeurForm:    { id?: number };
 };
 
 export type TabParams = {
   Dashboard:     undefined;
   Mouvements:    undefined;
   Etats:         undefined;
+  Flotte:        undefined;
   Notifications: undefined;
   Profil:        undefined;
 };
@@ -87,6 +114,7 @@ const Tab         = createBottomTabNavigator<TabParams>();
 const MvtStack    = createNativeStackNavigator<MouvementsStackParams>();
 const EtatsStack  = createNativeStackNavigator<EtatsStackParams>();
 const ProfilStack = createNativeStackNavigator<ProfilStackParams>();
+const FlotteStack = createNativeStackNavigator<FlotteStackParams>();
 
 // ── Hook badge notifications ──────────────────────────────────────
 
@@ -127,7 +155,22 @@ function ProfilNavigator() {
       <ProfilStack.Screen name="ProfilMain"            component={ProfilScreen} />
       <ProfilStack.Screen name="ConditionsUtilisation" component={ConditionsUtilisationScreen} />
       <ProfilStack.Screen name="Securite"             component={SecurityScreen} />
+      <ProfilStack.Screen name="ModifierProfil"        component={EditProfilScreen} />
     </ProfilStack.Navigator>
+  );
+}
+
+function FlotteNavigator() {
+  return (
+    <FlotteStack.Navigator screenOptions={{ headerShown: false }}>
+      <FlotteStack.Screen name="FlotteMenu"      component={FlotteMenuScreen} />
+      <FlotteStack.Screen name="CamionsList"     component={CamionsListScreen} />
+      <FlotteStack.Screen name="CamionDetail"    component={CamionDetailScreen} />
+      <FlotteStack.Screen name="CamionForm"      component={CamionFormScreen} />
+      <FlotteStack.Screen name="ChauffeursList"  component={ChauffeursListScreen} />
+      <FlotteStack.Screen name="ChauffeurDetail" component={ChauffeurDetailScreen} />
+      <FlotteStack.Screen name="ChauffeurForm"   component={ChauffeurFormScreen} />
+    </FlotteStack.Navigator>
   );
 }
 
@@ -138,6 +181,7 @@ function EtatsNavigator() {
       <EtatsStack.Screen name="CarteStock"      component={CarteStockScreen} />
       <EtatsStack.Screen name="RecapMouvements" component={RecapMouvementsScreen} />
       <EtatsStack.Screen name="StockOuverture"  component={StockOuvertureScreen} />
+      <EtatsStack.Screen name="Stock15"         component={Stock15Screen} />
       <EtatsStack.Screen name="FraisPassage"    component={FraisPassageScreen} />
       <EtatsStack.Screen name="Coulage"         component={CoulageScreen} />
     </EtatsStack.Navigator>
@@ -176,6 +220,7 @@ function AppTabs() {
             Dashboard:     ['grid',             'grid-outline'],
             Mouvements:    ['swap-horizontal',  'swap-horizontal-outline'],
             Etats:         ['bar-chart',        'bar-chart-outline'],
+            Flotte:        ['car',              'car-outline'],
             Notifications: ['notifications',    'notifications-outline'],
             Profil:        ['person-circle',    'person-circle-outline'],
           };
@@ -193,6 +238,7 @@ function AppTabs() {
       <Tab.Screen name="Dashboard"  component={DashboardScreen}  options={{ title: 'Accueil' }} />
       <Tab.Screen name="Mouvements" component={MouvementsStack}  options={{ title: 'Mouvements' }} />
       <Tab.Screen name="Etats"      component={EtatsNavigator}   options={{ title: 'États' }} />
+      <Tab.Screen name="Flotte"     component={FlotteNavigator}  options={{ title: 'Flotte' }} />
       <Tab.Screen
         name="Notifications"
         component={NotificationsScreen}

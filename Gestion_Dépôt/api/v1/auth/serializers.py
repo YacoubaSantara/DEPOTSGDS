@@ -64,6 +64,8 @@ class TokenResponseSerializer(serializers.Serializer):
     user    = serializers.SerializerMethodField()
 
     def get_user(self, obj):
+        from api.v1.permissions import permissions_dict
+
         user = obj.get('user')
         if not user:
             return {}
@@ -76,4 +78,5 @@ class TokenResponseSerializer(serializers.Serializer):
             'marketeur_id':    mkt.pk if mkt else None,
             'marketeur_nom':   mkt.raison_sociale if mkt else None,
             'marketeur_sigle': mkt.sigle if mkt else None,
+            'permissions':     permissions_dict(user),
         }

@@ -9,11 +9,11 @@
     <div class="brand-meta">
       <div class="co">{{ societe.raison_sociale|default:"SANKE SA" }}</div>
       <div class="sub">
-        <b>{{ societe.nom_depot|default:"Dépôt pétrolier" }}</b> ·
-        {{ societe.adresse|default:"Bamako, Mali" }}<br/>
-        Agrément <span class="mono">{{ societe.numero_agrement|default:"—" }}</span> ·
+        <b>{{ depot.nom|default:"Dépôt pétrolier" }}</b> ·
+        {{ depot.adresse|default:"Bamako, Mali" }}<br/>
+        Agrément <span class="mono">{{ depot.numero_agrement|default:"—" }}</span> ·
         NIF <span class="mono">{{ societe.numero_contribuable|default:"—" }}</span> ·
-        Tél {{ societe.telephone|default:"—" }}
+        Tél {{ depot.telephone|default:societe.telephone|default:"—" }}
       </div>
     </div>
   </div>
@@ -27,7 +27,7 @@
       Période {{ periode_label }} ·
       imprimé le <span class="mono">{{ now|date:"d/m/Y" }}</span>
     </div>
-    <div class="barcode" data-ref="{{ doc_num }}" style="margin-top:6px"></div>
+    <svg class="barcode" data-ref="{{ doc_num }}" style="margin-top:6px"></svg>
     <div class="barcode-cap">{{ doc_num }}</div>
   </div>
 </header>

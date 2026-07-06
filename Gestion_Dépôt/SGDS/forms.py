@@ -1,7 +1,7 @@
 from django import forms
 from django.db.models import Q
 from django.forms import inlineformset_factory
-from .models import Marketeur, Camion, Chauffeur, Famille, Produit, Cuve, ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement, Societe, MouvementDocument, CompartimentCamion
+from .models import Marketeur, Camion, Chauffeur, Famille, Produit, Cuve, ParametreJaugeageCuve, JaugeageJour, MesureCuve, Mouvement, LigneMouvement, Societe, Depot, MouvementDocument, CompartimentCamion, ConfigurationEmail, ModeleEmailEtatMensuel, ModeleEmailMouvement
 
 
 class MarketeurForm(forms.ModelForm):
@@ -68,6 +68,48 @@ class MarketeurForm(forms.ModelForm):
         # Valeur par défaut pays
         if not self.instance.pk:
             self.fields['pays'].initial = 'Mali'
+
+
+class MarketeurContactForm(forms.ModelForm):
+    """Auto-modification limitée aux coordonnées, réservée au marketeur lui-même.
+    Les champs légaux (raison sociale, RCCM, NIF, capital, statut…) restent réservés à l'admin."""
+
+    class Meta:
+        model  = Marketeur
+        fields = [
+            'logo',
+            'adresse', 'quartier', 'ville', 'boite_postale',
+            'telephone', 'telephone2', 'email', 'site_web',
+            'nom_representant', 'prenom_representant', 'fonction_representant',
+            'telephone_representant', 'email_representant',
+            'banque', 'numero_compte', 'code_swift',
+        ]
+        widgets = {
+            'adresse':                 forms.Textarea(attrs={'rows': 3, 'placeholder': 'Rue, avenue, numéro…'}),
+            'quartier':                forms.TextInput(attrs={'placeholder': 'Ex: Secteur 15'}),
+            'ville':                   forms.TextInput(attrs={'placeholder': 'Ex: Bamako'}),
+            'boite_postale':           forms.TextInput(attrs={'placeholder': 'Ex: BP 1234'}),
+            'telephone':               forms.TextInput(attrs={'placeholder': '+223 20 xx xx xx'}),
+            'telephone2':              forms.TextInput(attrs={'placeholder': '+223 70 xx xx xx'}),
+            'email':                   forms.EmailInput(attrs={'placeholder': 'contact@societe.ml'}),
+            'site_web':                forms.URLInput(attrs={'placeholder': 'https://www.societe.ml'}),
+            'nom_representant':        forms.TextInput(attrs={'placeholder': 'Nom de famille'}),
+            'prenom_representant':     forms.TextInput(attrs={'placeholder': 'Prénom(s)'}),
+            'fonction_representant':   forms.TextInput(attrs={'placeholder': 'Ex: Directeur Général'}),
+            'telephone_representant':  forms.TextInput(attrs={'placeholder': '+223 70 xx xx xx'}),
+            'email_representant':      forms.EmailInput(attrs={'placeholder': 'representant@societe.ml'}),
+            'banque':                  forms.TextInput(attrs={'placeholder': 'Ex: BDM-SA, BMS-SA, Coris Bank…'}),
+            'numero_compte':           forms.TextInput(attrs={'placeholder': 'Ex: 000 12345 67890 12'}),
+            'code_swift':              forms.TextInput(attrs={'placeholder': 'Ex: BDMAMLBA'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        required = ['adresse', 'ville', 'telephone', 'nom_representant', 'prenom_representant']
+        for f in self.fields:
+            self.fields[f].widget.attrs.update({'class': 'form-control'})
+            if f not in required:
+                self.fields[f].required = False
 
 
 class CamionForm(forms.ModelForm):
@@ -270,7 +312,7 @@ class CuveForm(forms.ModelForm):
     class Meta:
         model  = Cuve
         fields = [
-            'numero', 'designation', 'produit',
+            'depot', 'numero', 'designation', 'produit',
             'capacite_totale', 'niveau_actuel',
             'type_cuve', 'materiau', 'localisation',
             'date_installation', 'date_derniere_inspection', 'date_prochaine_inspection',
@@ -288,13 +330,19 @@ class CuveForm(forms.ModelForm):
             'notes':        forms.Textarea(attrs={'rows': 3, 'placeholder': 'Observations…'}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, depot_fixe=None, **kwargs):
         super().__init__(*args, **kwargs)
-        required = ['numero', 'designation', 'capacite_totale', 'type_cuve', 'materiau']
+        required = ['depot', 'numero', 'designation', 'capacite_totale', 'type_cuve', 'materiau']
         for f in self.fields:
             self.fields[f].widget.attrs.update({'class': 'form-control'})
             if f not in required:
                 self.fields[f].required = False
+        self.fields['depot'].queryset = Depot.objects.filter(statut='ACTIF').order_by('code')
+        self.fields['depot'].empty_label = 'Sélectionner un dépôt'
+        if depot_fixe is not None or self.instance.pk:
+            # Rôle rattaché à un dépôt fixe, ou modification d'une cuve existante :
+            # le dépôt n'a pas lieu d'être modifiable après la création.
+            del self.fields['depot']
 
 
 # ─────────────────────────────────────────────────────────────
@@ -345,14 +393,12 @@ class JaugeageJourForm(forms.ModelForm):
         model  = JaugeageJour
         fields = [
             'date_jaugeage', 'type_jaugeage', 'heure_jaugeage',
-            'depot', 'type_depot', 'temperature_reference',
+            'temperature_reference',
             'operateur', 'notes',
         ]
         widgets = {
             'date_jaugeage':         forms.DateInput(attrs={'type': 'date'}),
             'heure_jaugeage':        forms.TimeInput(attrs={'type': 'time'}),
-            'depot':                 forms.TextInput(attrs={'placeholder': 'Ex: SGDS SANKE'}),
-            'type_depot':            forms.TextInput(attrs={'placeholder': 'Ex: Dépôt de droit'}),
             'temperature_reference': forms.NumberInput(attrs={'placeholder': '15.0', 'step': '0.1'}),
             'operateur':             forms.TextInput(attrs={'placeholder': 'Nom de l\'opérateur'}),
             'notes':                 forms.Textarea(attrs={'rows': 3, 'placeholder': 'Observations…'}),
@@ -449,6 +495,7 @@ class MouvementForm(forms.ModelForm):
         exclude = [
             'date_saisie',
             'date_modification',
+            'depot',               # auto-rempli depuis request.depot à la création
             'collaborateur',       # auto-rempli depuis request.user à la création
             'cuve',                # déprécié — remplacé par LigneMouvement
             # Calculs auto ENTREE
@@ -651,9 +698,11 @@ class LigneMouvementForm(forms.ModelForm):
             'volume_15c':     forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'class': 'form-control'}),
         }
 
-    def __init__(self, *args, produit=None, **kwargs):
+    def __init__(self, *args, produit=None, depot=None, **kwargs):
         super().__init__(*args, **kwargs)
         qs = Cuve.objects.select_related('produit').filter(statut='ACTIVE').order_by('numero')
+        if depot is not None:
+            qs = qs.filter(depot=depot)
         if produit:
             qs = qs.filter(produit=produit)
         self.fields['cuve'].queryset = qs
@@ -682,10 +731,7 @@ class SocieteForm(forms.ModelForm):
             'raison_sociale', 'sigle', 'forme_juridique',
             'numero_contribuable', 'numero_ifu', 'capital_social',
             'logo', 'tampon', 'couleur_principale', 'pied_de_page',
-            'adresse', 'ville', 'pays', 'boite_postale',
-            'telephone', 'telephone2', 'email', 'site_web',
-            'nom_depot', 'type_depot', 'numero_agrement',
-            'autorite_tutelle', 'date_creation',
+            'pays', 'boite_postale', 'telephone', 'email', 'site_web',
         ]
         widgets = {
             'raison_sociale':      forms.TextInput(attrs={'class': 'form-control'}),
@@ -696,19 +742,80 @@ class SocieteForm(forms.ModelForm):
             'capital_social':      forms.NumberInput(attrs={'class': 'form-control'}),
             'couleur_principale':  forms.TextInput(attrs={'class': 'form-control', 'type': 'color'}),
             'pied_de_page':        forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'adresse':             forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'ville':               forms.TextInput(attrs={'class': 'form-control'}),
             'pays':                forms.TextInput(attrs={'class': 'form-control'}),
             'boite_postale':       forms.TextInput(attrs={'class': 'form-control'}),
             'telephone':           forms.TextInput(attrs={'class': 'form-control'}),
-            'telephone2':          forms.TextInput(attrs={'class': 'form-control'}),
             'email':               forms.EmailInput(attrs={'class': 'form-control'}),
             'site_web':            forms.URLInput(attrs={'class': 'form-control'}),
-            'nom_depot':           forms.TextInput(attrs={'class': 'form-control'}),
-            'type_depot':          forms.TextInput(attrs={'class': 'form-control'}),
-            'numero_agrement':     forms.TextInput(attrs={'class': 'form-control'}),
-            'autorite_tutelle':    forms.TextInput(attrs={'class': 'form-control'}),
-            'date_creation':       forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+
+
+class DepotForm(forms.ModelForm):
+    class Meta:
+        model  = Depot
+        fields = [
+            'code', 'nom', 'type_depot', 'numero_agrement',
+            'autorite_tutelle', 'date_creation',
+            'adresse', 'ville', 'telephone', 'statut',
+        ]
+        widgets = {
+            'code':              forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ex : BKO-01'}),
+            'nom':               forms.TextInput(attrs={'class': 'form-control'}),
+            'type_depot':        forms.TextInput(attrs={'class': 'form-control'}),
+            'numero_agrement':   forms.TextInput(attrs={'class': 'form-control'}),
+            'autorite_tutelle':  forms.TextInput(attrs={'class': 'form-control'}),
+            'date_creation':     forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'adresse':           forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'ville':             forms.TextInput(attrs={'class': 'form-control'}),
+            'telephone':         forms.TextInput(attrs={'class': 'form-control'}),
+            'statut':            forms.Select(attrs={'class': 'form-select'}),
+        }
+
+
+# ─────────────────────────────────────────────────────────────
+#  CONFIGURATION EMAIL (SMTP)
+# ─────────────────────────────────────────────────────────────
+class ConfigurationEmailForm(forms.ModelForm):
+    """Le mot de passe SMTP n'est volontairement pas inclus ici : il est géré
+    à part dans la vue pour ne jamais être ré-affiché en clair dans le HTML."""
+
+    class Meta:
+        model  = ConfigurationEmail
+        fields = ['actif', 'host', 'port', 'use_tls', 'use_ssl', 'host_user', 'default_from_email']
+        widgets = {
+            'actif':              forms.CheckboxInput(attrs={'class': 'form-check'}),
+            'host':               forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'smtp.gmail.com'}),
+            'port':               forms.NumberInput(attrs={'class': 'form-control'}),
+            'use_tls':            forms.CheckboxInput(attrs={'class': 'form-check'}),
+            'use_ssl':            forms.CheckboxInput(attrs={'class': 'form-check'}),
+            'host_user':          forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'notifications@societe.ml'}),
+            'default_from_email': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'SGDS <notifications@societe.ml>'}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('use_tls') and cleaned.get('use_ssl'):
+            raise forms.ValidationError("TLS et SSL ne peuvent pas être activés en même temps — choisissez l'un ou l'autre.")
+        return cleaned
+
+
+class ModeleEmailEtatMensuelForm(forms.ModelForm):
+    class Meta:
+        model  = ModeleEmailEtatMensuel
+        fields = ['sujet', 'corps']
+        widgets = {
+            'sujet': forms.TextInput(attrs={'class': 'form-control'}),
+            'corps': forms.Textarea(attrs={'class': 'form-control', 'rows': 10}),
+        }
+
+
+class ModeleEmailMouvementForm(forms.ModelForm):
+    class Meta:
+        model  = ModeleEmailMouvement
+        fields = ['sujet', 'corps']
+        widgets = {
+            'sujet': forms.TextInput(attrs={'class': 'form-control'}),
+            'corps': forms.Textarea(attrs={'class': 'form-control', 'rows': 10}),
         }
 
 

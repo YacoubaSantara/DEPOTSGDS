@@ -16,8 +16,8 @@ from datetime import date as _date
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from SGDS.users.decorators import voir_required
 from django.db.models import Q, Sum
 
 from .client import marketeur_required, _D
@@ -30,6 +30,73 @@ from .client import marketeur_required, _D
 REGIME_SD   = 'SOUS_DOUANE'
 REGIME_AC   = 'ACQUITTE'
 REGIME_TOUS = 'TOUS'
+
+
+# ─────────────────────────────────────────────────────────────
+#  Quote-part P/G Installation (coulage, figée à la clôture)
+# ─────────────────────────────────────────────────────────────
+#  Cette quote-part est calculée lors de la clôture du coulage et déjà
+#  intégrée au Stock de Fermeture (services/mensuel) et au Stock
+#  d'Ouverture de la période suivante (services/stock_ouverture_marketeur).
+#  Elle doit aussi apparaître ici pour que le stock affiché en Carte de
+#  Stock / Stock Global coïncide avec ces deux rapports.
+
+class _LigneSynthetique:
+    """Mouvement factice pour les lignes injectées (quote-part coulage)."""
+    def __init__(self, date_mouvement, marketeur=None):
+        self.date_mouvement = date_mouvement
+        self.numero_enregistrement = None
+        self.numero_c = None
+        self.marketeur = marketeur
+
+
+def _evenements_qp_coul(produit, marketeur=None, depot=None):
+    """
+    Retourne, pour chaque période déjà clôturée, le montant de la
+    quote-part P/G Installation (ClotureCoulageLigne.qp_coul) à la date
+    de clôture de cette période. Si `marketeur` est None, agrège la
+    quote-part de tous les marketeurs (vue stock global du dépôt).
+    """
+    from SGDS.models import ClotureCoulageLigne
+
+    qs = (
+        ClotureCoulageLigne.objects
+        .filter(produit=produit, cloture__periode__statut='CLOTUREE')
+        .select_related('cloture__periode')
+    )
+    if marketeur:
+        qs = qs.filter(marketeur=marketeur)
+    if depot is not None:
+        qs = qs.filter(cloture__periode__depot=depot)
+
+    par_periode = {}
+    for ligne in qs:
+        periode = ligne.cloture.periode
+        bucket = par_periode.setdefault(periode.pk, {'date': periode.date_fin, 'montant': Decimal('0')})
+        bucket['montant'] += ligne.qp_coul
+
+    evenements = [e for e in par_periode.values() if e['montant'] != 0]
+    return sorted(evenements, key=lambda e: e['date'])
+
+
+def _repartir_qp_coul(evenements, date_debut, date_fin):
+    """
+    Sépare les événements de quote-part coulage en :
+      - le montant à incorporer au REPORT (clôtures avant date_debut)
+      - la liste des événements visibles dans la période affichée
+    Même convention que le filtrage des mouvements : antérieur strict
+    à date_debut → report ; au-delà de date_fin → exclu.
+    """
+    avant = Decimal('0')
+    visibles = []
+    for ev in evenements:
+        if date_debut and ev['date'] < date_debut:
+            avant += ev['montant']
+        elif date_fin and ev['date'] > date_fin:
+            continue
+        else:
+            visibles.append(ev)
+    return avant, visibles
 
 
 # ─────────────────────────────────────────────────────────────
@@ -109,13 +176,15 @@ def _delta_ac_amb(mouvement, est_cession_recue=False):
     return Decimal('0')
 
 
-def _qs_sd(marketeur, produit):
+def _qs_sd(marketeur, produit, depot=None):
     """
     QuerySet des mouvements SD d'un marketeur/produit.
     Inclut les ACQUITTEMENTS (regime=ACQUITTE mais impacte le SD).
+    `depot=None` → consolidé tous dépôts (vue marketeur) ; sinon restreint
+    au dépôt actif (vue admin/opérateur).
     """
     from SGDS.models import Mouvement
-    return (
+    qs = (
         Mouvement.objects
         .filter(marketeur=marketeur, produit=produit)
         .filter(
@@ -125,27 +194,33 @@ def _qs_sd(marketeur, produit):
         .select_related('produit', 'camion', 'chauffeur',
                         'cession_marketeur_destinataire')
     )
+    if depot is not None:
+        qs = qs.filter(depot=depot)
+    return qs
 
 
-def _qs_ac(marketeur, produit):
+def _qs_ac(marketeur, produit, depot=None):
     """QuerySet des mouvements AC d'un marketeur/produit."""
     from SGDS.models import Mouvement
-    return (
+    qs = (
         Mouvement.objects
         .filter(marketeur=marketeur, produit=produit,
                 regime_douanier=REGIME_AC)
         .select_related('produit', 'camion', 'chauffeur',
                         'cession_marketeur_destinataire')
     )
+    if depot is not None:
+        qs = qs.filter(depot=depot)
+    return qs
 
 
-def _qs_cessions_recues(marketeur, produit, regime):
+def _qs_cessions_recues(marketeur, produit, regime, depot=None):
     """
     QuerySet des cessions reçues par ce marketeur (il est le destinataire).
     On filtre par le régime douanier de la cession.
     """
     from SGDS.models import Mouvement
-    return (
+    qs = (
         Mouvement.objects
         .filter(
             cession_marketeur_destinataire=marketeur,
@@ -155,13 +230,16 @@ def _qs_cessions_recues(marketeur, produit, regime):
         )
         .select_related('produit', 'camion', 'chauffeur', 'marketeur')
     )
+    if depot is not None:
+        qs = qs.filter(depot=depot)
+    return qs
 
 
 # ─────────────────────────────────────────────────────────────
 #  Calcul principal : stock REPORT + lignes enrichies + cumul
 # ─────────────────────────────────────────────────────────────
 
-def _calculer_carte_stock(marketeur, produit, regime, date_debut=None, date_fin=None):
+def _calculer_carte_stock(marketeur, produit, regime, date_debut=None, date_fin=None, depot=None):
     """
     Retourne un dict contenant :
       report_15c   : Decimal — stock @15°C avant date_debut
@@ -179,20 +257,27 @@ def _calculer_carte_stock(marketeur, produit, regime, date_debut=None, date_fin=
     delta_fn   = _delta_sd   if is_sd else _delta_ac
     delta_fn_a = _delta_sd_amb if is_sd else _delta_ac_amb
 
-    qs_base    = _qs_sd(marketeur, produit) if is_sd else _qs_ac(marketeur, produit)
-    qs_recues  = _qs_cessions_recues(marketeur, produit, regime)
+    qs_base    = _qs_sd(marketeur, produit, depot=depot) if is_sd else _qs_ac(marketeur, produit, depot=depot)
+    qs_recues  = _qs_cessions_recues(marketeur, produit, regime, depot=depot)
+
+    # ── Quote-part P/G Installation (coulage) : n'impacte que l'Acquitté ────
+    qp_evenements = [] if is_sd else _evenements_qp_coul(produit, marketeur=marketeur, depot=depot)
+    qp_avant, qp_visibles = _repartir_qp_coul(qp_evenements, date_debut, date_fin)
 
     # ── 1. REPORT : inventaire initial + mouvements AVANT date_debut ────────
     report_15c = Decimal('0')
-    report_amb = Decimal('0')
+    report_amb = qp_avant
 
     # 1a. Stock inventaire initial (saisi une fois au démarrage)
     from SGDS.models import InventaireInitialMarketeur
-    inv = InventaireInitialMarketeur.objects.filter(
+    inv_qs_init = InventaireInitialMarketeur.objects.filter(
         marketeur=marketeur,
         produit=produit,
         regime_douanier=regime,
-    ).first()
+    )
+    if depot is not None:
+        inv_qs_init = inv_qs_init.filter(depot=depot)
+    inv = inv_qs_init.first()
     if inv:
         # On intègre l'inventaire si sa date est <= date_debut
         # (il représente le stock à l'ouverture, donc inclus dans le REPORT même
@@ -229,6 +314,17 @@ def _calculer_carte_stock(marketeur, produit, regime, date_debut=None, date_fin=
     # Tri chronologique puis par pk pour stabilité
     paires.sort(key=lambda x: (x[0].date_mouvement, x[0].pk))
 
+    # ── Items unifiés : mouvements réels + quote-part coulage (synthétique) ──
+    # La quote-part est triée après les mouvements d'une même date (ajustement
+    # de fin de période).
+    items = [('mouv', m, est_recue) for m, est_recue in paires] + \
+            [('qp', ev, None) for ev in qp_visibles]
+    items.sort(key=lambda it: (
+        it[1].date_mouvement if it[0] == 'mouv' else it[1]['date'],
+        0 if it[0] == 'mouv' else 1,
+        it[1].pk if it[0] == 'mouv' else 0,
+    ))
+
     # ── 3. Calcul des lignes enrichies + stock courant ─────────────────────
     stock_courant_15c = report_15c
     stock_courant_amb = report_amb
@@ -241,7 +337,32 @@ def _calculer_carte_stock(marketeur, produit, regime, date_debut=None, date_fin=
 
     lignes = []
 
-    for mouv, est_recue in paires:
+    for kind, item, est_recue in items:
+        if kind == 'qp':
+            dab = item['montant']
+            stock_courant_amb += dab
+            if dab > 0:
+                cumul_entrees_amb += dab
+            elif dab < 0:
+                cumul_sorties_amb += abs(dab)
+            lignes.append({
+                'mouvement':         _LigneSynthetique(item['date']),
+                'est_cession_recue': False,
+                'sens':              'quote_part_coulage',
+                'origine_dest':      'Quote-part P/G Installation',
+                'regime_ligne':      'AC',
+                'vol_entree_15c':    None,
+                'vol_entree_amb':    dab if dab > 0 else None,
+                'vol_sortie_15c':    None,
+                'vol_sortie_amb':    abs(dab) if dab < 0 else None,
+                'vol_manquant':      None,
+                'delta_15c':         Decimal('0'),
+                'stock_apres_15c':   stock_courant_15c,
+                'stock_apres_amb':   stock_courant_amb,
+            })
+            continue
+
+        mouv = item
         t = mouv.type_mouvement
 
         d15 = delta_fn(mouv, est_cession_recue=est_recue)
@@ -385,7 +506,7 @@ def _calculer_carte_stock(marketeur, produit, regime, date_debut=None, date_fin=
 #  Calcul combiné SD + AC (vue "Tous")
 # ─────────────────────────────────────────────────────────────
 
-def _calculer_carte_stock_tous(marketeur, produit, date_debut=None, date_fin=None):
+def _calculer_carte_stock_tous(marketeur, produit, date_debut=None, date_fin=None, depot=None):
     """
     Carte de stock combinée SD + AC.
 
@@ -414,6 +535,9 @@ def _calculer_carte_stock_tous(marketeur, produit, date_debut=None, date_fin=Non
         )
         .select_related('produit', 'camion', 'chauffeur', 'marketeur')
     )
+    if depot is not None:
+        qs_all = qs_all.filter(depot=depot)
+        qs_recues = qs_recues.filter(depot=depot)
 
     # ── Delta ambiant global (ACQUITTEMENT = 0) ───────────────────
     def _delta_global_amb(mouv, est_cession_recue=False):
@@ -430,14 +554,19 @@ def _calculer_carte_stock_tous(marketeur, produit, date_debut=None, date_fin=Non
             return Decimal('0')   # net 0 sur le stock global
         return Decimal('0')
 
+    # ── Quote-part P/G Installation (coulage) : ajoutée au stock global ─────
+    qp_evenements = _evenements_qp_coul(produit, marketeur=marketeur, depot=depot)
+    qp_avant, qp_visibles = _repartir_qp_coul(qp_evenements, date_debut, date_fin)
+
     # ── 1. REPORT : inventaire initial (SD + AC) + mouvements antérieurs ────
-    report_amb = Decimal('0')
+    report_amb = qp_avant
 
     # 1a. Inventaire initial — somme SD + AC pour vue "tous régimes"
     from SGDS.models import InventaireInitialMarketeur
-    for inv in InventaireInitialMarketeur.objects.filter(
-        marketeur=marketeur, produit=produit
-    ):
+    inv_qs_tous = InventaireInitialMarketeur.objects.filter(marketeur=marketeur, produit=produit)
+    if depot is not None:
+        inv_qs_tous = inv_qs_tous.filter(depot=depot)
+    for inv in inv_qs_tous:
         if date_debut is None or inv.date_inventaire <= date_debut:
             report_amb += inv.volume_ambiant
 
@@ -461,6 +590,15 @@ def _calculer_carte_stock_tous(marketeur, produit, date_debut=None, date_fin=Non
     paires = [(m, False) for m in qs_p] + [(m, True) for m in qs_r]
     paires.sort(key=lambda x: (x[0].date_mouvement, x[0].pk))
 
+    # ── Items unifiés : mouvements réels + quote-part coulage (synthétique) ──
+    items = [('mouv', m, est_recue) for m, est_recue in paires] + \
+            [('qp', ev, None) for ev in qp_visibles]
+    items.sort(key=lambda it: (
+        it[1].date_mouvement if it[0] == 'mouv' else it[1]['date'],
+        0 if it[0] == 'mouv' else 1,
+        it[1].pk if it[0] == 'mouv' else 0,
+    ))
+
     # ── 3. Lignes enrichies ───────────────────────────────────────
     stock_courant_amb    = report_amb
     cumul_entrees_amb    = Decimal('0')
@@ -469,7 +607,32 @@ def _calculer_carte_stock_tous(marketeur, produit, date_debut=None, date_fin=Non
 
     lignes = []
 
-    for mouv, est_recue in paires:
+    for kind, item, est_recue in items:
+        if kind == 'qp':
+            da = item['montant']
+            stock_courant_amb += da
+            if da > 0:
+                cumul_entrees_amb += da
+            elif da < 0:
+                cumul_sorties_amb += abs(da)
+            lignes.append({
+                'mouvement':         _LigneSynthetique(item['date']),
+                'est_cession_recue': False,
+                'sens':              'quote_part_coulage',
+                'origine_dest':      'Quote-part P/G Installation',
+                'regime_ligne':      'AC',
+                'vol_entree_amb':    da if da > 0 else None,
+                'vol_sortie_amb':    abs(da) if da < 0 else None,
+                'vol_manquant':      None,
+                'delta_amb':         da,
+                'stock_apres_amb':   stock_courant_amb,
+                'vol_entree_15c':    None,
+                'vol_sortie_15c':    None,
+                'stock_apres_15c':   stock_courant_amb,
+            })
+            continue
+
+        mouv = item
         t  = mouv.type_mouvement
         da = _delta_global_amb(mouv, est_cession_recue=est_recue)
         stock_courant_amb += da
@@ -647,6 +810,7 @@ def _produits_avec_activite(marketeur):
 # ─────────────────────────────────────────────────────────────
 
 @marketeur_required
+@voir_required('voir_etat')
 def carte_stock(request):
     """
     Carte de stock personnelle du marketeur connecté.
@@ -706,7 +870,7 @@ def carte_stock(request):
 #  VUE 2b : Redirection vers le premier marketeur actif
 # ─────────────────────────────────────────────────────────────
 
-@login_required
+@voir_required('voir_carte_stock')
 def etat_carte_stock_redirect(request):
     """Redirige vers la carte de stock du premier marketeur actif."""
     from SGDS.models import Marketeur
@@ -724,7 +888,7 @@ def etat_carte_stock_redirect(request):
 #  VUE 2 : Carte de stock — accès admin
 # ─────────────────────────────────────────────────────────────
 
-@login_required
+@voir_required('voir_carte_stock')
 def carte_stock_admin(request, marketeur_uuid, marketeur_slug):
     """
     Carte de stock d'un marketeur spécifique, vue depuis l'interface admin.
@@ -761,9 +925,9 @@ def carte_stock_admin(request, marketeur_uuid, marketeur_slug):
 
     if produit_sel:
         if regime == REGIME_TOUS:
-            carte = _calculer_carte_stock_tous(mkt, produit_sel, date_debut, date_fin)
+            carte = _calculer_carte_stock_tous(mkt, produit_sel, date_debut, date_fin, depot=request.depot)
         else:
-            carte = _calculer_carte_stock(mkt, produit_sel, regime, date_debut, date_fin)
+            carte = _calculer_carte_stock(mkt, produit_sel, regime, date_debut, date_fin, depot=request.depot)
 
     if regime == REGIME_SD:
         regime_label = 'Sous Douane'
@@ -794,7 +958,7 @@ def carte_stock_admin(request, marketeur_uuid, marketeur_slug):
 #  Calcul : stock global dépôt (tous marketeurs ou un seul)
 # ─────────────────────────────────────────────────────────────
 
-def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=None, regime=None):
+def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=None, regime=None, depot=None):
     """
     Calcul du stock global ambiant pour un produit donné.
 
@@ -850,6 +1014,8 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
             Q(marketeur=marketeur)
             | Q(type_mouvement='CESSION', cession_marketeur_destinataire=marketeur)
         )
+    if depot is not None:
+        base_qs = base_qs.filter(depot=depot)
 
     # Filtrage par régime
     if is_sd:
@@ -891,14 +1057,22 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
                 return _D(mouv.acquittement_volume_ambiant)
             return Decimal('0')
 
+    # ── Quote-part P/G Installation (coulage) : n'impacte que l'Acquitté ────
+    # Quand `marketeur` est None (vue dépôt), agrège la quote-part de tous
+    # les marketeurs.
+    qp_evenements = [] if is_sd else _evenements_qp_coul(produit, marketeur=marketeur, depot=depot)
+    qp_avant, qp_visibles = _repartir_qp_coul(qp_evenements, date_debut, date_fin)
+
     # ── 1. REPORT : inventaire initial + mouvements antérieurs ──
     from SGDS.models import InventaireInitialMarketeur
-    report_amb = Decimal('0')
+    report_amb = qp_avant
 
     # Inventaire initial filtré par régime si besoin
     inv_qs = InventaireInitialMarketeur.objects.filter(produit=produit)
     if marketeur:
         inv_qs = inv_qs.filter(marketeur=marketeur)
+    if depot is not None:
+        inv_qs = inv_qs.filter(depot=depot)
     if is_sd:
         inv_qs = inv_qs.filter(regime_douanier=REGIME_SD)
     elif is_ac:
@@ -920,6 +1094,14 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
         qs_p = qs_p.filter(date_mouvement__lte=date_fin)
     mouvements = list(qs_p.order_by('date_mouvement', 'pk'))
 
+    # ── Items unifiés : mouvements réels + quote-part coulage (synthétique) ──
+    items = [('mouv', m) for m in mouvements] + [('qp', ev) for ev in qp_visibles]
+    items.sort(key=lambda it: (
+        it[1].date_mouvement if it[0] == 'mouv' else it[1]['date'],
+        0 if it[0] == 'mouv' else 1,
+        it[1].pk if it[0] == 'mouv' else 0,
+    ))
+
     # ── 3. Lignes enrichies ───────────────────────────────────
     stock_courant       = report_amb
     cumul_entrees_amb   = Decimal('0')
@@ -928,7 +1110,29 @@ def _calculer_stock_global(produit, date_debut=None, date_fin=None, marketeur=No
     cumul_manquants_15c = Decimal('0')
     lignes = []
 
-    for mouv in mouvements:
+    for kind, item in items:
+        if kind == 'qp':
+            da = item['montant']
+            stock_courant += da
+            if da > 0:
+                cumul_entrees_amb += da
+            elif da < 0:
+                cumul_sorties_amb += abs(da)
+            lignes.append({
+                'mouvement':         _LigneSynthetique(item['date'], marketeur=marketeur),
+                'sens':              'quote_part_coulage',
+                'libelle':           'Quote-part P/G Installation',
+                'regime_ligne':      'AC',
+                'vol_entree_amb':    da if da > 0 else None,
+                'vol_sortie_amb':    abs(da) if da < 0 else None,
+                'vol_manquant_amb':  None,
+                'vol_manquant_15c':  None,
+                'delta_global':      da,
+                'stock_apres_amb':   stock_courant,
+            })
+            continue
+
+        mouv = item
         t  = mouv.type_mouvement
         da = _delta(mouv)
         stock_courant += da
@@ -1052,6 +1256,7 @@ def _produits_avec_mouvements_global():
 # ─────────────────────────────────────────────────────────────
 
 @marketeur_required
+@voir_required('voir_etat')
 def stock_global_marketeur(request):
     """
     Stock global du marketeur connecté (tous régimes SD+AC).
@@ -1111,7 +1316,7 @@ def stock_global_marketeur(request):
 #  VUE 6 : Stock Global Tout Marketeur — admin
 # ─────────────────────────────────────────────────────────────
 
-@login_required
+@voir_required('voir_stock_global')
 def stock_global_admin(request):
     """
     Stock global de tous les marketeurs pour un produit.
@@ -1155,6 +1360,7 @@ def stock_global_admin(request):
             produit_sel, date_debut, date_fin,
             marketeur=marketeur_sel,
             regime=None if regime == REGIME_TOUS else regime,
+            depot=request.depot,
         )
 
     if regime == REGIME_SD:
@@ -1189,7 +1395,7 @@ def stock_global_admin(request):
 
 def _generer_xlsx_stock_global(produit, stock, societe, is_admin=True,
                                 marketeur=None, marketeur_sel=None,
-                                date_debut=None, date_fin=None):
+                                date_debut=None, date_fin=None, depot=None):
     """Génère les bytes d'un fichier xlsx Stock Global."""
     try:
         import openpyxl
@@ -1218,6 +1424,7 @@ def _generer_xlsx_stock_global(produit, stock, societe, is_admin=True,
     fill_entree   = PatternFill('solid', fgColor='F0FDF4')
     fill_sortie   = PatternFill('solid', fgColor='FEF2F2')
     fill_neutre   = PatternFill('solid', fgColor='FFFBEB')
+    fill_qp_coul  = PatternFill('solid', fgColor='E0F2FE')
 
     al_c = Alignment(horizontal='center', vertical='center', wrap_text=True)
     al_l = Alignment(horizontal='left',   vertical='center')
@@ -1255,7 +1462,8 @@ def _generer_xlsx_stock_global(produit, stock, societe, is_admin=True,
         c.alignment = align; c.border = bord
 
     # Ligne 1 : société
-    _merge_full(row, f"{societe.raison_sociale}  —  {societe.nom_depot}",
+    nom_depot_aff = depot.nom if depot else "Tous dépôts"
+    _merge_full(row, f"{societe.raison_sociale}  —  {nom_depot_aff}",
                 police_titre, fill_titre)
     ws.row_dimensions[row].height = 22
     row += 1
@@ -1331,10 +1539,11 @@ def _generer_xlsx_stock_global(produit, stock, societe, is_admin=True,
     ws.row_dimensions[row].height = 14
     row += 1
 
-    SENS_FILLS  = {'entree': fill_entree, 'sortie': fill_sortie}
+    SENS_FILLS  = {'entree': fill_entree, 'sortie': fill_sortie, 'quote_part_coulage': fill_qp_coul}
     SENS_LABELS = {
         'entree': 'Entrée', 'sortie': 'Sortie',
         'cession': 'Cession', 'acquittement': 'Acquittement',
+        'quote_part_coulage': 'Qte-part P/G Inst.',
     }
 
     num_start = 5 if is_admin else 4   # colonne à partir de laquelle appliquer fmt_vol
@@ -1438,6 +1647,7 @@ def _generer_xlsx_stock_global(produit, stock, societe, is_admin=True,
 # ─────────────────────────────────────────────────────────────
 
 @marketeur_required
+@voir_required('voir_etat')
 def stock_global_marketeur_export(request):
     """Export Excel Stock Global — marketeur connecté."""
     from SGDS.models import Produit, Societe
@@ -1468,7 +1678,7 @@ def stock_global_marketeur_export(request):
         contenu = _generer_xlsx_stock_global(
             produit, stock, societe,
             is_admin=False, marketeur=mkt,
-            date_debut=date_debut, date_fin=date_fin,
+            date_debut=date_debut, date_fin=date_fin, depot=request.depot,
         )
     except ImportError as e:
         messages.error(request, str(e))
@@ -1487,7 +1697,7 @@ def stock_global_marketeur_export(request):
 #  VUE 8 : Export Excel — Stock Global admin
 # ─────────────────────────────────────────────────────────────
 
-@login_required
+@voir_required('voir_stock_global')
 def stock_global_admin_export(request):
     """Export Excel Stock Global Tout Marketeur — vue admin."""
     from SGDS.models import Produit, Marketeur, Societe
@@ -1522,14 +1732,15 @@ def stock_global_admin_export(request):
             pass
 
     stock   = _calculer_stock_global(produit, date_debut, date_fin, marketeur=marketeur_sel,
-                                     regime=None if regime == REGIME_TOUS else regime)
+                                     regime=None if regime == REGIME_TOUS else regime,
+                                     depot=request.depot)
     societe = Societe.get_instance()
 
     try:
         contenu = _generer_xlsx_stock_global(
             produit, stock, societe,
             is_admin=True, marketeur_sel=marketeur_sel,
-            date_debut=date_debut, date_fin=date_fin,
+            date_debut=date_debut, date_fin=date_fin, depot=request.depot,
         )
     except ImportError as e:
         messages.error(request, str(e))
@@ -1557,7 +1768,7 @@ def _couleur_hex(hex_str, defaut='1E3A5F'):
     return 'FF' + defaut
 
 
-def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=None, date_fin=None):
+def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=None, date_fin=None, depot=None):
     """
     Génère un fichier xlsx carte de stock et retourne les bytes.
     """
@@ -1599,6 +1810,7 @@ def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=N
     fill_sortie   = PatternFill('solid', fgColor='FEF2F2')
     fill_cession  = PatternFill('solid', fgColor='EFF6FF')
     fill_transfert= PatternFill('solid', fgColor='FFFBEB')
+    fill_qp_coul  = PatternFill('solid', fgColor='E0F2FE')
 
     al_centre = Alignment(horizontal='center', vertical='center', wrap_text=True)
     al_gauche = Alignment(horizontal='left',   vertical='center')
@@ -1633,7 +1845,8 @@ def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=N
     # ── Ligne 1 : Raison sociale + dépôt ─────────────────────
     ws.merge_cells(f'A{row}:{MERGE_HDR}{row}')
     c = ws.cell(row, 1)
-    c.value = f"{societe.raison_sociale}  —  {societe.nom_depot}"
+    nom_depot_aff = depot.nom if depot else "Tous dépôts"
+    c.value = f"{societe.raison_sociale}  —  {nom_depot_aff}"
     c.font  = police_titre
     c.fill  = fill_titre
     c.alignment = al_centre
@@ -1719,6 +1932,7 @@ def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=N
         'cession_emise':  fill_cession,
         'cession_recue':  fill_cession,
         'transfert':      fill_transfert,
+        'quote_part_coulage': fill_qp_coul,
     }
     SENS_LABELS = {
         'entree':        'Entrée',
@@ -1726,6 +1940,7 @@ def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=N
         'cession_emise': 'Cession émise',
         'cession_recue': 'Cession reçue',
         'transfert':     'Acquittement',
+        'quote_part_coulage': 'Qte-part P/G Inst.',
     }
 
     for ligne in carte['lignes']:
@@ -1838,6 +2053,7 @@ def _generer_xlsx_carte(marketeur, produit, regime, carte, societe, date_debut=N
 # ─────────────────────────────────────────────────────────────
 
 @marketeur_required
+@voir_required('voir_etat')
 def carte_stock_export(request):
     """Export Excel carte de stock — marketeur connecté."""
     from SGDS.models import Produit, Societe
@@ -1867,7 +2083,7 @@ def carte_stock_export(request):
     societe = Societe.get_instance()
 
     try:
-        contenu = _generer_xlsx_carte(mkt, produit, regime, carte, societe, date_debut, date_fin)
+        contenu = _generer_xlsx_carte(mkt, produit, regime, carte, societe, date_debut, date_fin, depot=request.depot)
     except ImportError as e:
         messages.error(request, str(e))
         return redirect('client_carte_stock')
@@ -1889,7 +2105,7 @@ def carte_stock_export(request):
 #  VUE 4 : Export Excel — accès admin
 # ─────────────────────────────────────────────────────────────
 
-@login_required
+@voir_required('voir_carte_stock')
 def carte_stock_export_admin(request, marketeur_uuid, marketeur_slug):
     """Export Excel carte de stock — vue admin."""
     from SGDS.models import Produit, Marketeur, Societe
@@ -1917,13 +2133,13 @@ def carte_stock_export_admin(request, marketeur_uuid, marketeur_slug):
         return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)
 
     if regime == REGIME_TOUS:
-        carte = _calculer_carte_stock_tous(mkt, produit, date_debut, date_fin)
+        carte = _calculer_carte_stock_tous(mkt, produit, date_debut, date_fin, depot=request.depot)
     else:
-        carte = _calculer_carte_stock(mkt, produit, regime, date_debut, date_fin)
+        carte = _calculer_carte_stock(mkt, produit, regime, date_debut, date_fin, depot=request.depot)
     societe = Societe.get_instance()
 
     try:
-        contenu = _generer_xlsx_carte(mkt, produit, regime, carte, societe, date_debut, date_fin)
+        contenu = _generer_xlsx_carte(mkt, produit, regime, carte, societe, date_debut, date_fin, depot=request.depot)
     except ImportError as e:
         messages.error(request, str(e))
         return redirect('etat_carte_stock', marketeur_uuid=marketeur_uuid, marketeur_slug=marketeur_slug)

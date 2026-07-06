@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Historique des envois — États mensuels — SGDS{% endblock %}
+{% block nav_historique_envoi_etat_mensuel %}active{% endblock %}
+
+{% block breadcrumb %}
+  <span class="breadcrumb-current">Paramètres</span>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Historique des envois — États mensuels</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.filter-bar select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.82rem;color:var(--text)}
+.filter-bar .btn-secondary{padding:8px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer}
+
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+table.envois{width:100%;border-collapse:collapse}
+table.envois th{background:var(--bg);font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+table.envois td{padding:10px 14px;font-size:.84rem;border-bottom:1px solid var(--border);vertical-align:middle}
+table.envois tr:last-child td{border-bottom:none}
+
+.bdg{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.74rem;font-weight:700}
+.bdg-succes{background:#dcfce7;color:#166534}
+.bdg-echec{background:#fee2e2;color:#991b1b}
+.bdg::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.err-msg{font-size:.74rem;color:#991b1b;max-width:280px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-renvoyer{padding:6px 14px;background:var(--bg);color:var(--navy);border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer}
+.btn-renvoyer:hover{background:var(--card)}
+
+.pagination{display:flex;gap:8px;justify-content:center;padding:14px;border-top:1px solid var(--border)}
+.pagination a, .pagination span{padding:6px 12px;border-radius:6px;font-size:.8rem;color:var(--text);text-decoration:none}
+.pagination a:hover{background:var(--bg)}
+.pagination .current{background:var(--navy);color:#fff}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Historique des envois — États mensuels</h1>
+    <p class="page-subtitle">Bundle Excel + PDF (stock ouverture/fermeture, coulage répartition, frais de passage) envoyé à chaque clôture de période</p>
+  </div>
+</div>
+
+<form method="get" class="filter-bar">
+  <select name="periode_id">
+    <option value="">Toutes les périodes</option>
+    {% for p in periodes %}
+    <option value="{{ p.uuid }}" {% if p.uuid|stringformat:"s" == periode_id %}selected{% endif %}>{{ p }}</option>
+    {% endfor %}
+  </select>
+  <select name="marketeur_id">
+    <option value="">Tous les marketeurs</option>
+    {% for m in marketeurs %}
+    <option value="{{ m.uuid }}" {% if m.uuid|stringformat:"s" == marketeur_id %}selected{% endif %}>{{ m.raison_sociale }}</option>
+    {% endfor %}
+  </select>
+  <select name="statut">
+    <option value="">Tous les statuts</option>
+    <option value="SUCCES" {% if statut == "SUCCES" %}selected{% endif %}>Succès</option>
+    <option value="ECHEC" {% if statut == "ECHEC" %}selected{% endif %}>Échec</option>
+  </select>
+  <button type="submit" class="btn-secondary">Filtrer</button>
+</form>
+
+<div class="tbl-wrap">
+  <table class="envois">
+    <thead>
+      <tr>
+        <th>Période</th>
+        <th>Marketeur</th>
+        <th>Email destinataire</th>
+        <th>Statut</th>
+        <th>Date d'envoi</th>
+        <th>Déclenché par</th>
+        <th>Erreur</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for envoi in page %}
+      <tr>
+        <td>{{ envoi.periode }}</td>
+        <td>{{ envoi.marketeur.raison_sociale }}</td>
+        <td>{{ envoi.email_destinataire|default:"—" }}</td>
+        <td>
+          {% if envoi.statut == 'SUCCES' %}
+            <span class="bdg bdg-succes">Succès</span>
+          {% else %}
+            <span class="bdg bdg-echec">Échec</span>
+          {% endif %}
+        </td>
+        <td>{{ envoi.date_envoi|date:"d/m/Y à H:i" }}</td>
+        <td>{% if envoi.declenche_par %}{{ envoi.declenche_par.get_full_name|default:envoi.declenche_par.username }}{% else %}Automatique (clôture){% endif %}</td>
+        <td>{% if envoi.message_erreur %}<span class="err-msg" title="{{ envoi.message_erreur }}">{{ envoi.message_erreur }}</span>{% else %}—{% endif %}</td>
+        <td>
+          <form method="post" action="{% url 'renvoyer_etat_mensuel' envoi.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-renvoyer">Renvoyer</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Aucun envoi enregistré.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if page.has_other_pages %}
+  <div class="pagination">
+    {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">‹ Précédent</a>{% endif %}
+    <span class="current">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a href="?page={{ page.next_page_number }}">Suivant ›</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

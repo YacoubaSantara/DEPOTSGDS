@@ -14,7 +14,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from django.db.models import Sum
 
-from api.v1.permissions import IsMarketeurActif
+from api.v1.permissions import IsMarketeurActif, permissions_dict
 from SGDS.models import Mouvement
 from .serializers import (
     ProfilSerializer,
@@ -49,6 +49,8 @@ def _build_profil(user, request):
         'id':                    user.id,
         'username':              user.username,
         'full_name':             user.get_full_name() or user.username,
+        'first_name':            user.first_name,
+        'last_name':             user.last_name,
         'email':                 user.email,
         'telephone':             profile.telephone if profile else None,
         'poste':                 profile.poste if profile else None,
@@ -60,6 +62,7 @@ def _build_profil(user, request):
         'photo_url':             photo_url,
         'total_mouvements':      total_mouvements,
         'volume_total_ambiant':  volume_total_ambiant,
+        'permissions':           permissions_dict(user),
     }
 
 

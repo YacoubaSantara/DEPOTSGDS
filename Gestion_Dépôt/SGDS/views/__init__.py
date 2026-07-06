@@ -1,7 +1,7 @@
 ﻿# â"€â"€ Espace Marketeur â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 from .client import (  # noqa: F401
     client_dashboard, client_mouvements, client_mouvements_pdf,
-    client_mouvement_detail,
+    client_mouvement_detail, client_parametres_profil, client_parametres_securite,
     notif_marquer_lue, notif_tout_marquer_lu,
     _uuid_valide,
 )
@@ -33,11 +33,14 @@ from .mensuel import (  # noqa: F401
 )
 
 # â"€â"€ Société / Dépôt â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-from .societe import societe_detail  # noqa: F401
+from .societe import societe_detail, configuration_email, gabarit_email_etat_mensuel, gabarit_email_mouvement  # noqa: F401
+from .depot import depot_liste, depot_create, depot_update, changer_depot_actif  # noqa: F401
+from .envoi_etat_mensuel import historique_envoi_etat_mensuel, renvoyer_etat_mensuel  # noqa: F401
 
 # â"€â"€ Inventaire initial marketeur â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 from .inventaire import (  # noqa: F401
     inventaire_initial_liste,
+    inventaire_initial_detail,
     inventaire_initial_saisir,
     inventaire_initial_supprimer,
     inventaire_initial_masse,
@@ -72,6 +75,8 @@ from .coulage import (  # noqa: F401
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from SGDS.users.decorators import voir_required
 from django.db.models import Q
 from django.forms import modelformset_factory
 from django.views.decorators.http import require_POST
@@ -82,6 +87,7 @@ from SGDS.forms import (
     ParametreJaugeageCuveForm, JaugeageJourForm, MesureCuveForm, MouvementForm,
     LigneMouvementFormSet, CompartimentCamionFormSet,
 )
+from SGDS.services.depot_scope import depot_scope, depot_requis, get_object_or_404_depot
 import qrcode
 import base64
 import io
@@ -102,13 +108,21 @@ def _deny_marketeur(request):
 
 @login_required
 def marketeur_list(request):
+    # Un marketeur est redirigé vers sa propre fiche AVANT le contrôle de
+    # permission (le rôle MARKETEUR n'a pas 'voir_marketeur').
     if request.user.is_marketeur_role:
         if request.user.marketeur:
             return redirect('marketeur_detail', uuid=request.user.marketeur.uuid, slug=request.user.marketeur.slug)
         messages.error(request, "Votre compte n'est lié Ã  aucun marketeur.")
         return redirect('connexion')
 
-    from django.core.paginator import Paginator
+    from SGDS.users.permissions_registry import has_perm
+    if not has_perm(request.user, 'voir_marketeur'):
+        from django.http import HttpResponseForbidden
+        messages.error(request, "Accès refusé : permission insuffisante.")
+        return HttpResponseForbidden(
+            "Vous n'avez pas les droits pour accéder à cette ressource."
+        )
 
     qs     = Marketeur.objects.all().order_by('raison_sociale')
     q      = request.GET.get('q', '').strip()
@@ -220,9 +234,8 @@ def marketeur_delete(request, uuid, slug):
 #  CAMION
 # 
 
-@login_required
+@voir_required('voir_camion')
 def camion_list(request):
-    from django.core.paginator import Paginator
     base_qs = Camion.objects.select_related('marketeur').all()
     if request.user.is_marketeur_role and request.user.marketeur:
         base_qs = base_qs.filter(marketeur=request.user.marketeur)
@@ -334,9 +347,8 @@ def camion_delete(request, uuid, slug):
 #  CHAUFFEUR
 # 
 
-@login_required
+@voir_required('voir_chauffeur')
 def chauffeur_list(request):
-    from django.core.paginator import Paginator
     base_qs = Chauffeur.objects.select_related('marketeur', 'camion').all()
     if request.user.is_marketeur_role and request.user.marketeur:
         base_qs = base_qs.filter(marketeur=request.user.marketeur)
@@ -454,7 +466,7 @@ def chauffeur_badge(request, uuid, slug):
 #  FAMILLE
 # 
 
-@login_required
+@voir_required('voir_famille')
 def famille_list(request):
     qs = Famille.objects.all()
     q = request.GET.get('q', '').strip()
@@ -463,11 +475,14 @@ def famille_list(request):
         qs = qs.filter(Q(nom__icontains=q) | Q(code__icontains=q) | Q(description__icontains=q))
     if statut:
         qs = qs.filter(statut=statut)
+    paginator = Paginator(qs, 25)
+    familles = paginator.get_page(request.GET.get('page'))
     ctx = {
-        'familles': qs, 'total': Famille.objects.count(),
+        'familles': familles, 'total': Famille.objects.count(),
         'nb_actif': Famille.objects.filter(statut='ACTIF').count(),
         'nb_inactif': Famille.objects.filter(statut='INACTIF').count(),
         'q': q, 'statut': statut,
+        'filtres': {'q': q, 'statut': statut},
     }
     return render(request, 'Famille/famille_list.html', ctx)
 
@@ -526,7 +541,7 @@ def famille_delete(request, uuid, slug):
 #  PRODUIT
 # 
 
-@login_required
+@voir_required('voir_produit')
 def produit_list(request):
     qs = Produit.objects.select_related('famille').all()
     q = request.GET.get('q', '').strip()
@@ -541,13 +556,16 @@ def produit_list(request):
         qs = qs.filter(statut=statut)
     if famille_id:
         qs = qs.filter(famille_id=famille_id)
+    paginator = Paginator(qs, 25)
+    produits_page = paginator.get_page(request.GET.get('page'))
     ctx = {
-        'produits': qs, 'total': Produit.objects.count(),
+        'produits': produits_page, 'total': Produit.objects.count(),
         'nb_actif': Produit.objects.filter(statut='ACTIF').count(),
         'nb_inactif': Produit.objects.filter(statut='INACTIF').count(),
         'nb_discontinue': Produit.objects.filter(statut='DISCONTINUE').count(),
         'familles': Famille.objects.filter(statut='ACTIF'),
         'q': q, 'statut': statut, 'famille_id': famille_id,
+        'filtres': {'q': q, 'statut': statut, 'famille': famille_id},
     }
     return render(request, 'Produit/produit_list.html', ctx)
 
@@ -606,9 +624,9 @@ def produit_delete(request, uuid, slug):
 #  CUVE
 # 
 
-@login_required
+@voir_required('voir_cuve')
 def cuve_list(request):
-    qs = Cuve.objects.select_related('produit', 'produit__famille').all()
+    qs = depot_scope(request, Cuve.objects.select_related('depot', 'produit', 'produit__famille').all())
     q = request.GET.get('q', '').strip()
     statut = request.GET.get('statut', '')
     produit_id = request.GET.get('produit', '')
@@ -621,22 +639,26 @@ def cuve_list(request):
         qs = qs.filter(statut=statut)
     if produit_id and _uuid_valide(produit_id):
         qs = qs.filter(produit__uuid=produit_id)
+    cuves_depot = depot_scope(request, Cuve.objects.all())
+    filtres = {'q': q, 'statut': statut, 'produit': produit_id}
+    paginator = Paginator(qs, 25)
+    cuves = paginator.get_page(request.GET.get('page', 1))
     ctx = {
-        'cuves': qs, 'total': Cuve.objects.count(),
-        'nb_active': Cuve.objects.filter(statut='ACTIVE').count(),
-        'nb_maintenance': Cuve.objects.filter(statut='EN_MAINTENANCE').count(),
-        'nb_hors_service': Cuve.objects.filter(statut='HORS_SERVICE').count(),
-        'nb_inactive': Cuve.objects.filter(statut='INACTIVE').count(),
+        'cuves': cuves, 'total': cuves_depot.count(),
+        'nb_active': cuves_depot.filter(statut='ACTIVE').count(),
+        'nb_maintenance': cuves_depot.filter(statut='EN_MAINTENANCE').count(),
+        'nb_hors_service': cuves_depot.filter(statut='HORS_SERVICE').count(),
+        'nb_inactive': cuves_depot.filter(statut='INACTIVE').count(),
         'produits': Produit.objects.filter(statut='ACTIF'),
         'statut_choices': Cuve.STATUT_CHOICES,
-        'q': q, 'statut': statut, 'produit_id': produit_id,
+        'q': q, 'statut': statut, 'produit_id': produit_id, 'filtres': filtres,
     }
     return render(request, 'Cuve/cuve_list.html', ctx)
 
 
 @login_required
 def cuve_detail(request, uuid, slug):
-    cuve = get_object_or_404(Cuve.objects.select_related('produit', 'produit__famille'), uuid=uuid)
+    cuve = get_object_or_404_depot(request, Cuve.objects.select_related('produit', 'produit__famille'), uuid=uuid)
     return render(request, 'Cuve/cuve_detail.html', {'cuve': cuve})
 
 
@@ -644,38 +666,43 @@ def cuve_detail(request, uuid, slug):
 def cuve_create(request):
     if _deny_marketeur(request):
         return redirect('cuve_list')
+    depot_fixe = request.depot
     if request.method == 'POST':
-        form = CuveForm(request.POST)
+        form = CuveForm(request.POST, depot_fixe=depot_fixe)
         if form.is_valid():
-            cuve = form.save()
+            cuve = form.save(commit=False)
+            if depot_fixe:
+                cuve.depot = depot_fixe
+            cuve.save()
             messages.success(request, f'Cuve « {cuve.numero} » enregistrée avec succès.')
             return redirect('cuve_list')
     else:
-        form = CuveForm()
-    return render(request, 'Cuve/cuve_form.html', {'form': form, 'action': 'Nouvelle'})
+        form = CuveForm(depot_fixe=depot_fixe)
+    return render(request, 'Cuve/cuve_form.html', {'form': form, 'action': 'Nouvelle', 'depot_fixe': depot_fixe})
 
 
 @login_required
 def cuve_update(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('cuve_detail', uuid=uuid, slug=slug)
-    cuve = get_object_or_404(Cuve, uuid=uuid)
+    cuve = get_object_or_404_depot(request, Cuve, uuid=uuid)
+    depot_fixe = request.depot
     if request.method == 'POST':
-        form = CuveForm(request.POST, instance=cuve)
+        form = CuveForm(request.POST, instance=cuve, depot_fixe=depot_fixe)
         if form.is_valid():
             form.save()
             messages.success(request, f'Cuve « {cuve.numero} » modifiée avec succès.')
             return redirect('cuve_detail', uuid=cuve.uuid, slug=cuve.slug)
     else:
-        form = CuveForm(instance=cuve)
-    return render(request, 'Cuve/cuve_form.html', {'form': form, 'action': 'Modifier', 'cuve': cuve})
+        form = CuveForm(instance=cuve, depot_fixe=depot_fixe)
+    return render(request, 'Cuve/cuve_form.html', {'form': form, 'action': 'Modifier', 'cuve': cuve, 'depot_fixe': depot_fixe})
 
 
 @login_required
 def cuve_delete(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('cuve_detail', uuid=uuid, slug=slug)
-    cuve = get_object_or_404(Cuve, uuid=uuid)
+    cuve = get_object_or_404_depot(request, Cuve, uuid=uuid)
     if request.method == 'POST':
         num = cuve.numero
         cuve.delete()
@@ -688,12 +715,14 @@ def cuve_delete(request, uuid, slug):
 #  PARAMÈTRES DE JAUGEAGE
 # 
 
-@login_required
+@voir_required('voir_parametre_jaugeage')
 def parametre_list(request):
-    cuves = Cuve.objects.select_related('parametre_jaugeage').order_by('numero')
+    qs = Cuve.objects.select_related('parametre_jaugeage').order_by('numero')
+    paginator = Paginator(qs, 25)
+    cuves = paginator.get_page(request.GET.get('page'))
     return render(request, 'ParametreJaugeage/parametre_list.html', {
-        'cuves': cuves, 'total_cuves': cuves.count(),
-        'nb_configures': sum(1 for c in cuves if hasattr(c, 'parametre_jaugeage')),
+        'cuves': cuves, 'total_cuves': qs.count(),
+        'nb_configures': sum(1 for c in qs if hasattr(c, 'parametre_jaugeage')),
     })
 
 
@@ -742,15 +771,15 @@ def parametre_delete(request, uuid, slug):
 #  JAUGEAGE DU JOUR
 # 
 
-@login_required
+@voir_required('voir_jaugeage')
 def jaugeage_list(request):
-    qs = JaugeageJour.objects.prefetch_related('mesures__cuve__parametre_jaugeage').all()
+    qs = depot_scope(request, JaugeageJour.objects.prefetch_related('mesures__cuve__parametre_jaugeage').all())
     q = request.GET.get('q', '').strip()
     type_j = request.GET.get('type_jaugeage', '')
     date_d = request.GET.get('date_debut', '')
     date_f = request.GET.get('date_fin', '')
     if q:
-        qs = qs.filter(Q(operateur__icontains=q) | Q(depot__icontains=q))
+        qs = qs.filter(Q(operateur__icontains=q) | Q(depot__nom__icontains=q))
     if type_j:
         qs = qs.filter(type_jaugeage=type_j)
     if date_d:
@@ -758,35 +787,40 @@ def jaugeage_list(request):
     if date_f:
         qs = qs.filter(date_jaugeage__lte=date_f)
 
-    jaugeages_list = list(qs)
+    filtres = {'q': q, 'type_jaugeage': type_j, 'date_debut': date_d, 'date_fin': date_f}
+    paginator = Paginator(qs, 25)
+    jaugeages_page = paginator.get_page(request.GET.get('page', 1))
+
     jaugeages_with_totals = []
-    for j in jaugeages_list:
+    for j in jaugeages_page:
         mesures = list(j.mesures.all())
         total = sum(float(m.volume_standard_15c_calcule or 0) for m in mesures)
         total_vad = sum(float(m.volume_ambiant_depot or 0) for m in mesures)
         jaugeages_with_totals.append((j, total if total > 0 else None, total_vad if total_vad > 0 else None))
 
     from django.db.models import Max
+    jaugeages_depot = depot_scope(request, JaugeageJour.objects.all())
     stocks_produits = Produit.objects.filter(statut='ACTIF').order_by('famille', 'nom')
     date_derniere_maj = stocks_produits.aggregate(Max('date_maj_stock'))['date_maj_stock__max']
 
     ctx = {
-        'jaugeages': jaugeages_list, 'jaugeages_with_totals': jaugeages_with_totals,
-        'total': JaugeageJour.objects.count(),
-        'nb_avr': JaugeageJour.objects.filter(type_jaugeage='AVR').count(),
-        'nb_apr': JaugeageJour.objects.filter(type_jaugeage='APR').count(),
-        'nb_j': JaugeageJour.objects.filter(type_jaugeage='J').count(),
+        'jaugeages': jaugeages_page, 'jaugeages_with_totals': jaugeages_with_totals,
+        'total': jaugeages_depot.count(),
+        'nb_avr': jaugeages_depot.filter(type_jaugeage='AVR').count(),
+        'nb_apr': jaugeages_depot.filter(type_jaugeage='APR').count(),
+        'nb_j': jaugeages_depot.filter(type_jaugeage='J').count(),
         'type_choices': JaugeageJour.TYPE_CHOICES,
         'q': q, 'type_jaugeage': type_j, 'date_debut': date_d, 'date_fin': date_f,
         'stocks_produits': stocks_produits, 'date_derniere_maj': date_derniere_maj,
+        'filtres': filtres,
     }
     return render(request, 'Jaugeage/jaugeage_list.html', ctx)
 
 
 @login_required
 def jaugeage_detail(request, uuid, slug):
-    jaugeage = get_object_or_404(
-        JaugeageJour.objects.prefetch_related('mesures__cuve__parametre_jaugeage'), uuid=uuid
+    jaugeage = get_object_or_404_depot(
+        request, JaugeageJour.objects.prefetch_related('mesures__cuve__parametre_jaugeage'), uuid=uuid
     )
     mesures = list(jaugeage.mesures.all())
     def _sum(attr):
@@ -817,20 +851,21 @@ def jaugeage_detail(request, uuid, slug):
 def jaugeage_create(request):
     if _deny_marketeur(request):
         return redirect('jaugeage_list')
+    if depot_requis(request):
+        return redirect('jaugeage_list')
     if request.method == 'POST':
         form = JaugeageJourForm(request.POST)
         if form.is_valid():
             try:
                 from datetime import date as _date
                 jaugeage = JaugeageJour.creer_nouveau_jaugeage(
+                    depot=request.depot,
                     date_jaugeage=form.cleaned_data['date_jaugeage'],
                     type_jaugeage=form.cleaned_data['type_jaugeage'],
                     heure_jaugeage=form.cleaned_data.get('heure_jaugeage'),
                     operateur=form.cleaned_data.get('operateur'),
                     notes=form.cleaned_data.get('notes'),
                 )
-                jaugeage.depot               = form.cleaned_data.get('depot') or 'SGDS SANKE'
-                jaugeage.type_depot          = form.cleaned_data.get('type_depot') or 'Dépôt de droit'
                 jaugeage.temperature_reference = form.cleaned_data.get('temperature_reference') or 15.0
                 jaugeage.save()
                 messages.success(request, f'Jaugeage du {jaugeage.date_jaugeage} créé. Saisissez les mesures.')
@@ -841,7 +876,6 @@ def jaugeage_create(request):
         from datetime import date as _date
         form = JaugeageJourForm(initial={
             'date_jaugeage': _date.today(), 'operateur': request.user.nom_complet,
-            'depot': 'SGDS SANKE', 'type_depot': 'Dépôt de droit',
         })
     return render(request, 'Jaugeage/jaugeage_form.html', {'form': form, 'action': 'Nouveau'})
 
@@ -850,7 +884,7 @@ def jaugeage_create(request):
 def jaugeage_update(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('jaugeage_detail', uuid=uuid, slug=slug)
-    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
+    jaugeage = get_object_or_404_depot(request, JaugeageJour, uuid=uuid)
     if request.method == 'POST':
         form = JaugeageJourForm(request.POST, instance=jaugeage)
         if form.is_valid():
@@ -869,7 +903,7 @@ def jaugeage_update(request, uuid, slug):
 def jaugeage_delete(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('jaugeage_detail', uuid=uuid, slug=slug)
-    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
+    jaugeage = get_object_or_404_depot(request, JaugeageJour, uuid=uuid)
     if request.method == 'POST':
         label = str(jaugeage)
         jaugeage.delete()
@@ -882,7 +916,7 @@ def jaugeage_delete(request, uuid, slug):
 def jaugeage_saisie(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('jaugeage_detail', uuid=uuid, slug=slug)
-    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
+    jaugeage = get_object_or_404_depot(request, JaugeageJour, uuid=uuid)
     MesureCuveFormSet = modelformset_factory(MesureCuve, form=MesureCuveForm, extra=0)
     qs = jaugeage.mesures.select_related(
         'cuve', 'cuve__produit', 'cuve__produit__famille', 'cuve__parametre_jaugeage'
@@ -957,7 +991,7 @@ def valider_jaugeage(request, uuid, slug):
         return HttpResponseForbidden("Réservé aux responsables dépôt.")
     if request.method != 'POST':
         return redirect('jaugeage_detail', uuid=uuid, slug=slug)
-    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
+    jaugeage = get_object_or_404_depot(request, JaugeageJour, uuid=uuid)
     if jaugeage.est_valide:
         messages.warning(request, "Ce jaugeage est déjÃ  validé.")
         return redirect('jaugeage_detail', uuid=uuid, slug=slug)
@@ -990,7 +1024,7 @@ def devalider_jaugeage(request, uuid, slug):
         return HttpResponseForbidden("Réservé aux responsables dépôt.")
     if request.method != 'POST':
         return redirect('jaugeage_detail', uuid=uuid, slug=slug)
-    jaugeage = get_object_or_404(JaugeageJour, uuid=uuid)
+    jaugeage = get_object_or_404_depot(request, JaugeageJour, uuid=uuid)
     jaugeage.est_valide = False
     jaugeage.date_validation = None
     jaugeage.valide_par = None
@@ -1001,7 +1035,8 @@ def devalider_jaugeage(request, uuid, slug):
 
 @login_required
 def jaugeage_rapport(request, uuid, slug):
-    jaugeage = get_object_or_404(
+    jaugeage = get_object_or_404_depot(
+        request,
         JaugeageJour.objects.prefetch_related(
             'mesures__cuve__parametre_jaugeage', 'mesures__cuve__produit__famille',
         ), uuid=uuid,
@@ -1051,7 +1086,7 @@ def jaugeage_rapport(request, uuid, slug):
     })
 
 
-@login_required
+@voir_required('voir_parametre_metrologique')
 def parametres_metrologiques(request):
     from SGDS.petroleum_calc import K_SUPER, K_MIDDLE, K_HEAVY, A_AMB, B_AMB
     plages = [
@@ -1083,11 +1118,10 @@ def parametres_metrologiques(request):
 #  MOUVEMENTS
 # 
 
-@login_required
+@voir_required('voir_mouvement')
 def mouvement_liste(request):
-    from django.core.paginator import Paginator
     from django.db.models import Count
-    qs = (
+    qs = depot_scope(request,
         Mouvement.objects
         .select_related('produit', 'marketeur', 'camion')
         .prefetch_related('lignes__cuve', 'acquittements')
@@ -1136,11 +1170,14 @@ def mouvement_liste(request):
 def mouvement_creer(request):
     if _deny_marketeur(request):
         return redirect('mouvement_liste')
+    if depot_requis(request):
+        return redirect('mouvement_liste')
     if request.method == 'POST':
         form = MouvementForm(request.POST)
-        lignes_formset = LigneMouvementFormSet(request.POST)
+        lignes_formset = LigneMouvementFormSet(request.POST, form_kwargs={'depot': request.depot})
         if form.is_valid():
             mouvement = form.save(commit=False)
+            mouvement.depot = request.depot
             mouvement.collaborateur = request.user.get_full_name() or request.user.username
             mouvement.save()
             lignes_formset.instance = mouvement
@@ -1155,9 +1192,9 @@ def mouvement_creer(request):
             return redirect('mouvement_liste')
     else:
         form = MouvementForm()
-        lignes_formset = LigneMouvementFormSet()
+        lignes_formset = LigneMouvementFormSet(form_kwargs={'depot': request.depot})
     camions = Camion.objects.select_related('marketeur').filter(statut='EN_SERVICE').order_by('immatriculation')
-    cuves = Cuve.objects.select_related('produit').filter(statut='ACTIVE').order_by('numero')
+    cuves = depot_scope(request, Cuve.objects.select_related('produit').filter(statut='ACTIVE')).order_by('numero')
     marketeurs = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
     return render(request, 'mouvements/saisie.html', {
         'form': form, 'lignes_formset': lignes_formset, 'titre': 'Nouveau mouvement',
@@ -1169,10 +1206,10 @@ def mouvement_creer(request):
 def mouvement_modifier(request, uuid, slug):
     if _deny_marketeur(request):
         return redirect('mouvement_liste')
-    mouvement = get_object_or_404(Mouvement, uuid=uuid)
+    mouvement = get_object_or_404_depot(request, Mouvement, uuid=uuid)
     if request.method == 'POST':
         form = MouvementForm(request.POST, instance=mouvement)
-        lignes_formset = LigneMouvementFormSet(request.POST, instance=mouvement)
+        lignes_formset = LigneMouvementFormSet(request.POST, instance=mouvement, form_kwargs={'depot': mouvement.depot})
         if form.is_valid() and lignes_formset.is_valid():
             mouvement = form.save()
             for ligne_form in lignes_formset:
@@ -1190,9 +1227,9 @@ def mouvement_modifier(request, uuid, slug):
             return redirect('mouvement_detail', uuid=mouvement.uuid, slug=mouvement.slug)
     else:
         form = MouvementForm(instance=mouvement)
-        lignes_formset = LigneMouvementFormSet(instance=mouvement)
+        lignes_formset = LigneMouvementFormSet(instance=mouvement, form_kwargs={'depot': mouvement.depot})
     camions = Camion.objects.select_related('marketeur').filter(statut='EN_SERVICE').order_by('immatriculation')
-    cuves = Cuve.objects.select_related('produit').filter(statut='ACTIVE').order_by('numero')
+    cuves = depot_scope(request, Cuve.objects.select_related('produit').filter(statut='ACTIVE')).order_by('numero')
     marketeurs = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
     return render(request, 'mouvements/saisie.html', {
         'form': form, 'lignes_formset': lignes_formset, 'mouvement': mouvement,
@@ -1205,7 +1242,8 @@ def mouvement_modifier(request, uuid, slug):
 def mouvement_detail(request, uuid, slug):
     from SGDS.models import MouvementDocument
     from SGDS.forms import MouvementDocumentForm
-    mouvement = get_object_or_404(
+    mouvement = get_object_or_404_depot(
+        request,
         Mouvement.objects.select_related(
             'marketeur', 'produit', 'camion', 'camion__marketeur',
             'chauffeur', 'cuve', 'cuve__produit',
@@ -1227,7 +1265,7 @@ def mouvement_supprimer(request, uuid, slug):
     if not request.user.is_staff:
         messages.error(request, "La suppression de mouvements est réservée au staff.")
         return redirect('mouvement_liste')
-    mouvement = get_object_or_404(Mouvement, uuid=uuid)
+    mouvement = get_object_or_404_depot(request, Mouvement, uuid=uuid)
     if request.method == 'POST':
         produit = mouvement.produit
         cuves = list(produit.cuves.select_related('parametre_jaugeage').all())
@@ -1252,7 +1290,8 @@ def mouvement_detail_pdf(request, uuid, slug):
     from django.utils import timezone
     from SGDS.services.export_pdf import render_to_pdf
 
-    mouvement = get_object_or_404(
+    mouvement = get_object_or_404_depot(
+        request,
         Mouvement.objects.select_related(
             'marketeur', 'produit', 'camion', 'camion__marketeur',
             'chauffeur', 'cession_marketeur_destinataire',
@@ -1284,7 +1323,8 @@ def mouvement_bordereau(request, uuid, slug):
     from django.utils import timezone as tz
     from SGDS.models import Societe
 
-    mouvement = get_object_or_404(
+    mouvement = get_object_or_404_depot(
+        request,
         Mouvement.objects.select_related(
             "produit", "marketeur", "cuve", "cuve__produit",
             "camion", "chauffeur",
@@ -1304,7 +1344,7 @@ def mouvement_bordereau(request, uuid, slug):
 
     try:
         from SGDS.services.periode_comptable import periode_pour_date
-        periode = periode_pour_date(mouvement.date_mouvement)
+        periode = periode_pour_date(mouvement.date_mouvement, mouvement.depot)
         periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
     except Exception:
         periode_label = mouvement.date_mouvement.strftime("%B %Y")
@@ -1425,7 +1465,8 @@ def mouvement_bordereau_pdf(request, uuid, slug):
     from django.utils import timezone as tz
     from SGDS.models import Societe
 
-    mouvement = get_object_or_404(
+    mouvement = get_object_or_404_depot(
+        request,
         Mouvement.objects.select_related(
             "produit", "marketeur", "cuve", "cuve__produit",
             "camion", "chauffeur",
@@ -1439,7 +1480,7 @@ def mouvement_bordereau_pdf(request, uuid, slug):
 
     try:
         from SGDS.services.periode_comptable import periode_pour_date
-        periode = periode_pour_date(mouvement.date_mouvement)
+        periode = periode_pour_date(mouvement.date_mouvement, mouvement.depot)
         periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
     except Exception:
         periode_label = mouvement.date_mouvement.strftime("%B %Y")
@@ -1510,9 +1551,9 @@ def mouvements_liste_pdf(request):
     from django.utils import timezone
     from SGDS.services.export_pdf import render_to_pdf
 
-    qs = Mouvement.objects.select_related(
+    qs = depot_scope(request, Mouvement.objects.select_related(
         'produit', 'marketeur', 'camion', 'cession_marketeur_destinataire',
-    ).order_by('-date_mouvement', '-date_saisie')
+    ).order_by('-date_mouvement', '-date_saisie'))
 
     type_m     = request.GET.get('type', '').strip()
     regime     = request.GET.get('regime', '').strip()

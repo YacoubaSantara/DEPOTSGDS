@@ -35,7 +35,7 @@ class RolesDynamiquesTests(TestCase):
     def test_cinq_roles_systeme_existent(self):
         """Les 5 rôles système doivent exister après migration."""
         codes = set(Role.objects.filter(systeme=True).values_list('code', flat=True))
-        self.assertEqual(codes, {'SUPERADMIN', 'CHEF_DEPOT', 'OPERATEUR', 'COMPTABLE', 'LECTEUR'})
+        self.assertEqual(codes, {'SUPERADMIN', 'CHEF_DEPOT', 'OPERATEUR', 'COMPTABLE', 'MARKETEUR'})
 
     def test_superadmin_a_toutes_les_permissions(self):
         """SUPERADMIN doit avoir au moins les 35 permissions métier."""
@@ -44,7 +44,7 @@ class RolesDynamiquesTests(TestCase):
 
     def test_role_systeme_ne_peut_pas_etre_supprime(self):
         """Un rôle système doit lever ValidationError à la suppression."""
-        role = Role.objects.get(code='LECTEUR')
+        role = Role.objects.get(code='MARKETEUR')
         with self.assertRaises(ValidationError):
             role.delete()
 
@@ -58,7 +58,7 @@ class RolesDynamiquesTests(TestCase):
     def test_role_avec_utilisateur_ne_peut_pas_etre_supprime(self):
         """Un rôle personnalisé attribué à un utilisateur ne peut pas être supprimé."""
         role_custom = Role.objects.create(nom='Role Test', code='ROLE_TEST', systeme=False)
-        user = _make_user('test_user_block', 'LECTEUR')
+        user = _make_user('test_user_block', 'MARKETEUR')
         user.profile.role = role_custom
         user.profile.save()
         with self.assertRaises(ValidationError):
@@ -80,7 +80,7 @@ class RolesDynamiquesTests(TestCase):
 
     def test_backend_lecteur_a_permissions_limitees(self):
         """LECTEUR ne peut pas créer de mouvement."""
-        user = _make_user('lecteur_test', 'LECTEUR')
+        user = _make_user('lecteur_test', 'MARKETEUR')
         self.assertTrue(user.has_perm('voir_mouvement'))
         self.assertFalse(user.has_perm('ajouter_mouvement'))
         self.assertFalse(user.has_perm('gerer_role'))
@@ -120,7 +120,7 @@ class VuesRolesTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.superadmin = _make_user('admin_vues', 'SUPERADMIN')
-        self.lecteur = _make_user('lecteur_vues', 'LECTEUR')
+        self.lecteur = _make_user('lecteur_vues', 'MARKETEUR')
 
     def test_liste_roles_accessible_superadmin(self):
         """La liste des rôles est accessible par un SUPERADMIN."""
@@ -163,11 +163,11 @@ class VuesRolesTests(TestCase):
 
     def test_supprimer_role_systeme_interdit(self):
         """La suppression d'un rôle système doit être refusée."""
-        role = Role.objects.get(code='LECTEUR')
+        role = Role.objects.get(code='MARKETEUR')
         self.client.force_login(self.superadmin)
         resp = self.client.post(reverse('roles_supprimer', args=[role.pk]))
         self.assertIn(resp.status_code, [302, 200])
-        self.assertTrue(Role.objects.filter(code='LECTEUR').exists())
+        self.assertTrue(Role.objects.filter(code='MARKETEUR').exists())
 
     def test_permissions_liste_accessible(self):
         """La liste des permissions est accessible par SUPERADMIN."""

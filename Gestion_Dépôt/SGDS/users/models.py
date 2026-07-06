@@ -124,6 +124,12 @@ class UserProfile(models.Model):
         null=True, blank=True,
         help_text="Role RBAC. Defaut : LECTEUR a la creation.",
     )
+    depots = models.ManyToManyField(
+        'SGDS.Depot',
+        related_name='utilisateurs_assignes', verbose_name="Depots assignes",
+        blank=True,
+        help_text="Depots auxquels l'utilisateur est rattache (un ou plusieurs). Laisser vide pour SUPERADMIN (acces global) ou MARKETEUR (transige avec plusieurs depots).",
+    )
     telephone   = models.CharField(max_length=20, blank=True, null=True)
     poste       = models.CharField(max_length=100, blank=True, null=True,
                                    verbose_name="Fonction")

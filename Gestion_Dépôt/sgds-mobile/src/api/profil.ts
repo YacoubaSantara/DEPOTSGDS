@@ -4,6 +4,8 @@ export interface ProfilData {
   id: number;
   username: string;
   full_name: string;
+  first_name: string;
+  last_name: string;
   email: string;
   telephone: string | null;
   poste: string | null;
@@ -14,6 +16,7 @@ export interface ProfilData {
   photo_url: string | null;
   total_mouvements: number;
   volume_total_ambiant: number;
+  permissions: Record<string, boolean>;
 }
 
 export interface UpdateProfilPayload {

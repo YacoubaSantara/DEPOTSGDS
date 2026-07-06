@@ -1,6 +1,8 @@
 """
 Serializers pour les états — noms alignés sur le contrat mobile.
 """
+from decimal import Decimal
+
 from rest_framework import serializers
 
 D = {'max_digits': 14, 'decimal_places': 3}
@@ -26,7 +28,10 @@ class StockGlobalResponseSerializer(serializers.Serializer):
     produit_id              = serializers.IntegerField(allow_null=True, required=False)
     produit_nom             = serializers.CharField(allow_null=True, allow_blank=True, required=False)
     produit_sigle           = serializers.CharField(allow_null=True, allow_blank=True, required=False)
+    periode_id              = serializers.IntegerField(allow_null=True, required=False)
+    periode_nom             = serializers.CharField(allow_blank=True, required=False)
     # Données
+    stock_ouverture_ambiant = serializers.DecimalField(**D)
     lignes                  = StockGlobalLigneSerializer(many=True)
     cumul_entrees_ambiant   = serializers.DecimalField(**D)
     cumul_entrees_15        = serializers.DecimalField(**D)
@@ -51,6 +56,7 @@ class RecapProduitSerializer(serializers.Serializer):
     volume_cession_ambiant   = serializers.DecimalField(**D)
     nb_acquittements         = serializers.IntegerField()
     volume_acquit_ambiant    = serializers.DecimalField(**D)
+    stock_ouverture_ambiant  = serializers.DecimalField(**D, required=False, default=Decimal('0'))
     stock_final_ambiant      = serializers.DecimalField(**D)
 
 
@@ -64,11 +70,14 @@ class RecapTotauxSerializer(serializers.Serializer):
     volume_cession_ambiant   = serializers.DecimalField(**D)
     nb_acquittements         = serializers.IntegerField()
     volume_acquit_ambiant    = serializers.DecimalField(**D)
+    stock_ouverture_ambiant  = serializers.DecimalField(**D, required=False, default=Decimal('0'))
     stock_final_ambiant      = serializers.DecimalField(**D)
 
 
 class RecapSerializer(serializers.Serializer):
     marketeur_nom            = serializers.CharField()
+    periode_id               = serializers.IntegerField(allow_null=True, required=False)
+    periode_nom              = serializers.CharField(allow_blank=True, required=False)
     par_produit              = RecapProduitSerializer(many=True)
     totaux                   = RecapTotauxSerializer()
 
@@ -125,6 +134,8 @@ class FraisPassageProduitSerializer(serializers.Serializer):
 class FraisPassageResponseSerializer(serializers.Serializer):
     tarif_global      = serializers.DecimalField(**D)
     date_application  = serializers.CharField(allow_blank=True)
+    periode_id        = serializers.IntegerField(allow_null=True, required=False)
+    periode_nom       = serializers.CharField(allow_blank=True, required=False)
     produits          = FraisPassageProduitSerializer(many=True)
 
 

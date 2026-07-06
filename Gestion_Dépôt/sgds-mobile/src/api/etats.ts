@@ -19,6 +19,9 @@ export interface StockGlobalResponse {
   produit_id: number | null;
   produit_nom: string;
   produit_sigle: string;
+  periode_id: number | null;
+  periode_nom: string;
+  stock_ouverture_ambiant: number;
   lignes: StockLigne[];
   cumul_entrees_ambiant: number;
   cumul_entrees_15: number;
@@ -30,6 +33,7 @@ export interface StockGlobalResponse {
 
 export interface StockGlobalFilters {
   produit?: number;
+  periode_id?: number;
   date_debut?: string;
   date_fin?: string;
 }
@@ -49,6 +53,7 @@ export interface RecapProduit {
   volume_cession_ambiant: number;
   nb_acquittements: number;
   volume_acquit_ambiant: number;
+  stock_ouverture_ambiant: number;
   stock_final_ambiant: number;
 }
 
@@ -62,16 +67,20 @@ export interface RecapTotaux {
   volume_cession_ambiant: number;
   nb_acquittements: number;
   volume_acquit_ambiant: number;
+  stock_ouverture_ambiant: number;
   stock_final_ambiant: number;
 }
 
 export interface RecapResponse {
   marketeur_nom: string;
+  periode_id: number | null;
+  periode_nom: string;
   par_produit: RecapProduit[];
   totaux: RecapTotaux;
 }
 
 export interface RecapFilters {
+  periode_id?: number;
   date_debut?: string;
   date_fin?: string;
 }
@@ -112,6 +121,8 @@ export interface FraisPassageProduit {
 export interface FraisPassageResponse {
   tarif_global:     number;
   date_application: string;
+  periode_id:       number | null;
+  periode_nom:      string;
   produits:         FraisPassageProduit[];
 }
 
@@ -171,8 +182,15 @@ export const etatsApi = {
       params: periodeId ? { periode_id: periodeId } : {},
     }),
 
-  fraisPassage: () =>
-    apiClient.get<FraisPassageResponse>('/etats/frais-passage/'),
+  stock15: (periodeId?: number) =>
+    apiClient.get<StockOuvertureResponse>('/etats/stock-15/', {
+      params: periodeId ? { periode_id: periodeId } : {},
+    }),
+
+  fraisPassage: (periodeId?: number) =>
+    apiClient.get<FraisPassageResponse>('/etats/frais-passage/', {
+      params: periodeId ? { periode_id: periodeId } : {},
+    }),
 
   coulage: (periodeId?: number) =>
     apiClient.get<CoulageResponse>('/etats/coulage/', {

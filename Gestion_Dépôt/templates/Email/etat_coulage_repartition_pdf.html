@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Coulage Répartition — {{ marketeur.raison_sociale }}</title>
+<style>
+@page {
+  size: A4 landscape;
+  margin: 1.2cm 1.2cm 1.8cm 1.2cm;
+  @frame footer { -pdf-frame-content: footerContent; bottom: 0.6cm; left: 1.2cm; right: 1.2cm; height: 1.6cm; }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #0f2547; }
+
+.doc-header { background: #0e2a47; padding: 10px 14px; margin-bottom: 10px; }
+.logo-img  { height: 30px; }
+.logo-text { color: #fff; font-size: 16pt; font-weight: 900; }
+.logo-sub  { color: rgba(255,255,255,0.6); font-size: 8.5pt; }
+.header-right { text-align: right; color: #fff; }
+.header-title { font-size: 13pt; font-weight: 700; }
+.header-mkt  { font-size: 10.5pt; color: rgba(255,255,255,0.8); margin-top: 1px; }
+.header-meta  { font-size: 8.5pt; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { background: #1e3a5f; color: #fff; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; padding: 6px 8px; text-align: left; }
+.tbl th.tar { text-align: right; }
+.tbl td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; font-size: 9.5pt; }
+.tbl tr:nth-child(even) td { background: #f8fafc; }
+.tbl td.num { font-family: monospace; text-align: right; }
+
+#footerContent { border-top: 1px solid #e2e8f0; padding-top: 4px; }
+.sig-block { text-align: center; padding-top: 30px; border-top: 1px solid #0f2547; font-size: 9pt; font-weight: 700; color: #0f2547; }
+</style>
+</head>
+<body>
+
+<table class="doc-header" width="100%" cellpadding="10" cellspacing="0">
+  <tr>
+    <td style="vertical-align:middle">
+      {% if societe.logo %}<img class="logo-img" src="{{ societe.logo.path }}" alt="">{% else %}<div class="logo-text">SGDS</div>{% endif %}
+      <div class="logo-sub">{{ societe.raison_sociale|default:"Système de Gestion des Dépôts pétroliers" }}</div>
+    </td>
+    <td style="vertical-align:middle" class="header-right">
+      <div class="header-title">COULAGE RÉPARTITION — {{ periode }}</div>
+      <div class="header-mkt">{{ marketeur.raison_sociale }}{% if marketeur.sigle %} ({{ marketeur.sigle }}){% endif %}</div>
+      <div class="header-meta">Généré le {{ generated_at }}</div>
+    </td>
+  </tr>
+</table>
+
+<table class="tbl" cellpadding="0" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Produit</th>
+      <th class="tar">Brut Entrée (L)</th>
+      <th class="tar">Coul. Entrée (L)</th>
+      <th class="tar">Entrée Nette (L)</th>
+      <th class="tar">Sortie (L)</th>
+      <th class="tar">Base QP (L)</th>
+      <th class="tar">Coef. QP</th>
+      <th class="tar">QP Coulage (L)</th>
+      <th class="tar">Vol. Sorti (L)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in lignes_par_produit %}
+    <tr>
+      <td style="font-weight:600">{{ l.produit.nom }}</td>
+      <td class="num">{{ l.brut_entree|default:0|floatformat:2 }}</td>
+      <td class="num">{{ l.coul_entree|default:0|floatformat:2 }}</td>
+      <td class="num">{{ l.entree_nette|default:0|floatformat:2 }}</td>
+      <td class="num">{{ l.sortie|default:0|floatformat:2 }}</td>
+      <td class="num">{{ l.base_qp_coul|default:0|floatformat:2 }}</td>
+      <td class="num">{{ l.coef_qp_coul|default:0|floatformat:6 }}</td>
+      <td class="num">{{ l.qp_coul|default:0|floatformat:2 }}</td>
+      <td class="num">{{ l.volume_sorti|default:0|floatformat:2 }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" style="text-align:center;padding:14px;color:#94a3b8">Aucune donnée de coulage pour la période.</td></tr>
+    {% endfor %}
+  </tbody>
+  {% if ligne %}
+  <tfoot>
+    <tr style="background:#e8f0fe;font-weight:700">
+      <td>TOTAL</td>
+      <td colspan="6"></td>
+      <td class="num">Vol. Global Sorti : {{ ligne.volume_global_sorti|floatformat:2 }} L</td>
+      <td class="num">{{ ligne.montant|floatformat:2 }} FCFA</td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
+
+<div id="footerContent">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td width="33%" class="sig-block">Le Marketeur</td>
+      <td width="33%" class="sig-block">Le Gestionnaire</td>
+      <td width="34%" style="text-align:right;vertical-align:bottom;font-size:7pt;color:#94a3b8">Réf. MKT-COUL-REP · Page <pdf:pagenumber> / <pdf:pagecount></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

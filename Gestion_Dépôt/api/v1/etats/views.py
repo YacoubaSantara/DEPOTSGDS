@@ -13,14 +13,17 @@ Endpoints :
 from decimal import Decimal
 from datetime import date as date_type
 
+from django.db.models import Sum
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from api.v1.permissions import IsMarketeurActif
+from api.v1.permissions import (
+    IsMarketeurActif, HasVoirMouvement, HasVoirEtat, HasVoirCoulage, HasVoirFraisPassage,
+)
 from SGDS.models import (
     Mouvement, Produit, PeriodeComptable,
-    StockOuverture, ParametresCoulage, ClotureCoulageLigne,
+    StockOuvertureMarketeur, ParametresCoulage, ClotureCoulageLigne,
 )
 from .serializers import (
     StockGlobalResponseSerializer,
@@ -45,17 +48,28 @@ class StockGlobalView(APIView):
 
     Paramètres :
       produit    : ID du produit (optionnel)
-      date_debut : YYYY-MM-DD (optionnel)
-      date_fin   : YYYY-MM-DD (optionnel)
+      periode_id : ID de PeriodeComptable (optionnel) — si fourni, prime sur
+                   date_debut/date_fin et ajoute le stock d'ouverture (report)
+                   de la période comme point de départ du stock courant.
+      date_debut : YYYY-MM-DD (optionnel, ignoré si periode_id est fourni)
+      date_fin   : YYYY-MM-DD (optionnel, ignoré si periode_id est fourni)
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirEtat]
 
     def get(self, request):
         marketeur  = request.user.marketeur
         produit_id = request.query_params.get('produit')
         date_debut = request.query_params.get('date_debut')
         date_fin   = request.query_params.get('date_fin')
+        periode_id = request.query_params.get('periode_id')
+
+        periode = None
+        if periode_id:
+            try:
+                periode = PeriodeComptable.objects.get(pk=periode_id)
+            except PeriodeComptable.DoesNotExist:
+                periode = None
 
         qs = (
             Mouvement.objects
@@ -72,13 +86,26 @@ class StockGlobalView(APIView):
             except Produit.DoesNotExist:
                 pass
 
-        if date_debut:
-            qs = qs.filter(date_mouvement__gte=date_debut)
-        if date_fin:
-            qs = qs.filter(date_mouvement__lte=date_fin)
+        if periode:
+            qs = qs.filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
+        else:
+            if date_debut:
+                qs = qs.filter(date_mouvement__gte=date_debut)
+            if date_fin:
+                qs = qs.filter(date_mouvement__lte=date_fin)
+
+        # ── Stock d'ouverture (report) de la période sélectionnée ─────
+        # Même source que l'état « Stock ouverture/fermeture »
+        # (StockOuvertureMarketeur, tous régimes douaniers confondus).
+        stock_ouverture = Decimal('0')
+        if periode:
+            som_qs = StockOuvertureMarketeur.objects.filter(periode=periode, marketeur=marketeur)
+            if produit_obj:
+                som_qs = som_qs.filter(produit=produit_obj)
+            stock_ouverture = _D(som_qs.aggregate(t=Sum('volume_ambiant'))['t'])
 
         lignes         = []
-        stock_courant  = Decimal('0')
+        stock_courant  = stock_ouverture
         cumul_entrees  = Decimal('0')
         cumul_sorties  = Decimal('0')
 
@@ -117,6 +144,9 @@ class StockGlobalView(APIView):
             'produit_id':    produit_obj.pk  if produit_obj else None,
             'produit_nom':   produit_obj.nom if produit_obj else 'Tous les produits',
             'produit_sigle': (getattr(produit_obj, 'sigle', '') or produit_obj.nom[:4].upper()) if produit_obj else '',
+            'periode_id':               periode.pk if periode else None,
+            'periode_nom':              str(periode) if periode else '',
+            'stock_ouverture_ambiant':  stock_ouverture,
             'lignes':                   lignes,
             'cumul_entrees_ambiant':    cumul_entrees,
             'cumul_entrees_15':         Decimal('0'),
@@ -136,16 +166,27 @@ class RecapView(APIView):
 
     Récapitulatif des mouvements groupés par produit.
     Paramètres :
-      date_debut : YYYY-MM-DD (optionnel)
-      date_fin   : YYYY-MM-DD (optionnel)
+      periode_id : ID de PeriodeComptable (optionnel) — prime sur
+                   date_debut/date_fin ; ajoute le stock d'ouverture (report)
+                   de la période comme point de départ du stock final.
+      date_debut : YYYY-MM-DD (optionnel, ignoré si periode_id est fourni)
+      date_fin   : YYYY-MM-DD (optionnel, ignoré si periode_id est fourni)
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirMouvement]
 
     def get(self, request):
         marketeur  = request.user.marketeur
         date_debut = request.query_params.get('date_debut')
         date_fin   = request.query_params.get('date_fin')
+        periode_id = request.query_params.get('periode_id')
+
+        periode = None
+        if periode_id:
+            try:
+                periode = PeriodeComptable.objects.get(pk=periode_id)
+            except PeriodeComptable.DoesNotExist:
+                periode = None
 
         qs = (
             Mouvement.objects
@@ -153,15 +194,28 @@ class RecapView(APIView):
             .select_related('produit')
             .order_by('date_mouvement')
         )
-        if date_debut:
-            qs = qs.filter(date_mouvement__gte=date_debut)
-        if date_fin:
-            qs = qs.filter(date_mouvement__lte=date_fin)
+        if periode:
+            qs = qs.filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
+        else:
+            if date_debut:
+                qs = qs.filter(date_mouvement__gte=date_debut)
+            if date_fin:
+                qs = qs.filter(date_mouvement__lte=date_fin)
+
+        # ── Stock d'ouverture (report) par produit, pour la période ───
+        # Même source que l'état « Stock ouverture/fermeture » (tous
+        # régimes douaniers confondus).
+        ouverture_par_produit = {}
+        if periode:
+            for som in StockOuvertureMarketeur.objects.filter(periode=periode, marketeur=marketeur):
+                pid = som.produit_id
+                ouverture_par_produit[pid] = ouverture_par_produit.get(pid, Decimal('0')) + _D(som.volume_ambiant)
 
         produits_dict = {}
         for m in qs:
             pid = m.produit_id
             if pid not in produits_dict:
+                stock_ouverture = ouverture_par_produit.get(pid, Decimal('0'))
                 produits_dict[pid] = {
                     'produit_id':             pid,
                     'produit_nom':            m.produit.nom,
@@ -175,7 +229,8 @@ class RecapView(APIView):
                     'volume_cession_ambiant': Decimal('0'),
                     'nb_acquittements':       0,
                     'volume_acquit_ambiant':  Decimal('0'),
-                    'stock_final_ambiant':    Decimal('0'),
+                    'stock_ouverture_ambiant': stock_ouverture,
+                    'stock_final_ambiant':    stock_ouverture,
                 }
             d = produits_dict[pid]
             t = m.type_mouvement
@@ -197,26 +252,55 @@ class RecapView(APIView):
                 d['nb_acquittements']      += 1
                 d['volume_acquit_ambiant'] += _D(m.acquittement_volume_ambiant)
 
+        # Inclure les produits qui n'ont qu'un stock d'ouverture (aucun
+        # mouvement sur la période), pour que le report reste visible.
+        for pid, stock_ouverture in ouverture_par_produit.items():
+            if pid in produits_dict or stock_ouverture == 0:
+                continue
+            try:
+                produit = Produit.objects.get(pk=pid)
+            except Produit.DoesNotExist:
+                continue
+            produits_dict[pid] = {
+                'produit_id':             pid,
+                'produit_nom':            produit.nom,
+                'produit_sigle':          getattr(produit, 'sigle', '') or produit.nom[:4].upper(),
+                'nb_entrees':             0,
+                'volume_entree_ambiant':  Decimal('0'),
+                'volume_entree_15':       Decimal('0'),
+                'nb_sorties':             0,
+                'volume_sortie_ambiant':  Decimal('0'),
+                'nb_cessions':            0,
+                'volume_cession_ambiant': Decimal('0'),
+                'nb_acquittements':       0,
+                'volume_acquit_ambiant':  Decimal('0'),
+                'stock_ouverture_ambiant': stock_ouverture,
+                'stock_final_ambiant':    stock_ouverture,
+            }
+
         par_produit = sorted(produits_dict.values(), key=lambda x: x['produit_nom'])
 
         def _sum(key):
             return sum(p[key] for p in par_produit)
 
         totaux = {
-            'nb_mouvements':          qs.count(),
-            'nb_entrees':             sum(p['nb_entrees']        for p in par_produit),
-            'volume_entree_ambiant':  _sum('volume_entree_ambiant'),
-            'nb_sorties':             sum(p['nb_sorties']        for p in par_produit),
-            'volume_sortie_ambiant':  _sum('volume_sortie_ambiant'),
-            'nb_cessions':            sum(p['nb_cessions']       for p in par_produit),
-            'volume_cession_ambiant': _sum('volume_cession_ambiant'),
-            'nb_acquittements':       sum(p['nb_acquittements']  for p in par_produit),
-            'volume_acquit_ambiant':  _sum('volume_acquit_ambiant'),
-            'stock_final_ambiant':    _sum('stock_final_ambiant'),
+            'nb_mouvements':           qs.count(),
+            'nb_entrees':              sum(p['nb_entrees']        for p in par_produit),
+            'volume_entree_ambiant':   _sum('volume_entree_ambiant'),
+            'nb_sorties':              sum(p['nb_sorties']        for p in par_produit),
+            'volume_sortie_ambiant':   _sum('volume_sortie_ambiant'),
+            'nb_cessions':             sum(p['nb_cessions']       for p in par_produit),
+            'volume_cession_ambiant':  _sum('volume_cession_ambiant'),
+            'nb_acquittements':        sum(p['nb_acquittements']  for p in par_produit),
+            'volume_acquit_ambiant':   _sum('volume_acquit_ambiant'),
+            'stock_ouverture_ambiant': _sum('stock_ouverture_ambiant'),
+            'stock_final_ambiant':     _sum('stock_final_ambiant'),
         }
 
         data = {
             'marketeur_nom': marketeur.raison_sociale,
+            'periode_id':    periode.pk if periode else None,
+            'periode_nom':   str(periode) if periode else '',
             'par_produit':   par_produit,
             'totaux':        totaux,
         }
@@ -280,7 +364,7 @@ class StockOuvertureFermetureView(APIView):
       - stock_fermeture  = ouverture + entrées − sorties
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirEtat]
 
     def get(self, request):
         marketeur  = request.user.marketeur
@@ -295,16 +379,21 @@ class StockOuvertureFermetureView(APIView):
                 pass
 
         if target_periode is None:
-            # Priorité à la période ouverte ; sinon la plus récente
             target_periode = (
                 PeriodeComptable.objects.filter(statut='OUVERTE').first()
                 or PeriodeComptable.objects.first()
             )
 
-        # ── Mouvements de la période ────────────────────────────────
+        # ── Mouvements propres du marketeur ────────────────────────
         mvt_qs = (
             Mouvement.objects
             .filter(marketeur=marketeur)
+            .select_related('produit')
+        )
+        # Cessions reçues par ce marketeur (enregistrées sous le marketeur émetteur)
+        cessions_recues_qs = (
+            Mouvement.objects
+            .filter(cession_marketeur_destinataire=marketeur, type_mouvement='CESSION')
             .select_related('produit')
         )
 
@@ -313,8 +402,12 @@ class StockOuvertureFermetureView(APIView):
                 date_mouvement__gte=target_periode.date_debut,
                 date_mouvement__lte=target_periode.date_fin,
             )
+            cessions_recues_qs = cessions_recues_qs.filter(
+                date_mouvement__gte=target_periode.date_debut,
+                date_mouvement__lte=target_periode.date_fin,
+            )
 
-        # Agréger par produit
+        # Agréger par produit — mouvements propres
         produits_map = {}
         for m in mvt_qs:
             pid = m.produit_id
@@ -334,25 +427,48 @@ class StockOuvertureFermetureView(APIView):
             elif t == 'CESSION':
                 produits_map[pid]['sorties'] += _D(m.cession_volume_ambiant)
 
-        # ── Stocks d'ouverture ──────────────────────────────────────
-        # 1) Depuis le modèle StockOuverture (dépôt global) si disponible
-        # 2) Sinon calculé = somme des mouvements AVANT la période
+        # Cessions reçues → entrées
+        for m in cessions_recues_qs:
+            pid = m.produit_id
+            if pid not in produits_map:
+                produits_map[pid] = {
+                    'produit_id':    pid,
+                    'produit_nom':   m.produit.nom,
+                    'produit_sigle': getattr(m.produit, 'sigle', '') or m.produit.nom[:4].upper(),
+                    'entrees':       Decimal('0'),
+                    'sorties':       Decimal('0'),
+                }
+            produits_map[pid]['entrees'] += _D(m.cession_volume_ambiant)
+
+        # ── Stocks d'ouverture depuis StockOuvertureMarketeur ───────
+        # Somme SD + AC par produit, pour ce marketeur et cette période
         so_by_produit = {}
         if target_periode:
-            for so in StockOuverture.objects.filter(periode=target_periode):
-                so_by_produit[so.produit_id] = _D(so.volume_ambiant)
-
-        # Pour les produits sans StockOuverture enregistré, calculer depuis l'historique
-        if target_periode:
-            for pid in produits_map:
+            for som in StockOuvertureMarketeur.objects.filter(
+                periode=target_periode, marketeur=marketeur
+            ).select_related('produit'):
+                pid = som.produit_id
                 if pid not in so_by_produit:
-                    agg = Mouvement.objects.filter(
+                    so_by_produit[pid] = Decimal('0')
+                so_by_produit[pid] += _D(som.volume_ambiant)
+
+        # Fallback : produits sans StockOuvertureMarketeur → calculé depuis l'historique
+        if target_periode:
+            for pid in list(produits_map.keys()):
+                if pid not in so_by_produit:
+                    agg_own = Mouvement.objects.filter(
                         marketeur=marketeur,
                         produit_id=pid,
                         date_mouvement__lt=target_periode.date_debut,
                     )
+                    agg_recu = Mouvement.objects.filter(
+                        cession_marketeur_destinataire=marketeur,
+                        produit_id=pid,
+                        type_mouvement='CESSION',
+                        date_mouvement__lt=target_periode.date_debut,
+                    )
                     stock = Decimal('0')
-                    for m in agg:
+                    for m in agg_own:
                         t = m.type_mouvement
                         if t == 'ENTREE':
                             stock += _D(m.volume_ambiant_recu)
@@ -360,21 +476,232 @@ class StockOuvertureFermetureView(APIView):
                             stock -= _D(m.volume_ambiant_sortie)
                         elif t == 'CESSION':
                             stock -= _D(m.cession_volume_ambiant)
-                    so_by_produit[pid] = stock
+                    for m in agg_recu:
+                        stock += _D(m.cession_volume_ambiant)
+                    so_by_produit[pid] = max(stock, Decimal('0'))
+
+        # Produits avec stock d'ouverture mais sans mouvement cette période
+        # → les ajouter quand même pour que les totaux d'ouverture soient exacts
+        if target_periode:
+            for som in StockOuvertureMarketeur.objects.filter(
+                periode=target_periode, marketeur=marketeur
+            ).select_related('produit'):
+                pid = som.produit_id
+                if pid not in produits_map and som.produit:
+                    produits_map[pid] = {
+                        'produit_id':    pid,
+                        'produit_nom':   som.produit.nom,
+                        'produit_sigle': getattr(som.produit, 'sigle', '') or som.produit.nom[:4].upper(),
+                        'entrees':       Decimal('0'),
+                        'sorties':       Decimal('0'),
+                    }
+
+        # ── Quote-part coulage (qp_coul) par produit ────────────────
+        # La QP P/G Installation s'ajoute au stock Acquitté en clôture
+        # (peut être positive ou négative). Identique à la logique web :
+        #   Stock Clôture = Stock Comptable + qp_coul  (côté AC uniquement)
+        qp_by_produit = {}
+        if target_periode:
+            for ligne in ClotureCoulageLigne.objects.filter(
+                marketeur=marketeur,
+                cloture__periode=target_periode,
+            ).select_related('produit'):
+                pid = ligne.produit_id
+                if pid not in qp_by_produit:
+                    qp_by_produit[pid] = Decimal('0')
+                qp_by_produit[pid] += _D(ligne.qp_coul)
 
         # ── Construire les lignes ───────────────────────────────────
         lignes = []
         for d in sorted(produits_map.values(), key=lambda x: x['produit_nom']):
             pid        = d['produit_id']
             stock_ouv  = so_by_produit.get(pid, Decimal('0'))
-            stock_ferm = stock_ouv + d['entrees'] - d['sorties']
+            qp_coul    = qp_by_produit.get(pid, Decimal('0'))
+            sorties    = d['sorties']                                  # mouvements uniquement (idem web)
+            stock_ferm = stock_ouv + d['entrees'] - sorties + qp_coul  # QP s'ajoute à la fermeture (côté AC)
             lignes.append({
                 'produit_id':      pid,
                 'produit_nom':     d['produit_nom'],
                 'produit_sigle':   d['produit_sigle'],
                 'stock_ouverture': stock_ouv,
                 'entrees':         d['entrees'],
-                'sorties':         d['sorties'],
+                'sorties':         sorties,
+                'stock_fermeture': stock_ferm,
+            })
+
+        def _s(key):
+            return sum(l[key] for l in lignes)
+
+        data = {
+            'marketeur_nom':   marketeur.raison_sociale,
+            'periode_id':      target_periode.pk  if target_periode else None,
+            'periode_nom':     str(target_periode) if target_periode else '',
+            'lignes':          lignes,
+            'total_ouverture': _s('stock_ouverture'),
+            'total_entrees':   _s('entrees'),
+            'total_sorties':   _s('sorties'),
+            'total_fermeture': _s('stock_fermeture'),
+        }
+        return Response(StockOuvertureResponseSerializer(data).data)
+
+
+class Stock15View(APIView):
+    """
+    GET /api/v1/etats/stock-15/
+
+    Équivalent de StockOuvertureFermetureView, mais en volumes @15°C
+    (standard température) au lieu de volumes ambiants.
+
+    Paramètres :
+      periode_id : ID de PeriodeComptable (optionnel — défaut = période ouverte)
+
+    Retourne, pour chaque produit du marketeur :
+      - stock_ouverture  (StockOuvertureMarketeur.volume_15c de la période)
+      - entrees          (Σ volume_15c_recu pendant la période)
+      - sorties          (Σ volume_15c_sortie / cession_volume_15c pendant la période)
+      - stock_fermeture  = ouverture + entrées − sorties
+
+    Le coulage n'étant pas suivi en @15°C dans ce système (cf. web
+    SGDS/views/mensuel.py::_calculer_stock_a_15), aucune quote-part n'est
+    ajoutée ici, contrairement au stock ambiant.
+    """
+    authentication_classes = [JWTAuthentication]
+    permission_classes     = [HasVoirEtat]
+
+    def get(self, request):
+        marketeur  = request.user.marketeur
+        periode_id = request.query_params.get('periode_id')
+
+        target_periode = None
+        if periode_id:
+            try:
+                target_periode = PeriodeComptable.objects.get(pk=periode_id)
+            except PeriodeComptable.DoesNotExist:
+                pass
+
+        if target_periode is None:
+            target_periode = (
+                PeriodeComptable.objects.filter(statut='OUVERTE').first()
+                or PeriodeComptable.objects.first()
+            )
+
+        mvt_qs = (
+            Mouvement.objects
+            .filter(marketeur=marketeur)
+            .select_related('produit')
+        )
+        cessions_recues_qs = (
+            Mouvement.objects
+            .filter(cession_marketeur_destinataire=marketeur, type_mouvement='CESSION')
+            .select_related('produit')
+        )
+
+        if target_periode:
+            mvt_qs = mvt_qs.filter(
+                date_mouvement__gte=target_periode.date_debut,
+                date_mouvement__lte=target_periode.date_fin,
+            )
+            cessions_recues_qs = cessions_recues_qs.filter(
+                date_mouvement__gte=target_periode.date_debut,
+                date_mouvement__lte=target_periode.date_fin,
+            )
+
+        produits_map = {}
+        for m in mvt_qs:
+            pid = m.produit_id
+            if pid not in produits_map:
+                produits_map[pid] = {
+                    'produit_id':    pid,
+                    'produit_nom':   m.produit.nom,
+                    'produit_sigle': getattr(m.produit, 'sigle', '') or m.produit.nom[:4].upper(),
+                    'entrees':       Decimal('0'),
+                    'sorties':       Decimal('0'),
+                }
+            t = m.type_mouvement
+            if t == 'ENTREE':
+                produits_map[pid]['entrees'] += _D(m.volume_15c_recu)
+            elif t == 'SORTIE':
+                produits_map[pid]['sorties'] += _D(m.volume_15c_sortie)
+            elif t == 'CESSION':
+                produits_map[pid]['sorties'] += _D(m.cession_volume_15c)
+
+        for m in cessions_recues_qs:
+            pid = m.produit_id
+            if pid not in produits_map:
+                produits_map[pid] = {
+                    'produit_id':    pid,
+                    'produit_nom':   m.produit.nom,
+                    'produit_sigle': getattr(m.produit, 'sigle', '') or m.produit.nom[:4].upper(),
+                    'entrees':       Decimal('0'),
+                    'sorties':       Decimal('0'),
+                }
+            produits_map[pid]['entrees'] += _D(m.cession_volume_15c)
+
+        # ── Stocks d'ouverture @15°C depuis StockOuvertureMarketeur ───
+        so_by_produit = {}
+        if target_periode:
+            for som in StockOuvertureMarketeur.objects.filter(
+                periode=target_periode, marketeur=marketeur
+            ).select_related('produit'):
+                pid = som.produit_id
+                so_by_produit[pid] = so_by_produit.get(pid, Decimal('0')) + _D(som.volume_15c)
+
+        # Fallback : produits sans StockOuvertureMarketeur → calculé depuis l'historique
+        if target_periode:
+            for pid in list(produits_map.keys()):
+                if pid not in so_by_produit:
+                    agg_own = Mouvement.objects.filter(
+                        marketeur=marketeur,
+                        produit_id=pid,
+                        date_mouvement__lt=target_periode.date_debut,
+                    )
+                    agg_recu = Mouvement.objects.filter(
+                        cession_marketeur_destinataire=marketeur,
+                        produit_id=pid,
+                        type_mouvement='CESSION',
+                        date_mouvement__lt=target_periode.date_debut,
+                    )
+                    stock = Decimal('0')
+                    for m in agg_own:
+                        t = m.type_mouvement
+                        if t == 'ENTREE':
+                            stock += _D(m.volume_15c_recu)
+                        elif t == 'SORTIE':
+                            stock -= _D(m.volume_15c_sortie)
+                        elif t == 'CESSION':
+                            stock -= _D(m.cession_volume_15c)
+                    for m in agg_recu:
+                        stock += _D(m.cession_volume_15c)
+                    so_by_produit[pid] = max(stock, Decimal('0'))
+
+        # Produits avec stock d'ouverture mais sans mouvement cette période
+        if target_periode:
+            for som in StockOuvertureMarketeur.objects.filter(
+                periode=target_periode, marketeur=marketeur
+            ).select_related('produit'):
+                pid = som.produit_id
+                if pid not in produits_map and som.produit:
+                    produits_map[pid] = {
+                        'produit_id':    pid,
+                        'produit_nom':   som.produit.nom,
+                        'produit_sigle': getattr(som.produit, 'sigle', '') or som.produit.nom[:4].upper(),
+                        'entrees':       Decimal('0'),
+                        'sorties':       Decimal('0'),
+                    }
+
+        lignes = []
+        for d in sorted(produits_map.values(), key=lambda x: x['produit_nom']):
+            pid        = d['produit_id']
+            stock_ouv  = so_by_produit.get(pid, Decimal('0'))
+            sorties    = d['sorties']
+            stock_ferm = stock_ouv + d['entrees'] - sorties
+            lignes.append({
+                'produit_id':      pid,
+                'produit_nom':     d['produit_nom'],
+                'produit_sigle':   d['produit_sigle'],
+                'stock_ouverture': stock_ouv,
+                'entrees':         d['entrees'],
+                'sorties':         sorties,
                 'stock_fermeture': stock_ferm,
             })
 
@@ -402,18 +729,38 @@ class FraisPassageView(APIView):
     """
     GET /api/v1/etats/frais-passage/
 
+    Paramètres :
+      periode_id : ID de PeriodeComptable (optionnel) — résout le tarif en
+                   vigueur à la date de début de cette période, au lieu
+                   d'aujourd'hui (utile pour consulter le tarif d'un mois
+                   passé si plusieurs tarifs se sont succédé).
+
     Retourne :
       - tarif_global     : prix unitaire de passage ParametresCoulage en vigueur
       - date_application : date d'application du tarif global
       - produits         : liste avec prix_passage par produit (spécifique ou global)
+
+    Si aucun ParametresCoulage n'est configuré, on retombe sur le même tarif
+    par défaut que le document web (cf. SGDS/services/frais_passage.py::
+    calculer_frais_passage), pour rester cohérent entre les deux plateformes.
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirFraisPassage]
+
+    TARIF_DEFAUT = Decimal('4.7554')
 
     def get(self, request):
-        # Tarif global en vigueur aujourd'hui
-        params = ParametresCoulage.en_vigueur(date_type.today())
-        tarif_global     = _D(params.prix_unitaire_passage) if params else Decimal('0')
+        periode_id = request.query_params.get('periode_id')
+        periode = None
+        if periode_id:
+            try:
+                periode = PeriodeComptable.objects.get(pk=periode_id)
+            except PeriodeComptable.DoesNotExist:
+                periode = None
+
+        ref_date = periode.date_debut if periode else date_type.today()
+        params = ParametresCoulage.en_vigueur(ref_date)
+        tarif_global     = _D(params.prix_unitaire_passage) if params else self.TARIF_DEFAUT
         date_application = str(params.date_application)     if params else ''
 
         # Produits actifs avec leur tarif spécifique éventuel
@@ -438,6 +785,8 @@ class FraisPassageView(APIView):
         data = {
             'tarif_global':     tarif_global,
             'date_application': date_application,
+            'periode_id':       periode.pk if periode else None,
+            'periode_nom':      str(periode) if periode else '',
             'produits':         produits_data,
         }
         return Response(FraisPassageResponseSerializer(data).data)
@@ -458,7 +807,7 @@ class CoulageView(APIView):
     avec les totaux.
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes     = [IsMarketeurActif]
+    permission_classes     = [HasVoirCoulage]
 
     def get(self, request):
         marketeur  = request.user.marketeur

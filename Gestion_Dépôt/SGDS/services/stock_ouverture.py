@@ -39,6 +39,7 @@ def resoudre_stocks_ouverture(periode, *, forcer_recalcul=False) -> dict:
     dernier_j = (
         JaugeageJour.objects
         .filter(
+            depot=periode.depot,
             date_jaugeage__gte=periode_prec.date_debut,
             date_jaugeage__lte=periode_prec.date_fin,
         )
@@ -144,6 +145,7 @@ def _resoudre_depuis_inventaire_initial(periode, forcer_recalcul, resultat) -> d
     # Cela couvre les inventaires saisis avant le début de la période (ancien système,
     # pré-déploiement) et ceux saisis en cours de période.
     inventaires = InventaireInitialMarketeur.objects.filter(
+        depot=periode.depot,
         date_inventaire__lte=periode.date_fin,
     ).select_related('produit')
 

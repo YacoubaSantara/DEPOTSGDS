@@ -14,7 +14,7 @@ from django.test import TestCase
 from SGDS.models import (
     Famille, Produit, Cuve, ParametreJaugeageCuve,
     JaugeageJour, MesureCuve, Mouvement, Marketeur,
-    PeriodeComptable,
+    PeriodeComptable, Depot,
 )
 from SGDS.services.periode_comptable import (
     ouvrir_periode, cloturer_periode, verifier_peut_ouvrir_periode,
@@ -31,6 +31,12 @@ User = get_user_model()
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _make_depot(code='DEP-T'):
+    return Depot.objects.get_or_create(
+        code=code, defaults={'nom': f'Dépôt Test {code}'}
+    )[0]
+
 
 def _make_famille(nom='Carburant', code='CARB'):
     return Famille.objects.get_or_create(
@@ -52,6 +58,7 @@ def _make_cuve(numero='CUV-01', produit=None, htt=5000, va=1000, vmn=10):
             'designation': f'Cuve {numero}',
             'produit': produit,
             'capacite_totale': 500_000,
+            'depot': _make_depot(),
         }
     )[0]
     if produit:
@@ -98,7 +105,7 @@ def _make_mesure(jaugeage, cuve, creux=1000):
 
 
 def _open_jan_2026():
-    return ouvrir_periode(1, 2026)
+    return ouvrir_periode(_make_depot(), 1, 2026)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -117,6 +124,7 @@ class WorkflowPeriodeTests(TestCase):
         produit    = _make_produit('GO2')
         marketeur  = _make_marketeur('M1')
         mouvement  = Mouvement(
+            depot            = _make_depot(),
             type_mouvement  = 'ENTREE',
             regime_douanier = 'ACQUITTE',
             date_mouvement  = date(2026, 1, 15),
@@ -133,8 +141,9 @@ class WorkflowPeriodeTests(TestCase):
     def test_creation_jaugeage_sans_periode_ouverte_refusee(self):
         """Aucune période ouverte → création JaugeageJour impossible."""
         j = JaugeageJour(
+            depot          = _make_depot(),
             date_jaugeage  = date(2026, 1, 10),
-            type_jaugeage  = 'J',
+            type_jaugeage  = 'J', est_valide=True,
         )
         with self.assertRaises(ValidationError):
             j.full_clean()
@@ -142,7 +151,7 @@ class WorkflowPeriodeTests(TestCase):
     def test_ouverture_premiere_periode_ok(self):
         """Si aucune période en base, on peut ouvrir n'importe quel mois."""
         self.assertEqual(PeriodeComptable.objects.count(), 0)
-        p = ouvrir_periode(3, 2026)
+        p = ouvrir_periode(_make_depot(), 3, 2026)
         self.assertEqual(p.statut, 'OUVERTE')
         self.assertEqual(p.mois, 3)
         self.assertEqual(p.annee, 2026)
@@ -151,40 +160,41 @@ class WorkflowPeriodeTests(TestCase):
         """Janvier OUVERTE → impossible d'ouvrir février."""
         _open_jan_2026()
         with self.assertRaises(ValidationError):
-            ouvrir_periode(2, 2026)
+            ouvrir_periode(_make_depot(), 2, 2026)
 
     def test_ouverture_periode_non_chronologique_refusee(self):
         """Janvier CLOTUREE → on peut ouvrir février mais pas mars."""
         p_jan = _open_jan_2026()
         # Créer un jaugeage pour pouvoir clôturer
         j = JaugeageJour.objects.create(
-            date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
+            depot=_make_depot(), date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
         )
         cloturer_periode(p_jan)
         with self.assertRaises(ValidationError):
-            ouvrir_periode(3, 2026)  # saut non autorisé
+            ouvrir_periode(_make_depot(), 3, 2026)  # saut non autorisé
 
     def test_ouverture_mois_suivant_apres_cloture_ok(self):
         """Janvier CLOTUREE → ouverture de février OK."""
         p_jan = _open_jan_2026()
         JaugeageJour.objects.create(
-            date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
+            depot=_make_depot(), date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
         )
         cloturer_periode(p_jan)
-        p_fev = ouvrir_periode(2, 2026)
+        p_fev = ouvrir_periode(_make_depot(), 2, 2026)
         self.assertEqual(p_fev.statut, 'OUVERTE')
 
     def test_creation_mouvement_periode_cloturee_refusee(self):
         """Période CLOTUREE → Mouvement refusé avec message explicite."""
         p = _open_jan_2026()
         JaugeageJour.objects.create(
-            date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
+            depot=_make_depot(), date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
         )
         cloturer_periode(p)
         produit   = _make_produit('GO3')
         marketeur = _make_marketeur('M2')
         with self.assertRaises(ValidationError) as ctx:
             Mouvement(
+                depot            = _make_depot(),
                 type_mouvement  = 'ENTREE',
                 regime_douanier = 'ACQUITTE',
                 date_mouvement  = date(2026, 1, 5),
@@ -203,6 +213,7 @@ class WorkflowPeriodeTests(TestCase):
         produit   = _make_produit('GO4')
         marketeur = _make_marketeur('M3')
         m = Mouvement(
+            depot            = _make_depot(),
             type_mouvement  = 'ENTREE',
             regime_douanier = 'ACQUITTE',
             date_mouvement  = date(2026, 1, 10),
@@ -220,13 +231,13 @@ class WorkflowPeriodeTests(TestCase):
         """Tenter d'ouvrir une période déjà existante → ValidationError."""
         _open_jan_2026()
         JaugeageJour.objects.create(
-            date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
+            depot=_make_depot(), date_jaugeage=date(2026, 1, 15), type_jaugeage='J'
         )
         p = PeriodeComptable.objects.get(mois=1, annee=2026)
         cloturer_periode(p)
-        ouvrir_periode(2, 2026)
+        ouvrir_periode(_make_depot(), 2, 2026)
         with self.assertRaises(ValidationError):
-            ouvrir_periode(2, 2026)  # existe déjà
+            ouvrir_periode(_make_depot(), 2, 2026)  # existe déjà
 
     def test_cloture_sans_jaugeage_refusee(self):
         """Clôturer une période sans aucun jaugeage → ValidationError."""
@@ -245,7 +256,7 @@ class RecalculStockTests(TestCase):
         _open_jan_2026()
 
     def _jaugeage(self, d=date(2026, 1, 5)):
-        return JaugeageJour.objects.create(date_jaugeage=d, type_jaugeage='J')
+        return JaugeageJour.objects.create(depot=_make_depot(), date_jaugeage=d, type_jaugeage='J', est_valide=True)
 
     def test_stock_mis_a_jour_apres_mesure(self):
         """
@@ -346,7 +357,7 @@ class EcartJaugeagesTests(TestCase):
                                    htt=10000, va=0, vmn=10)
 
     def _j(self, d, creux):
-        j = JaugeageJour.objects.create(date_jaugeage=d, type_jaugeage='J')
+        j = JaugeageJour.objects.create(depot=_make_depot(), date_jaugeage=d, type_jaugeage='J', est_valide=True)
         _make_mesure(j, self.cuve, creux=creux)
         return j
 
@@ -403,6 +414,7 @@ class EcartJaugeagesTests(TestCase):
         marketeur = _make_marketeur('M4')
         # Mouvement ENTREE : volume_ambiant_recu=100, perte_gain_reception=0
         Mouvement.objects.create(
+            depot=_make_depot(),
             type_mouvement='ENTREE',
             regime_douanier='ACQUITTE',
             date_mouvement=date(2026, 1, 15),
@@ -415,6 +427,7 @@ class EcartJaugeagesTests(TestCase):
             temperature_reception=Decimal('32'),
         )
         Mouvement.objects.create(
+            depot=_make_depot(),
             type_mouvement='SORTIE',
             regime_douanier='ACQUITTE',
             date_mouvement=date(2026, 1, 20),
@@ -447,9 +460,9 @@ class EcartJaugeagesTests(TestCase):
         """Fonctionne avec un produit non GASOIL/SUPER (ex: PETROLE)."""
         p2 = _make_produit('PETRO', 'Pétrole lampant')
         c2 = _make_cuve('CUV-31', produit=p2, htt=5000, va=1000, vmn=10)
-        j1 = JaugeageJour.objects.create(date_jaugeage=date(2026, 1, 1), type_jaugeage='J')
+        j1 = JaugeageJour.objects.create(depot=_make_depot(), date_jaugeage=date(2026, 1, 1), type_jaugeage='J', est_valide=True)
         _make_mesure(j1, c2, creux=500)
-        j2 = JaugeageJour.objects.create(date_jaugeage=date(2026, 1, 15), type_jaugeage='J')
+        j2 = JaugeageJour.objects.create(depot=_make_depot(), date_jaugeage=date(2026, 1, 15), type_jaugeage='J', est_valide=True)
         _make_mesure(j2, c2, creux=500)
         _make_mesure(j2, self.cuve, creux=5000)
 

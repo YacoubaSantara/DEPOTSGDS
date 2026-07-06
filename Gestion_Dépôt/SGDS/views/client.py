@@ -11,6 +11,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Q
 from django.core.paginator import Paginator
 
+from SGDS.users.decorators import voir_required
+
 
 # ─────────────────────────────────────────────────────────────
 #  Décorateur d'accès
@@ -279,6 +281,7 @@ def client_dashboard(request):
 # ─────────────────────────────────────────────────────────────
 
 @marketeur_required
+@voir_required('voir_mouvement')
 def client_mouvements(request):
     from SGDS.models import Mouvement, Produit
 
@@ -348,13 +351,15 @@ def client_mouvements(request):
 
 
 @marketeur_required
+@voir_required('voir_mouvement')
 def client_mouvements_pdf(request):
     """Télécharge la liste des mouvements du marketeur en PDF (max 500 lignes)."""
     from django.utils import timezone
-    from SGDS.models import Mouvement
+    from SGDS.models import Mouvement, Societe
     from SGDS.services.export_pdf import render_to_pdf
 
     mkt = request.user.marketeur
+    societe = Societe.get_instance()
     qs = (
         Mouvement.objects
         .filter(marketeur=mkt)
@@ -383,6 +388,7 @@ def client_mouvements_pdf(request):
         'Espace_Marketeur/mouvements_pdf.html',
         {
             'mkt':          mkt,
+            'societe':      societe,
             'mouvements':   mouvements,
             'nb_total':     nb_total,
             'generated_at': timezone.now().strftime('%d/%m/%Y à %H:%M'),
@@ -400,6 +406,7 @@ def client_mouvements_pdf(request):
 # ─────────────────────────────────────────────────────────────
 
 @marketeur_required
+@voir_required('voir_detail_mouvement')
 def client_mouvement_detail(request, uuid, slug):
     from SGDS.models import Mouvement, MouvementDocument
     mkt = request.user.marketeur
@@ -447,3 +454,54 @@ def notif_tout_marquer_lu(request):
     mkt = request.user.marketeur
     Notification.objects.filter(marketeur=mkt, lue=False).update(lue=True)
     return redirect(request.META.get('HTTP_REFERER', 'client_dashboard'))
+
+
+# ─────────────────────────────────────────────────────────────
+#  PARAMÈTRES — sous-menus : Profil (fiche entreprise) / Sécurité (mot de passe)
+# ─────────────────────────────────────────────────────────────
+
+@marketeur_required
+def client_parametres_profil(request):
+    from SGDS.forms import MarketeurContactForm
+
+    mkt = request.user.marketeur
+
+    if request.method == 'POST':
+        form = MarketeurContactForm(request.POST, request.FILES, instance=mkt)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Vos coordonnées ont été mises à jour.")
+            return redirect('client_parametres_profil')
+        messages.error(request, "Veuillez corriger les erreurs ci-dessous.")
+    else:
+        form = MarketeurContactForm(instance=mkt)
+
+    return render(request, 'Espace_Marketeur/parametres/profil.html', {
+        'mkt':  mkt,
+        'form': form,
+    })
+
+
+@marketeur_required
+def client_parametres_securite(request):
+    mkt = request.user.marketeur
+
+    if request.method == 'POST':
+        ancien   = request.POST.get('ancien_mot_de_passe', '')
+        nouveau  = request.POST.get('nouveau_mot_de_passe', '')
+        confirme = request.POST.get('confirme_mot_de_passe', '')
+        if not request.user.check_password(ancien):
+            messages.error(request, "Ancien mot de passe incorrect.")
+        elif len(nouveau) < 8:
+            messages.error(request, "Le nouveau mot de passe doit faire au moins 8 caractères.")
+        elif nouveau != confirme:
+            messages.error(request, "Les deux mots de passe ne correspondent pas.")
+        else:
+            request.user.set_password(nouveau)
+            request.user.save(update_fields=['password'])
+            messages.success(request, "Mot de passe modifié. Veuillez vous reconnecter.")
+            return redirect('connexion')
+
+    return render(request, 'Espace_Marketeur/parametres/securite.html', {
+        'mkt': mkt,
+    })

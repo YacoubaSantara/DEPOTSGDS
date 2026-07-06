@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../../utils/secureStorage';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 import { profilApi, ProfilData } from '../../api/profil';
@@ -74,7 +74,7 @@ export function ProfilScreen() {
 
           <View style={styles.heroBar}>
             <Text style={styles.heroBarTitle}>Profil</Text>
-            <TouchableOpacity style={styles.editBtn}>
+            <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('ModifierProfil')}>
               <Ionicons name="create-outline" size={16} color={Colors.white} />
             </TouchableOpacity>
           </View>

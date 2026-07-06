@@ -38,13 +38,13 @@ def _flux_periode_marketeur_produit(periode, marketeur, produit):
 
     mvts_p = list(
         Mouvement.objects.filter(
-            marketeur=marketeur, produit=produit,
+            depot=periode.depot, marketeur=marketeur, produit=produit,
             date_mouvement__range=(periode.date_debut, periode.date_fin),
         )
     )
     cessions_recues = list(
         Mouvement.objects.filter(
-            cession_marketeur_destinataire=marketeur, produit=produit,
+            depot=periode.depot, cession_marketeur_destinataire=marketeur, produit=produit,
             type_mouvement='CESSION',
             date_mouvement__range=(periode.date_debut, periode.date_fin),
         )
@@ -200,6 +200,7 @@ def resoudre_stock_ouverture_marketeur(periode, *, forcer_recalcul=False) -> dic
                         continue
 
                     inv = InventaireInitialMarketeur.objects.filter(
+                        depot=periode.depot,
                         marketeur=marketeur, produit=produit, regime_douanier=regime,
                         date_inventaire__lte=periode.date_fin,
                     ).aggregate(amb=Sum('volume_ambiant'), v15=Sum('volume_15c'))

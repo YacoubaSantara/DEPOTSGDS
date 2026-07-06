@@ -10,7 +10,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import dayjs from 'dayjs';
 
-import { etatsApi, StockGlobalResponse, Produit, StockGlobalFilters } from '../../api/etats';
+import { etatsApi, StockGlobalResponse, Produit, Periode, StockGlobalFilters } from '../../api/etats';
 import { Colors, FontSize, Radius } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -58,6 +58,9 @@ export function CarteStockScreen() {
   const [produits, setProduits]             = useState<Produit[]>([]);
   const [selectedProduit, setSelectedProduit] = useState<Produit | null>(null);
   const [period, setPeriod]                 = useState('30j');
+  const [periodes, setPeriodes]             = useState<Periode[]>([]);
+  const [selectedPeriode, setSelectedPeriode] = useState<Periode | null>(null);
+  const [showPeriodeModal, setShowPeriodeModal] = useState(false);
   const [data, setData]                     = useState<StockGlobalResponse | null>(null);
   const [loading, setLoading]               = useState(true);
   const [refreshing, setRefreshing]         = useState(false);
@@ -65,23 +68,33 @@ export function CarteStockScreen() {
   const [showProduitModal, setShowProduitModal] = useState(false);
   const [generatingPdf, setGeneratingPdf]   = useState(false);
 
-  // Charger la liste des produits une seule fois
+  // Charger la liste des produits et des périodes comptables une seule fois
   useEffect(() => {
     etatsApi.produits()
       .then(res => setProduits(res.data))
+      .catch(() => {});
+    etatsApi.periodes()
+      .then(res => setPeriodes(res.data))
       .catch(() => {});
   }, []);
 
   const buildFilters = useCallback((): StockGlobalFilters => {
     const filters: StockGlobalFilters = {};
     if (selectedProduit) filters.produit = selectedProduit.id;
-    const p = PERIODS.find(x => x.label === period);
-    if (p?.days) {
-      filters.date_debut = dayjs().subtract(p.days, 'day').format('YYYY-MM-DD');
-      filters.date_fin   = dayjs().format('YYYY-MM-DD');
+    if (selectedPeriode) {
+      // La sélection d'une période comptable prime sur le filtre rapide par
+      // plage de jours : elle permet aussi d'afficher le stock d'ouverture
+      // (report) de cette période, que la plage de jours n'a pas.
+      filters.periode_id = selectedPeriode.id;
+    } else {
+      const p = PERIODS.find(x => x.label === period);
+      if (p?.days) {
+        filters.date_debut = dayjs().subtract(p.days, 'day').format('YYYY-MM-DD');
+        filters.date_fin   = dayjs().format('YYYY-MM-DD');
+      }
     }
     return filters;
-  }, [selectedProduit, period]);
+  }, [selectedProduit, period, selectedPeriode]);
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -105,17 +118,23 @@ export function CarteStockScreen() {
     if (!data) return;
     setGeneratingPdf(true);
     try {
-      const p = PERIODS.find(x => x.label === period);
-      const periodeLabel = p?.days
-        ? `Derniers ${period} — du ${dayjs().subtract(p.days, 'day').format('DD/MM/YYYY')} au ${dayjs().format('DD/MM/YYYY')}`
-        : 'Tous les mouvements';
+      let periodeLabel: string;
+      if (selectedPeriode) {
+        periodeLabel = selectedPeriode.nom;
+      } else {
+        const p = PERIODS.find(x => x.label === period);
+        periodeLabel = p?.days
+          ? `Derniers ${period} — du ${dayjs().subtract(p.days, 'day').format('DD/MM/YYYY')} au ${dayjs().format('DD/MM/YYYY')}`
+          : 'Tous les mouvements';
+      }
 
       const html = buildCarteStockHtml({
         marketeurNom:          data.marketeur_nom || 'Marketeur',
         produitNom:            data.produit_nom   || selectedProduit?.nom || 'Tous les produits',
         produitSigle:          data.produit_sigle || selectedProduit?.sigle || 'ALL',
         periodeLabel,
-        lignes:                data.lignes,
+        lignes:                   data.lignes,
+        stock_ouverture_ambiant: Number(data.stock_ouverture_ambiant),
         cumul_entrees_ambiant: Number(data.cumul_entrees_ambiant),
         cumul_sorties_ambiant: Number(data.cumul_sorties_ambiant),
         stock_final_ambiant:   Number(data.stock_final_ambiant),
@@ -147,10 +166,12 @@ export function CarteStockScreen() {
   if (loading) return <LoadingSpinner fullScreen message="Chargement de la carte de stock..." />;
   if (error)   return <ErrorMessage message={error} onRetry={() => fetchData()} />;
 
-  const lignes  = data?.lignes            ?? [];
-  const entrees = Number(data?.cumul_entrees_ambiant ?? 0);
-  const sorties = Number(data?.cumul_sorties_ambiant ?? 0);
-  const stock   = Number(data?.stock_final_ambiant   ?? 0);
+  const lignes    = data?.lignes                  ?? [];
+  const entrees   = Number(data?.cumul_entrees_ambiant   ?? 0);
+  const sorties   = Number(data?.cumul_sorties_ambiant   ?? 0);
+  const stock     = Number(data?.stock_final_ambiant     ?? 0);
+  const ouverture = Number(data?.stock_ouverture_ambiant ?? 0);
+  const hasReport = !!selectedPeriode;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -190,34 +211,66 @@ export function CarteStockScreen() {
       >
         {/* ── Filtres ──────────────────────────────────────────── */}
         <View style={styles.filtersBar}>
-          {/* Sélecteur produit */}
-          <TouchableOpacity
-            style={styles.produitBtn}
-            onPress={() => setShowProduitModal(true)}
-          >
-            <Ionicons name="water-outline" size={14} color={Colors.navy} />
-            <Text style={styles.produitBtnText} numberOfLines={1}>
-              {selectedProduit?.nom ?? 'Tous les produits'}
-            </Text>
-            <Ionicons name="chevron-down" size={12} color={Colors.slate} />
-          </TouchableOpacity>
+          {/* Sélecteur produit + sélecteur période comptable */}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.produitBtn, { flex: 1 }]}
+              onPress={() => setShowProduitModal(true)}
+            >
+              <Ionicons name="water-outline" size={14} color={Colors.navy} />
+              <Text style={styles.produitBtnText} numberOfLines={1}>
+                {selectedProduit?.nom ?? 'Tous les produits'}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color={Colors.slate} />
+            </TouchableOpacity>
 
-          {/* Période */}
-          <View style={styles.segmented}>
+            <TouchableOpacity
+              style={[styles.periodeBtn, selectedPeriode && styles.periodeBtnActive]}
+              onPress={() => setShowPeriodeModal(true)}
+            >
+              <Ionicons name="calendar-outline" size={14} color={selectedPeriode ? Colors.white : Colors.navy} />
+              <Text
+                style={[styles.periodeBtnText, selectedPeriode && styles.periodeBtnTextActive]}
+                numberOfLines={1}
+              >
+                {selectedPeriode?.nom ?? 'Période'}
+              </Text>
+              {selectedPeriode ? (
+                <TouchableOpacity onPress={() => setSelectedPeriode(null)} hitSlop={8}>
+                  <Ionicons name="close-circle" size={14} color={Colors.white} />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-down" size={12} color={Colors.slate} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Plage rapide (jours) — ignorée si une période comptable est sélectionnée */}
+          <View style={[styles.segmented, selectedPeriode && styles.segmentedDisabled]}>
             {PERIODS.map(p => (
               <TouchableOpacity
                 key={p.label}
-                onPress={() => setPeriod(p.label)}
-                style={[styles.segBtn, period === p.label && styles.segBtnActive]}
+                onPress={() => { setSelectedPeriode(null); setPeriod(p.label); }}
+                style={[styles.segBtn, !selectedPeriode && period === p.label && styles.segBtnActive]}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.segText, period === p.label && styles.segTextActive]}>
+                <Text style={[styles.segText, !selectedPeriode && period === p.label && styles.segTextActive]}>
                   {p.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
+
+        {/* ── Stock d'ouverture (report) ──────────────────────── */}
+        {hasReport && (
+          <View style={styles.reportBanner}>
+            <Ionicons name="arrow-redo-outline" size={16} color="#5B21B6" />
+            <Text style={styles.reportText}>
+              Stock d'ouverture (report) : <Text style={styles.reportValue}>{fmtN(ouverture)} L</Text>
+            </Text>
+          </View>
+        )}
 
         {/* ── KPI Stock ────────────────────────────────────────── */}
         <View style={styles.kpiRow}>
@@ -370,6 +423,56 @@ export function CarteStockScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Modal sélecteur période comptable ─────────────────────── */}
+      <Modal
+        visible={showPeriodeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPeriodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Choisir une période comptable</Text>
+            <Text style={styles.modalHint}>
+              Affiche le stock d'ouverture (report) et les mouvements de la période sélectionnée.
+            </Text>
+
+            <FlatList
+              data={periodes}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => {
+                const active = selectedPeriode?.id === item.id;
+                return (
+                  <TouchableOpacity
+                    style={[styles.modalOpt, active && styles.modalOptActive]}
+                    onPress={() => { setSelectedPeriode(item); setShowPeriodeModal(false); }}
+                  >
+                    <Ionicons name="calendar" size={16} color={active ? Colors.navy : Colors.slate} />
+                    <Text style={[styles.modalOptText, active && styles.modalOptTextActive]}>
+                      {item.nom}
+                    </Text>
+                    {item.statut === 'CLOTUREE' && (
+                      <View style={styles.clotureBadge}>
+                        <Text style={styles.clotureBadgeText}>CLÔTURÉE</Text>
+                      </View>
+                    )}
+                    {active && <Ionicons name="checkmark" size={18} color={Colors.navy} />}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+
+            <TouchableOpacity
+              style={styles.modalClose}
+              onPress={() => setShowPeriodeModal(false)}
+            >
+              <Text style={styles.modalCloseText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -415,10 +518,21 @@ const styles = StyleSheet.create({
   },
   produitBtnText: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.navy },
 
+  periodeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    maxWidth: 150,
+  },
+  periodeBtnActive:    { backgroundColor: '#5B21B6' },
+  periodeBtnText:      { flex: 1, fontSize: 13, fontWeight: '700', color: '#5B21B6' },
+  periodeBtnTextActive:{ color: Colors.white },
+
   segmented: {
     flexDirection: 'row', backgroundColor: Colors.cloud,
     borderRadius: 10, padding: 3,
   },
+  segmentedDisabled: { opacity: 0.5 },
   segBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
   segBtnActive: {
     backgroundColor: Colors.white,
@@ -427,6 +541,15 @@ const styles = StyleSheet.create({
   },
   segText:       { fontSize: 11, fontWeight: '700', color: Colors.slate },
   segTextActive: { color: Colors.navy },
+
+  reportBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#EDE9FE',
+    marginHorizontal: 14, marginTop: 12,
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  reportText:  { flex: 1, fontSize: 12, color: '#3B0764', fontWeight: '600' },
+  reportValue: { fontWeight: '800', color: '#5B21B6' },
 
   // KPI
   kpiRow: {
@@ -523,6 +646,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center', marginBottom: 16,
   },
   modalTitle: { fontSize: 16, fontWeight: '800', color: Colors.ink, marginBottom: 12 },
+  modalHint:  { fontSize: 11, color: Colors.slate, marginTop: -8, marginBottom: 12, lineHeight: 16 },
   modalOpt: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 12,
@@ -531,6 +655,8 @@ const styles = StyleSheet.create({
   modalOptActive: { backgroundColor: Colors.navyTint, borderRadius: 10, paddingHorizontal: 8 },
   modalOptText: { flex: 1, fontSize: 14, color: Colors.ink },
   modalOptTextActive: { color: Colors.navy, fontWeight: '700' },
+  clotureBadge: { backgroundColor: Colors.cloud, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  clotureBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.slate },
   sigleDot: {
     width: 32, height: 32, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center',

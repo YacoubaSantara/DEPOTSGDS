@@ -51,6 +51,26 @@
           <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></svg>
           Identification
         </div>
+        {% if form.depot %}
+        <div class="form-group">
+          <label class="form-label">Dépôt <span class="required-star">*</span></label>
+          {{ form.depot }}
+          <div class="form-hint">Sélectionnez le dépôt auquel cette cuve appartient</div>
+          {% if form.depot.errors %}<div class="form-field-error">{{ form.depot.errors.0 }}</div>{% endif %}
+        </div>
+        {% elif depot_fixe %}
+        <div class="form-group">
+          <label class="form-label">Dépôt</label>
+          <div class="form-hint" style="margin-top:0;font-size:.8rem;color:var(--ink);font-weight:600">{{ depot_fixe.code }} — {{ depot_fixe.nom }}</div>
+          {% if cuve %}<div class="form-hint">Le dépôt d'une cuve ne peut pas être modifié après sa création</div>{% endif %}
+        </div>
+        {% elif cuve %}
+        <div class="form-group">
+          <label class="form-label">Dépôt</label>
+          <div class="form-hint" style="margin-top:0;font-size:.8rem;color:var(--ink);font-weight:600">{{ cuve.depot.code }} — {{ cuve.depot.nom }}</div>
+          <div class="form-hint">Le dépôt d'une cuve ne peut pas être modifié après sa création</div>
+        </div>
+        {% endif %}
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label">Numéro <span class="required-star">*</span></label>

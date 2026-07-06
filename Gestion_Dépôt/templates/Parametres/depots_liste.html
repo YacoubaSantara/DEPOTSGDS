@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block title %}Dépôts{% endblock %}
+{% block nav_depot_liste %}active{% endblock %}
+
+{% block breadcrumb %}
+<span class="breadcrumb-current">Dépôts</span>
+{% endblock %}
+
+{% block content %}
+<div class="ph">
+  <div>
+    <h1 class="ph-title">Dépôts</h1>
+    <div class="ph-sub">Gestion des sites physiques de stockage de la société</div>
+  </div>
+  <div class="ph-actions">
+    <a href="{% url 'depot_create' %}" class="btn btn-accent">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau dépôt
+    </a>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+  <div class="kpi-card">
+    <div class="kpi-accent" style="background:var(--ink)"></div>
+    <div class="kpi-icon-wrap" style="background:var(--surface-2);color:var(--ink-2)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <div class="kpi-label">Total dépôts</div>
+    <div class="kpi-value">{{ total }}</div>
+    <div class="kpi-sub">Sites enregistrés</div>
+  </div>
+
+  <div class="kpi-card kpi-green">
+    <div class="kpi-accent"></div>
+    <div class="kpi-glow"></div>
+    <div class="kpi-icon-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+    </div>
+    <div class="kpi-label">Actifs</div>
+    <div class="kpi-value" style="color:var(--ok)">{{ nb_actifs }}</div>
+    <div class="kpi-sub">En exploitation</div>
+  </div>
+
+  <div class="kpi-card kpi-red">
+    <div class="kpi-accent"></div>
+    <div class="kpi-glow"></div>
+    <div class="kpi-icon-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    </div>
+    <div class="kpi-label">Inactifs</div>
+    <div class="kpi-value" style="color:var(--err)">{{ nb_inactifs }}</div>
+    <div class="kpi-sub">Hors exploitation</div>
+  </div>
+
+  <div class="kpi-card kpi-blue">
+    <div class="kpi-accent"></div>
+    <div class="kpi-glow"></div>
+    <div class="kpi-icon-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 1118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </div>
+    <div class="kpi-label">Villes couvertes</div>
+    <div class="kpi-value" style="color:#3b82f6">{{ nb_villes }}</div>
+    <div class="kpi-sub">Implantations géographiques</div>
+  </div>
+</div>
+
+<!-- Filtres + Table -->
+<div class="card">
+  <form method="get">
+    <div class="filter-bar">
+      <div style="position:relative;flex:1;min-width:200px;max-width:320px">
+        <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--muted);fill:none;pointer-events:none" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="input" style="width:100%;padding-left:30px;height:32px" type="text" name="q" value="{{ q }}" placeholder="Code, nom, ville…">
+      </div>
+      <select name="statut" class="select" style="height:32px">
+        <option value="">Tous statuts</option>
+        <option value="ACTIF" {% if statut == 'ACTIF' %}selected{% endif %}>Actif</option>
+        <option value="INACTIF" {% if statut == 'INACTIF' %}selected{% endif %}>Inactif</option>
+      </select>
+      <button type="submit" class="btn btn-accent btn-sm" style="height:32px">
+        <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="12" height="12"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filtrer
+      </button>
+      {% if q or statut %}
+      <a href="{% url 'depot_liste' %}" class="btn btn-ghost btn-sm" style="height:32px">
+        <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Effacer
+      </a>
+      {% endif %}
+      <span style="margin-left:auto;font-size:.78rem;color:var(--muted);white-space:nowrap">
+        <strong style="color:var(--ink);font-variant-numeric:tabular-nums">{{ depots.paginator.count }}</strong>
+        résultat{{ depots.paginator.count|pluralize }}
+      </span>
+    </div>
+  </form>
+
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th style="padding-left:16px">Dépôt</th>
+        <th>Ville</th>
+        <th>Type</th>
+        <th>N° Agrément</th>
+        <th>Statut</th>
+        <th style="text-align:right;padding-right:16px">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for depot in depots %}
+      <tr class="clickable" onclick="window.location='{% url 'depot_update' uuid=depot.uuid slug=depot.slug %}'" style="cursor:pointer">
+        <td style="padding-left:16px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;background:var(--ink);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div>
+              <div style="font-weight:700">{{ depot.nom }}</div>
+              <code class="mono" style="font-size:11px;color:var(--info);font-weight:600">{{ depot.code }}</code>
+            </div>
+          </div>
+        </td>
+        <td>{{ depot.ville|default:"—" }}</td>
+        <td><span class="bdg">{{ depot.type_depot }}</span></td>
+        <td>{{ depot.numero_agrement|default:"—" }}</td>
+        <td>
+          {% if depot.statut == 'ACTIF' %}<span class="bdg ok">Actif</span>
+          {% else %}<span class="bdg err">Inactif</span>{% endif %}
+        </td>
+        <td style="padding-right:16px" onclick="event.stopPropagation()">
+          <div style="display:flex;gap:5px;justify-content:flex-end">
+            <a href="{% url 'depot_update' uuid=depot.uuid slug=depot.slug %}" class="btn btn-sm btn-ghost" style="gap:4px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Modifier
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" style="padding:52px 20px;text-align:center;color:var(--muted)">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+            <div style="width:52px;height:52px;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;display:flex;align-items:center;justify-content:center">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--muted-2)" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--ink-2)">Aucun dépôt trouvé</div>
+              <div style="font-size:12px;margin-top:4px">
+                {% if q or statut %}Essayez d'autres critères de filtre{% else %}Créez le premier dépôt de votre société{% endif %}
+              </div>
+            </div>
+            {% if not q and not statut %}
+            <a href="{% url 'depot_create' %}" class="btn btn-accent btn-sm">
+              <svg viewBox="0 0 24 24" stroke-width="2.5" fill="none" stroke="currentColor" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nouveau dépôt
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include 'partials/_pagination.html' with page_obj=depots filtres=filtres %}
+</div>
+{% endblock %}

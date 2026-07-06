@@ -11,8 +11,9 @@ from django.test import TestCase
 
 from SGDS.models import (
     Famille, Produit, Marketeur, Cuve, ParametreJaugeageCuve,
-    JaugeageJour, MesureCuve, Mouvement,
+    JaugeageJour, MesureCuve, Mouvement, LigneMouvement,
     PeriodeComptable, StockOuverture, StockOuvertureCuve, ParametresCoulage,
+    Depot,
 )
 from SGDS.services.coulage_repartition import calculer_repartition_coulage, figer_cloture_coulage
 from SGDS.services.stock_ouverture import resoudre_stocks_ouverture
@@ -21,6 +22,12 @@ User = get_user_model()
 
 
 # ─── Fixtures communes ────────────────────────────────────────
+
+def _make_depot(code='DEP-T'):
+    return Depot.objects.get_or_create(
+        code=code, defaults={'nom': f'Dépôt Test {code}'}
+    )[0]
+
 
 def _make_base():
     """Crée la structure minimale : famille, produits GO+SUPER, 2 marketeurs."""
@@ -33,12 +40,12 @@ def _make_base():
 
 
 def _make_periode(mois=1, annee=2026):
-    return PeriodeComptable.objects.create(mois=mois, annee=annee)
+    return PeriodeComptable.objects.create(depot=_make_depot(), mois=mois, annee=annee)
 
 
 def _make_cuve(produit, numero='C01'):
     cuve = Cuve.objects.create(
-        numero=numero, designation=numero, produit=produit,
+        depot=_make_depot(), numero=numero, designation=numero, produit=produit,
         capacite_totale=Decimal('50000'),
     )
     ParametreJaugeageCuve.objects.create(
@@ -51,20 +58,22 @@ def _make_cuve(produit, numero='C01'):
 def _entree(periode, mkt, produit, cuve, brut, perte=Decimal('0')):
     """Crée un Mouvement ENTREE. perte > 0 = gain, < 0 = perte."""
     return Mouvement.objects.create(
-        type_mouvement='ENTREE',
+        depot=_make_depot(), type_mouvement='ENTREE',
         regime_douanier='ACQUITTE',
         produit=produit,
         marketeur=mkt,
         cuve=cuve,
         date_mouvement=periode.date_debut,
-        volume_ambiant_recu=brut,
+        # Le modèle recalcule perte_gain_reception = reçu − expéditeur
+        volume_ambiant_recu=brut + perte,
+        volume_ambiant_expediteur=brut,
         perte_gain_reception=perte,
     )
 
 
 def _sortie(periode, mkt, produit, cuve, volume):
     return Mouvement.objects.create(
-        type_mouvement='SORTIE',
+        depot=_make_depot(), type_mouvement='SORTIE',
         regime_douanier='ACQUITTE',
         produit=produit,
         marketeur=mkt,
@@ -83,8 +92,10 @@ class TestCoefficients(TestCase):
         go, sup, *_ = _make_base()
         periode = _make_periode()
         rapport = calculer_repartition_coulage(periode)
-        self.assertEqual(rapport['coefficients']['GO'],    Decimal('0'))
-        self.assertEqual(rapport['coefficients']['SUPER'], Decimal('0'))
+        # Coefficients désormais indexés par produit.pk ; un produit sans
+        # mouvement ni cuve active n'apparaît pas → coefficient implicite 0.
+        self.assertEqual(rapport['coefficients'].get(go.pk,  Decimal('0')), Decimal('0'))
+        self.assertEqual(rapport['coefficients'].get(sup.pk, Decimal('0')), Decimal('0'))
 
     def test_calcul_ligne_marketeur(self):
         """
@@ -107,10 +118,11 @@ class TestCoefficients(TestCase):
 
         rapport = calculer_repartition_coulage(periode, marketeurs=[mkt1])
         ligne = rapport['lignes'][0]
+        pp = ligne['par_produit'][go.pk]
 
-        self.assertEqual(ligne['entree_nette_go'], Decimal('9900.00'))
-        self.assertEqual(ligne['sortie_go'],        Decimal('8000.00'))
-        self.assertEqual(ligne['montant'],          Decimal('38043.20'))
+        self.assertEqual(pp['entree_nette'], Decimal('9900.00'))
+        self.assertEqual(pp['sortie'],       Decimal('8000.00'))
+        self.assertEqual(ligne['montant'],   Decimal('38043.20'))
 
     def test_coefficient_global_identique_pour_tous_marketeurs(self):
         """
@@ -131,9 +143,9 @@ class TestCoefficients(TestCase):
         _sortie(periode, mkt2, go, cuve, Decimal('3000'))
 
         rapport = calculer_repartition_coulage(periode, marketeurs=[mkt1, mkt2])
-        coefs = [l['coef_qp_coul_go'] for l in rapport['lignes']]
+        coefs = [l['par_produit'][go.pk]['coef_qp_coul'] for l in rapport['lignes']]
         self.assertEqual(coefs[0], coefs[1])
-        self.assertEqual(coefs[0], rapport['coefficients']['GO'])
+        self.assertEqual(coefs[0], rapport['coefficients'][go.pk])
 
 
 class TestFigerCloture(TestCase):
@@ -174,7 +186,7 @@ class TestVerrouillage(TestCase):
 
         with self.assertRaises(ValidationError):
             Mouvement.objects.create(
-                type_mouvement='ENTREE',
+                depot=_make_depot(), type_mouvement='ENTREE',
                 produit=go,
                 marketeur=mkt1,
                 cuve=cuve,
@@ -204,7 +216,7 @@ class TestStockOuverture(TestCase):
             periode_precedente.save(update_fields=['statut'])
 
         # Crée un jaugeage fin décembre
-        j = JaugeageJour(date_jaugeage=date(2025, 12, 31), operateur='Test')
+        j = JaugeageJour(depot=_make_depot(), date_jaugeage=date(2025, 12, 31), operateur='Test')
         j.save()
         MesureCuve.objects.create(
             jaugeage=j,
@@ -229,14 +241,14 @@ class TestSuiviEvolution(TestCase):
         fam  = Famille.objects.create(nom='HC', code='HC')
         go   = Produit.objects.create(nom='Gasoil', code='GASOIL', famille=fam)
         cuve = Cuve.objects.create(
-            numero='CG1', designation='Cuve GO 1', produit=go,
+            depot=_make_depot(), numero='CG1', designation='Cuve GO 1', produit=go,
             capacite_totale=Decimal('50000'),
         )
         ParametreJaugeageCuve.objects.create(
             cuve=cuve, hauteur_totale_temoin=5000, remplissage_maxi=50000,
             v_a=Decimal('10'), v_mn=Decimal('0'),
         )
-        periode = PeriodeComptable.objects.create(mois=1, annee=2026)
+        periode = PeriodeComptable.objects.create(depot=_make_depot(), mois=1, annee=2026)
         StockOuvertureCuve.objects.create(
             periode=periode, cuve=cuve, volume_ambiant=Decimal('10000'),
         )
@@ -259,11 +271,15 @@ class TestSuiviEvolution(TestCase):
         from SGDS.services.suivi_evolution import calculer_suivi_evolution
         go, cuve, periode = self._make_setup()
         mkt = Marketeur.objects.create(raison_sociale='Alpha', sigle='ALP')
-        Mouvement.objects.create(
-            type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+        m = Mouvement.objects.create(
+            depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
             produit=go, marketeur=mkt, cuve=cuve,
             date_mouvement=periode.date_debut,
             volume_ambiant_sortie=Decimal('2000'),
+        )
+        # Le suivi évolution agrège via LigneMouvement (multi-cuves)
+        LigneMouvement.objects.create(
+            mouvement=m, cuve=cuve, produit=go, volume_ambiant=Decimal('2000'),
         )
         rapport = calculer_suivi_evolution(periode, go)
         j0 = rapport['jours'][0]
@@ -276,7 +292,7 @@ class TestSuiviEvolution(TestCase):
         from SGDS.services.suivi_evolution import calculer_suivi_evolution
         go, cuve, periode = self._make_setup()
 
-        j = JaugeageJour(date_jaugeage=periode.date_debut, operateur='Test')
+        j = JaugeageJour(depot=_make_depot(), date_jaugeage=periode.date_debut, operateur='Test')
         j.save()
         MesureCuve.objects.create(
             jaugeage=j, cuve=cuve, creux_mesure=Decimal('500'),
@@ -296,14 +312,14 @@ class TestSuiviEvolution(TestCase):
         go, cuve, periode = self._make_setup()
 
         # Jaugeage J1 (2 jan) : phys=9800, compta=10000 → pg=-200
-        j1 = JaugeageJour(date_jaugeage=date(2026, 1, 2), operateur='Test')
+        j1 = JaugeageJour(depot=_make_depot(), date_jaugeage=date(2026, 1, 2), operateur='Test')
         j1.save()
         MesureCuve.objects.create(
             jaugeage=j1, cuve=cuve, creux_mesure=Decimal('100'),
             v_a_saisi=Decimal('9800'),
         )
         # Jaugeage J2 (5 jan) : phys=9600, compta=9800 → pg=-200, cumul=-400
-        j2 = JaugeageJour(date_jaugeage=date(2026, 1, 5), operateur='Test')
+        j2 = JaugeageJour(depot=_make_depot(), date_jaugeage=date(2026, 1, 5), operateur='Test')
         j2.save()
         MesureCuve.objects.create(
             jaugeage=j2, cuve=cuve, creux_mesure=Decimal('100'),
@@ -325,7 +341,7 @@ class TestFraisPassage(TestCase):
         fam  = Famille.objects.create(nom='HC', code='HC')
         go   = Produit.objects.create(nom='Gasoil', code='GASOIL', famille=fam)
         cuve = Cuve.objects.create(
-            numero='CG1', designation='Cuve GO 1', produit=go,
+            depot=_make_depot(), numero='CG1', designation='Cuve GO 1', produit=go,
             capacite_totale=Decimal('50000'),
         )
         ParametreJaugeageCuve.objects.create(
@@ -334,7 +350,7 @@ class TestFraisPassage(TestCase):
         )
         mkt1 = Marketeur.objects.create(raison_sociale='Alpha', sigle='ALP')
         mkt2 = Marketeur.objects.create(raison_sociale='Beta',  sigle='BET')
-        periode = PeriodeComptable.objects.create(mois=1, annee=2026)
+        periode = PeriodeComptable.objects.create(depot=_make_depot(), mois=1, annee=2026)
         ParametresCoulage.objects.create(
             date_application=date(2026, 1, 1),
             prix_unitaire_passage=Decimal('4.7554'),
@@ -347,14 +363,14 @@ class TestFraisPassage(TestCase):
         go, cuve, mkt1, mkt2, periode = self._make_setup()
 
         Mouvement.objects.create(
-            type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+            depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
             produit=go, marketeur=mkt1, cuve=cuve,
             date_mouvement=periode.date_debut,
             volume_ambiant_sortie=Decimal('1000'),
             mode_reglement='ESP-IMMEDIAT',
         )
         Mouvement.objects.create(
-            type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+            depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
             produit=go, marketeur=mkt2, cuve=cuve,
             date_mouvement=periode.date_debut,
             volume_ambiant_sortie=Decimal('2000'),
@@ -373,7 +389,7 @@ class TestFraisPassage(TestCase):
         go, cuve, mkt1, mkt2, periode = self._make_setup()
 
         Mouvement.objects.create(
-            type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+            depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
             produit=go, marketeur=mkt1, cuve=cuve,
             date_mouvement=periode.date_debut,
             volume_ambiant_sortie=Decimal('1000'),
@@ -396,7 +412,7 @@ class TestFraisPassage(TestCase):
 
         for vol, mkt in [(Decimal('1000'), mkt1), (Decimal('2000'), mkt2)]:
             Mouvement.objects.create(
-                type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+                depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
                 produit=go, marketeur=mkt, cuve=cuve,
                 date_mouvement=periode.date_debut,
                 volume_ambiant_sortie=vol,
@@ -414,14 +430,14 @@ class TestFraisPassage(TestCase):
         go, cuve, mkt1, mkt2, periode = self._make_setup()
 
         Mouvement.objects.create(
-            type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+            depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
             produit=go, marketeur=mkt1, cuve=cuve,
             date_mouvement=periode.date_debut,
             volume_ambiant_sortie=Decimal('1000'),
             mode_reglement='ESP-IMMEDIAT',
         )
         Mouvement.objects.create(
-            type_mouvement='SORTIE', regime_douanier='ACQUITTE',
+            depot=_make_depot(), type_mouvement='SORTIE', regime_douanier='ACQUITTE',
             produit=go, marketeur=mkt2, cuve=cuve,
             date_mouvement=periode.date_debut,
             volume_ambiant_sortie=Decimal('2000'),

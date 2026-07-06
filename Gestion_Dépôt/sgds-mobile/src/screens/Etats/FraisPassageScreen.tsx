@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  RefreshControl, Modal, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print   from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { Colors }   from '../../constants/colors';
 import { etatsApi } from '../../api/etats';
-import type { FraisPassageResponse, FraisPassageProduit } from '../../api/etats';
+import type { FraisPassageResponse, FraisPassageProduit, Periode } from '../../api/etats';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -104,16 +105,35 @@ tr.alt{background:#F7F8FB}
 export function FraisPassageScreen() {
   const navigation = useNavigation();
 
-  const [data,      setData]      = useState<FraisPassageResponse | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [exporting, setExporting] = useState(false);
+  const [data,       setData]       = useState<FraisPassageResponse | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [exporting,  setExporting]  = useState(false);
+  const [periodes,    setPeriodes]    = useState<Periode[]>([]);
+  const [selectedPer, setSelectedPer] = useState<Periode | null>(null);
+  const [showModal,   setShowModal]   = useState(false);
 
   useEffect(() => {
-    etatsApi.fraisPassage()
-      .then(r => setData(r.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
+    etatsApi.periodes().then(r => setPeriodes(r.data)).catch(() => {});
   }, []);
+
+  const load = useCallback(async (periodeId?: number, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    setError(null);
+    try {
+      const r = await etatsApi.fraisPassage(periodeId);
+      setData(r.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? e?.message ?? 'Impossible de charger les frais de passage.');
+      setData(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(selectedPer?.id); }, [load, selectedPer]));
 
   const exportPdf = async () => {
     if (!data) return;
@@ -160,9 +180,34 @@ export function FraisPassageScreen() {
         </TouchableOpacity>
       </LinearGradient>
 
+      {/* Filtre période */}
+      <View style={styles.filterRow}>
+        <TouchableOpacity style={styles.perBtn} onPress={() => setShowModal(true)}>
+          <Ionicons name="calendar-outline" size={14} color="#92400E" />
+          <Text style={styles.perBtnText}>
+            {selectedPer ? selectedPer.nom : "Tarif en vigueur aujourd'hui"}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={Colors.slate} />
+        </TouchableOpacity>
+        {selectedPer && (
+          <TouchableOpacity onPress={() => setSelectedPer(null)} style={styles.clearBtn}>
+            <Ionicons name="close-circle" size={18} color={Colors.slate} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#92400E" />
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.red} />
+          <Text style={[styles.emptyText, { color: Colors.red }]}>Erreur de chargement</Text>
+          <Text style={styles.errorSub}>{error}</Text>
+          <TouchableOpacity onPress={() => load(selectedPer?.id)} style={styles.retryBtn}>
+            <Text style={styles.retryBtnText}>Réessayer</Text>
+          </TouchableOpacity>
         </View>
       ) : !data ? (
         <View style={styles.center}>
@@ -171,7 +216,14 @@ export function FraisPassageScreen() {
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load(selectedPer?.id, true)}
+              colors={[Colors.navy]}
+            />
+          }>
 
           {/* Tarif global */}
           <View style={styles.globalCard}>
@@ -182,7 +234,7 @@ export function FraisPassageScreen() {
               <View>
                 <Text style={styles.globalLabel}>Tarif Global en Vigueur</Text>
                 <Text style={styles.globalDate}>
-                  Depuis le {fmtDate(data.date_application)}
+                  {data.date_application ? `Depuis le ${fmtDate(data.date_application)}` : 'Tarif par défaut (aucun paramétrage)'}
                 </Text>
               </View>
             </View>
@@ -208,6 +260,45 @@ export function FraisPassageScreen() {
           ))}
         </ScrollView>
       )}
+
+      {/* Modal sélection période */}
+      <Modal visible={showModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choisir une période</Text>
+              <TouchableOpacity onPress={() => setShowModal(false)}>
+                <Ionicons name="close" size={22} color={Colors.ink} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.perItem}
+              onPress={() => { setSelectedPer(null); setShowModal(false); }}
+            >
+              <Text style={styles.perItemText}>Tarif en vigueur aujourd'hui</Text>
+            </TouchableOpacity>
+            <FlatList
+              data={periodes}
+              keyExtractor={p => String(p.id)}
+              renderItem={({ item: p }) => (
+                <TouchableOpacity
+                  style={[styles.perItem, selectedPer?.id === p.id && styles.perItemActive]}
+                  onPress={() => { setSelectedPer(p); setShowModal(false); }}
+                >
+                  <Text style={[styles.perItemText, selectedPer?.id === p.id && { color: Colors.white }]}>
+                    {p.nom}
+                  </Text>
+                  {p.statut === 'CLOTUREE' && (
+                    <View style={styles.clotureBadge}>
+                      <Text style={styles.clotureBadgeText}>CLÔTURÉE</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -259,10 +350,46 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
+  filterRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1, borderBottomColor: Colors.cloud,
+    gap: 8,
+  },
+  perBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FEF3C7', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  perBtnText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#92400E' },
+  clearBtn:   { padding: 4 },
+
   scroll:    { flex: 1 },
   content:   { padding: 16, paddingBottom: 40 },
   center:    { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyText: { fontSize: 14, color: Colors.slate, textAlign: 'center' },
+
+  // Modal sélection période
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalBox: {
+    backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    maxHeight: '70%', paddingBottom: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.cloud,
+  },
+  modalTitle:  { fontSize: 16, fontWeight: '800', color: Colors.ink },
+  perItem: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: Colors.cloud, gap: 10,
+  },
+  perItemActive: { backgroundColor: '#92400E' },
+  perItemText:   { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.ink },
+  clotureBadge:  { backgroundColor: Colors.cloud, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  clotureBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.slate },
 
   globalCard: {
     backgroundColor: Colors.white,
@@ -318,4 +445,14 @@ const styles = StyleSheet.create({
   prodRight:   { alignItems: 'flex-end' },
   prodPrix:    { fontSize: 16, fontWeight: '800', color: '#92400E' },
   prodUnit:    { fontSize: 10, color: Colors.slate },
+
+  retryBtn: {
+    marginTop: 12,
+    backgroundColor: Colors.navy,
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
+  errorSub: { fontSize: 12, color: Colors.slate, textAlign: 'center', marginTop: 4, maxWidth: 260 },
 });

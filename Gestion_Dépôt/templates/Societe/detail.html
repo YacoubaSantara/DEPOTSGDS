@@ -3,7 +3,7 @@
 {% block nav_societe %}active{% endblock %}
 
 {% block breadcrumb %}
-  <span class="breadcrumb-current">Administration</span>
+  <span class="breadcrumb-current">Paramètres</span>
   <span class="breadcrumb-sep">›</span>
   <span class="breadcrumb-current">Fiche Société</span>
 {% endblock %}
@@ -62,8 +62,8 @@
 
 <div class="page-header">
   <div>
-    <h1 class="page-title">Fiche Société / Dépôt</h1>
-    <p class="page-subtitle">Informations officielles utilisées dans les en-têtes des états et exports</p>
+    <h1 class="page-title">Fiche Société</h1>
+    <p class="page-subtitle">Identité légale et visuelle de la société, utilisée dans les en-têtes des états et exports</p>
   </div>
   <div style="display:flex;align-items:center;gap:12px">
     <span class="last-modif">
@@ -93,7 +93,7 @@
           <img src="" alt="Logo" class="logo-preview" id="logo-img" style="display:none">
         {% endif %}
         <p class="societe-name">{{ societe.raison_sociale|default:"—" }}</p>
-        <p class="societe-sub">{{ societe.nom_depot }}</p>
+        {% if depot %}<p class="societe-sub">{{ depot.nom }}</p>{% endif %}
         {% if societe.tampon %}
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
           <span style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:6px">TAMPON</span>
@@ -148,39 +148,7 @@
         </div>
       </div>
 
-      {# Section 2 — Dépôt #}
-      <div class="form-section">
-        <div class="section-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          Dépôt
-        </div>
-        <div class="section-body">
-          <div class="form-grid">
-            <div class="field-group">
-              <label>Nom du dépôt</label>
-              {{ form.nom_depot }}
-            </div>
-            <div class="field-group">
-              <label>Type de dépôt</label>
-              {{ form.type_depot }}
-            </div>
-            <div class="field-group">
-              <label>N° Agrément</label>
-              {{ form.numero_agrement }}
-            </div>
-            <div class="field-group">
-              <label>Autorité de tutelle</label>
-              {{ form.autorite_tutelle }}
-            </div>
-            <div class="field-group">
-              <label>Date de création</label>
-              {{ form.date_creation }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {# Section 3 — Coordonnées #}
+      {# Section 2 — Coordonnées #}
       <div class="form-section">
         <div class="section-title">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -188,14 +156,6 @@
         </div>
         <div class="section-body">
           <div class="form-grid">
-            <div class="field-group form-full">
-              <label>Adresse complète</label>
-              {{ form.adresse }}
-            </div>
-            <div class="field-group">
-              <label>Ville</label>
-              {{ form.ville }}
-            </div>
             <div class="field-group">
               <label>Pays</label>
               {{ form.pays }}
@@ -205,12 +165,8 @@
               {{ form.boite_postale }}
             </div>
             <div class="field-group">
-              <label>Téléphone principal</label>
+              <label>Téléphone</label>
               {{ form.telephone }}
-            </div>
-            <div class="field-group">
-              <label>Téléphone secondaire</label>
-              {{ form.telephone2 }}
             </div>
             <div class="field-group">
               <label>Email</label>
@@ -221,6 +177,7 @@
               {{ form.site_web }}
             </div>
           </div>
+          <p class="field-help" style="margin-top:10px">L'adresse, la ville et le téléphone propres à chaque site se gèrent désormais dans <a href="{% url 'depot_liste' %}" style="color:var(--navy);font-weight:600">Paramètres › Dépôts</a>.</p>
         </div>
       </div>
 

@@ -59,6 +59,7 @@ tr.row-sortie td{background:rgba(254,226,226,.2)}
 tr.row-cession-emise td{background:rgba(219,234,254,.2)}
 tr.row-cession-recue td{background:rgba(237,233,254,.2)}
 tr.row-transfert td{background:rgba(254,243,199,.25)}
+tr.row-quote-part td{background:rgba(224,242,254,.35)}
 
 /* Colonnes numériques */
 .num{font-family:'JetBrains Mono',monospace;font-size:.8rem}
@@ -74,6 +75,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
 .badge-cession-emise{background:#dbeafe;color:#1e40af}
 .badge-cession-recue{background:#ede9fe;color:#5b21b6}
 .badge-transfert{background:#fef3c7;color:#92400e}
+.badge-quote-part{background:#e0f2fe;color:#0369a1}
 .badge-sd{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
 .badge-ac{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}
 
@@ -111,6 +113,8 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
 [data-theme="dark"] tr.row-cession-emise td{background:rgba(59,130,246,.07)}
 [data-theme="dark"] tr.row-cession-recue td{background:rgba(139,92,246,.07)}
 [data-theme="dark"] tr.row-transfert td{background:rgba(245,158,11,.07)}
+[data-theme="dark"] tr.row-quote-part td{background:rgba(56,189,248,.08)}
+[data-theme="dark"] .badge-quote-part{background:var(--info-soft);color:var(--info)}
 [data-theme="dark"] .regime-tab.active-sd{border-color:rgba(245,158,11,.5);background:var(--warn-soft);color:var(--warn)}
 [data-theme="dark"] .regime-tab.active-ac{border-color:rgba(34,197,94,.5);background:var(--ok-soft);color:var(--ok)}
 [data-theme="dark"] .badge-entree{background:var(--ok-soft);color:var(--ok)}
@@ -300,6 +304,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
         {% elif ligne.sens == 'cession_emise' %}row-cession-emise
         {% elif ligne.sens == 'cession_recue' %}row-cession-recue
         {% elif ligne.sens == 'transfert' %}row-transfert
+        {% elif ligne.sens == 'quote_part_coulage' %}row-quote-part
         {% endif %}">
         <td class="left">{{ ligne.mouvement.date_mouvement|date:"d/m/Y" }}</td>
         <td class="left" style="font-size:.75rem">{{ ligne.mouvement.numero_enregistrement|default:"—" }}</td>
@@ -320,6 +325,7 @@ tr.row-transfert td{background:rgba(254,243,199,.25)}
           {% elif ligne.sens == 'cession_emise' %}<span class="badge badge-cession-emise">Cession émise</span>
           {% elif ligne.sens == 'cession_recue' %}<span class="badge badge-cession-recue">Cession reçue</span>
           {% elif ligne.sens == 'transfert' %}<span class="badge badge-transfert">Acquittement</span>
+          {% elif ligne.sens == 'quote_part_coulage' %}<span class="badge badge-quote-part">Quote-part P/G Inst.</span>
           {% endif %}
         </td>
         {% if not carte.is_tous %}

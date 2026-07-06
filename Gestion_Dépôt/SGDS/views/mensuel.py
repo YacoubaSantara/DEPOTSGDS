@@ -1,23 +1,20 @@
 """
-États mensuels :
-  1. Stock Ouverture / Fermeture          → chef_depot_required
-  2. Global Mensuel Dépôt                 → login_required (staff)
-  3. Global Mensuel RJJ                   → login_required (staff)
-  4. Coulage Répartition (admin)          → login_required (staff)
-  4b. Coulage Répartition (marketeur)     → marketeur_required
-  5. Stock Mensuel Format A (admin + mkt) → login_required / marketeur_required
-  6. Stock Mensuel Format B (admin + mkt) → login_required / marketeur_required
-  7. Frais de Passage (admin + mkt)       → login_required / marketeur_required
+États mensuels — accès piloté par les permissions RBAC (voir
+SGDS/users/permissions_registry.py, groupe 'etats' / 'coulage') :
+  1. Stock Ouverture / Fermeture          → voir_stock_ouverture_fermeture
+  2. Global Mensuel Dépôt / RJJ / 15° / Ambiant → voir_etat
+  3. Coulage Répartition (admin + mkt)    → voir_coulage
+  4. Frais de Passage (admin + mkt)       → voir_frais_passage
+Les écrans marketeur ajoutent @marketeur_required (rôle légataire).
 """
 
 from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 
-from SGDS.users.decorators import chef_depot_required
+from SGDS.users.decorators import voir_required
 from .client import marketeur_required, _D
 
 
@@ -29,21 +26,28 @@ _Q2 = Decimal('0.01')
 #  HELPERS COMMUNS
 # ─────────────────────────────────────────────────────────────
 
-def _periodes_disponibles():
+def _periodes_disponibles(request):
     from SGDS.models import PeriodeComptable
-    return PeriodeComptable.objects.order_by('-annee', '-mois')
+    from SGDS.services.depot_scope import depot_scope
+    return depot_scope(request, PeriodeComptable.objects).order_by('-annee', '-mois')
 
 
 def _get_periode(request):
-    """Période sélectionnée via GET ?periode_id= (UUID), sinon la plus récente."""
+    """
+    Période sélectionnée via GET ?periode_id= (UUID), sinon la plus récente.
+    Restreinte au dépôt actif (request.depot) — sauf pour les vues marketeur
+    (request.depot est toujours None), où elle reste consolidée tous dépôts.
+    """
     from SGDS.models import PeriodeComptable
+    from SGDS.services.depot_scope import depot_scope
+    qs = depot_scope(request, PeriodeComptable.objects)
     pid = request.GET.get('periode_id')
     if pid:
         try:
-            return PeriodeComptable.objects.get(uuid=pid)
+            return qs.get(uuid=pid)
         except (PeriodeComptable.DoesNotExist, ValueError, ValidationError):
             pass
-    return PeriodeComptable.objects.order_by('-annee', '-mois').first()
+    return qs.order_by('-annee', '-mois').first()
 
 
 def _get_marketeur_optionnel(request):
@@ -85,11 +89,12 @@ def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_ja
 
     date_fin_calc = date_fin_override if date_fin_override is not None else periode.date_fin
     filtre_journalier = date_fin_override is not None
+    depot = periode.depot
 
     produits   = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
     mouvements = list(
         Mouvement.objects
-        .filter(date_mouvement__range=(periode.date_debut, date_fin_calc))
+        .filter(depot=depot, date_mouvement__range=(periode.date_debut, date_fin_calc))
         .select_related('produit', 'marketeur', 'cession_marketeur_destinataire')
     )
 
@@ -119,6 +124,7 @@ def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_ja
             dernier_j = (
                 JaugeageJour.objects
                 .filter(
+                    depot=depot,
                     date_jaugeage__range=(periode.date_debut, periode.date_fin),
                     est_valide=True,
                 )
@@ -153,7 +159,7 @@ def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_ja
 
         dernier_j = (
             JaugeageJour.objects
-            .filter(date_jaugeage=date_j, est_valide=True)
+            .filter(depot=depot, date_jaugeage=date_j, est_valide=True)
             .order_by(heure_order, '-date_creation')
             .first()
         )
@@ -161,6 +167,7 @@ def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_ja
             dernier_j = (
                 JaugeageJour.objects
                 .filter(
+                    depot=depot,
                     date_jaugeage__range=(periode.date_debut, date_j),
                     est_valide=True,
                 )
@@ -188,6 +195,7 @@ def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_ja
     _inv_initiaux = {}
     if periode.periode_precedente() is None:
         for inv in InventaireInitialMarketeur.objects.filter(
+            depot=depot,
             date_inventaire__lte=periode.date_fin,
         ).select_related('produit'):
             pid = inv.produit_id
@@ -424,13 +432,15 @@ def _calculer_stock_ouverture_fermeture(periode, date_fin_override=None, date_ja
     return lignes
 
 
-@chef_depot_required
+@voir_required('voir_stock_ouverture_fermeture')
 def etat_stock_ouverture_fermeture(request):
-    from SGDS.models import Societe, Produit
+    from SGDS.models import Societe, Produit, Marketeur
     from datetime import datetime, timedelta
-    periodes       = _periodes_disponibles()
+    periodes       = _periodes_disponibles(request)
     periode        = _get_periode(request)
     produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
+    marketeurs     = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
+    marketeur_sel  = _get_marketeur_optionnel(request)
     produit_id     = request.GET.get('produit_id')
     date_str       = request.GET.get('date', '').strip()
     produit_filtre = None
@@ -453,7 +463,12 @@ def etat_stock_ouverture_fermeture(request):
         except ValueError:
             pass
 
-    lignes_all = _calculer_stock_ouverture_fermeture(periode, date_fin_override, date_filtre) if periode else []
+    if periode and marketeur_sel:
+        lignes_all = _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur_sel, date_fin_override)
+    elif periode:
+        lignes_all = _calculer_stock_ouverture_fermeture(periode, date_fin_override, date_filtre)
+    else:
+        lignes_all = []
     lignes = [l for l in lignes_all
               if produit_filtre is None or l['produit'].pk == produit_filtre.pk]
     societe = Societe.get_instance()
@@ -465,16 +480,20 @@ def etat_stock_ouverture_fermeture(request):
         'produits':       produits,
         'produit_filtre': produit_filtre,
         'date_filtre':    date_filtre,
+        'marketeurs':     marketeurs,
+        'marketeur_sel':  marketeur_sel,
     })
 
 
-@chef_depot_required
+@voir_required('voir_stock_ouverture_fermeture')
 def etat_stock_fermeture(request):
-    from SGDS.models import Societe, Produit
+    from SGDS.models import Societe, Produit, Marketeur
     from datetime import datetime
-    periodes       = _periodes_disponibles()
+    periodes       = _periodes_disponibles(request)
     periode        = _get_periode(request)
     produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
+    marketeurs     = Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale')
+    marketeur_sel  = _get_marketeur_optionnel(request)
     produit_id     = request.GET.get('produit_id')
     date_str       = request.GET.get('date', '').strip()
     produit_filtre = None
@@ -497,7 +516,12 @@ def etat_stock_fermeture(request):
         except ValueError:
             pass
 
-    lignes_all = _calculer_stock_ouverture_fermeture(periode, date_fin_override, date_filtre) if periode else []
+    if periode and marketeur_sel:
+        lignes_all = _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur_sel, date_fin_override)
+    elif periode:
+        lignes_all = _calculer_stock_ouverture_fermeture(periode, date_fin_override, date_filtre)
+    else:
+        lignes_all = []
     lignes = [l for l in lignes_all
               if produit_filtre is None or l['produit'].pk == produit_filtre.pk]
     societe = Societe.get_instance()
@@ -509,10 +533,12 @@ def etat_stock_fermeture(request):
         'produits':       produits,
         'produit_filtre': produit_filtre,
         'date_filtre':    date_filtre,
+        'marketeurs':     marketeurs,
+        'marketeur_sel':  marketeur_sel,
     })
 
 
-@chef_depot_required
+@voir_required('voir_stock_ouverture_fermeture')
 def etat_stock_fermeture_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -520,7 +546,11 @@ def etat_stock_fermeture_export(request):
     if not periode:
         messages.warning(request, "Aucune periode disponible.")
         return redirect('etat_mensuel_stock_fermeture')
-    lignes_all = _calculer_stock_ouverture_fermeture(periode)
+    marketeur_sel = _get_marketeur_optionnel(request)
+    if marketeur_sel:
+        lignes_all = _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur_sel)
+    else:
+        lignes_all = _calculer_stock_ouverture_fermeture(periode)
     lignes = [
         {
             'produit':           l['produit'],
@@ -581,7 +611,7 @@ def _xlsx_stock_fermeture(periode, lignes, societe):
     return buf.read()
 
 
-@chef_depot_required
+@voir_required('voir_stock_ouverture_fermeture')
 def etat_stock_ouverture_fermeture_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -589,7 +619,11 @@ def etat_stock_ouverture_fermeture_export(request):
     if not periode:
         messages.warning(request, "Aucune période disponible.")
         return redirect('etat_mensuel_stock_ouverture')
-    lignes  = _calculer_stock_ouverture_fermeture(periode)
+    marketeur_sel = _get_marketeur_optionnel(request)
+    if marketeur_sel:
+        lignes = _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur_sel)
+    else:
+        lignes = _calculer_stock_ouverture_fermeture(periode)
     societe = Societe.get_instance()
     contenu = _xlsx_stock_ouverture(periode, lignes, societe)
     nom = f"stock_ouverture_{periode.mois:02d}_{periode.annee}.xlsx"
@@ -695,7 +729,7 @@ def _calculer_global_depot(periode, marketeur=None):
 
     qs = (
         Mouvement.objects
-        .filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
+        .filter(depot=periode.depot, date_mouvement__range=(periode.date_debut, periode.date_fin))
         .select_related('produit', 'marketeur', 'camion', 'cession_marketeur_destinataire')
         .order_by('type_mouvement', 'date_mouvement', 'pk')
     )
@@ -779,6 +813,7 @@ def _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur, date_fin_o
     mouvements = list(
         Mouvement.objects
         .filter(
+            depot=periode.depot,
             date_mouvement__range=(periode.date_debut, date_fin_calc),
             marketeur=marketeur,
         )
@@ -788,6 +823,7 @@ def _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur, date_fin_o
     # Cessions du marketeur sur la période (reçues + émises), pour répartition SD/AC
     cessions_recues = list(
         Mouvement.objects.filter(
+            depot=periode.depot,
             cession_marketeur_destinataire=marketeur,
             type_mouvement='CESSION',
             date_mouvement__range=(periode.date_debut, date_fin_calc),
@@ -806,6 +842,7 @@ def _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur, date_fin_o
 
     if not report_par_produit and periode.periode_precedente() is None:
         for inv in InventaireInitialMarketeur.objects.filter(
+            depot=periode.depot,
             marketeur=marketeur,
             date_inventaire__lte=periode.date_fin,
         ).select_related('produit'):
@@ -982,6 +1019,7 @@ def _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur, date_fin_o
             'recl_sd_sortie_15c':       recl_sd_sortie_15c,
             'recl_ac_sortie_amb':       recl_ac_sortie_amb,
             'recl_ac_sortie_15c':       recl_ac_sortie_15c,
+            'coul_install_amb':         _Z,  # coulage réparti à la clôture (cf. pg_inst_amb), pas de ligne dédiée côté marketeur
             'total_sorties_sd_amb':     total_sorties_sd_amb,
             'total_sorties_sd_15c':     total_sorties_sd_15c,
             'total_sorties_ac_amb':     total_sorties_ac_amb,
@@ -1011,10 +1049,11 @@ def _calculer_stock_ouverture_fermeture_marketeur(periode, marketeur, date_fin_o
 
 
 @marketeur_required
+@voir_required('voir_etat')
 def etat_stock_ouverture_marketeur(request):
     from SGDS.models import Produit
     from datetime import datetime, timedelta
-    periodes       = _periodes_disponibles()
+    periodes       = _periodes_disponibles(request)
     periode        = _get_periode(request)
     mkt            = request.user.marketeur
     produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
@@ -1055,10 +1094,11 @@ def etat_stock_ouverture_marketeur(request):
 
 
 @marketeur_required
+@voir_required('voir_etat')
 def etat_stock_fermeture_marketeur(request):
     from SGDS.models import Produit
     from datetime import datetime
-    periodes       = _periodes_disponibles()
+    periodes       = _periodes_disponibles(request)
     periode        = _get_periode(request)
     mkt            = request.user.marketeur
     produits       = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
@@ -1098,14 +1138,14 @@ def etat_stock_fermeture_marketeur(request):
     })
 
 
-@login_required
+@voir_required('voir_etat_global_depot')
 def etat_global_mensuel_depot(request):
     from SGDS.models import Societe, Marketeur
     if request.user.is_marketeur_role:
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes    = _periodes_disponibles()
+    periodes    = _periodes_disponibles(request)
     periode     = _get_periode(request)
     marketeurs  = list(Marketeur.objects.filter(statut='ACTIF').order_by('raison_sociale'))
     marketeur   = _get_marketeur_optionnel(request)
@@ -1122,7 +1162,7 @@ def etat_global_mensuel_depot(request):
     })
 
 
-@login_required
+@voir_required('voir_etat_global_depot')
 def etat_global_mensuel_depot_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -1264,12 +1304,12 @@ def _calculer_rjj(periode, cuve_id=None):
 
     qs = (
         JaugeageJour.objects
-        .filter(date_jaugeage__range=(periode.date_debut, periode.date_fin))
+        .filter(depot=periode.depot, date_jaugeage__range=(periode.date_debut, periode.date_fin))
         .prefetch_related('mesures__cuve__parametre_jaugeage')
         .order_by('date_jaugeage', 'heure_jaugeage')
     )
     jaugeages = list(qs)
-    cuves     = list(Cuve.objects.filter(parametre_jaugeage__isnull=False)
+    cuves     = list(Cuve.objects.filter(depot=periode.depot, parametre_jaugeage__isnull=False)
                      .select_related('produit', 'parametre_jaugeage')
                      .order_by('numero'))
     if cuve_id:
@@ -1316,16 +1356,18 @@ def _calculer_rjj(periode, cuve_id=None):
     }
 
 
-@login_required
+@voir_required('voir_etat_rjj')
 def etat_global_mensuel_rjj(request):
     from SGDS.models import Societe, Cuve
     if request.user.is_marketeur_role:
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes  = _periodes_disponibles()
+    from SGDS.services.depot_scope import depot_scope
+
+    periodes  = _periodes_disponibles(request)
     periode   = _get_periode(request)
-    cuves     = list(Cuve.objects.filter(parametre_jaugeage__isnull=False).order_by('numero'))
+    cuves     = list(depot_scope(request, Cuve.objects.filter(parametre_jaugeage__isnull=False)).order_by('numero'))
     cuve_id   = request.GET.get('cuve')
     rapport   = _calculer_rjj(periode, cuve_id) if periode else {'lignes': [], 'cuves': []}
     societe   = Societe.get_instance()
@@ -1340,7 +1382,7 @@ def etat_global_mensuel_rjj(request):
     })
 
 
-@login_required
+@voir_required('voir_etat_rjj')
 def etat_global_mensuel_rjj_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -1449,21 +1491,22 @@ def _rapport_coulage_pour_periode(periode):
     return calculer_repartition_coulage(periode), 'TEMPS_REEL'
 
 
-@login_required
+@voir_required('voir_coulage')
 def etat_coulage_repartition(request):
     from SGDS.models import Societe, PeriodeComptable
+    from SGDS.services.depot_scope import depot_scope
     if request.user.is_marketeur_role:
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes = _periodes_disponibles()
+    periodes = _periodes_disponibles(request)
 
     # Si aucune période choisie, prendre la dernière clôturée (pas forcément la plus récente)
     if request.GET.get('periode_id'):
         periode = _get_periode(request)
     else:
         periode = (
-            PeriodeComptable.objects.filter(statut='CLOTUREE')
+            depot_scope(request, PeriodeComptable.objects.filter(statut='CLOTUREE'))
             .order_by('-annee', '-mois').first()
             or _get_periode(request)
         )
@@ -1488,7 +1531,7 @@ def etat_coulage_repartition(request):
     })
 
 
-@login_required
+@voir_required('voir_coulage')
 def etat_coulage_repartition_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -1518,9 +1561,10 @@ def etat_coulage_repartition_export(request):
 
 
 @marketeur_required
+@voir_required('voir_coulage')
 def etat_coulage_repartition_marketeur(request):
     from SGDS.models import Societe, PeriodeComptable
-    periodes = _periodes_disponibles()
+    periodes = _periodes_disponibles(request)
 
     if request.GET.get('periode_id'):
         periode = _get_periode(request)
@@ -1559,6 +1603,7 @@ def etat_coulage_repartition_marketeur(request):
 
 
 @marketeur_required
+@voir_required('voir_coulage')
 def etat_coulage_repartition_marketeur_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -1732,7 +1777,7 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
     # comme le fait _calculer_stock_ouverture_fermeture.
     _inv_initiaux = {}
     if marketeur is None and periode.periode_precedente() is None:
-        for inv in InventaireInitialMarketeur.objects.filter(date_inventaire__lte=periode.date_fin):
+        for inv in InventaireInitialMarketeur.objects.filter(depot=periode.depot, date_inventaire__lte=periode.date_fin):
             pid = inv.produit_id
             if pid not in _inv_initiaux:
                 _inv_initiaux[pid] = {'amb': _Z, '15c': _Z}
@@ -1759,14 +1804,14 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
         date_j = date_fin_override
         dernier_j = (
             JaugeageJour.objects
-            .filter(date_jaugeage=date_j, est_valide=True)
+            .filter(depot=periode.depot, date_jaugeage=date_j, est_valide=True)
             .order_by('-heure_jaugeage', '-date_creation')
             .first()
         )
         if not dernier_j and date_j >= periode.date_debut:
             dernier_j = (
                 JaugeageJour.objects
-                .filter(date_jaugeage__range=(periode.date_debut, date_j), est_valide=True)
+                .filter(depot=periode.depot, date_jaugeage__range=(periode.date_debut, date_j), est_valide=True)
                 .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
                 .first()
             )
@@ -1791,7 +1836,7 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
         if not sf_amb_map:
             dernier_j = (
                 JaugeageJour.objects
-                .filter(date_jaugeage__range=(periode.date_debut, periode.date_fin), est_valide=True)
+                .filter(depot=periode.depot, date_jaugeage__range=(periode.date_debut, periode.date_fin), est_valide=True)
                 .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
                 .first()
             )
@@ -1833,7 +1878,7 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
                 ouv_amb = _inv.get('amb', _Z)
                 ouv_15c = _inv.get('15c', _Z)
             mvts_qs = Mouvement.objects.filter(
-                produit=produit,
+                depot=periode.depot, produit=produit,
                 date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
         else:
@@ -1853,13 +1898,13 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
             else:
                 inv_agg = (
                     InventaireInitialMarketeur.objects
-                    .filter(marketeur=marketeur, produit=produit)
+                    .filter(depot=periode.depot, marketeur=marketeur, produit=produit)
                     .aggregate(v_amb=_Sum('volume_ambiant'), v_15c=_Sum('volume_15c'))
                 )
                 ouv_amb = _D(inv_agg['v_amb'] or 0)
                 ouv_15c = _D(inv_agg['v_15c'] or 0)
             mvts_qs = Mouvement.objects.filter(
-                produit=produit, marketeur=marketeur,
+                depot=periode.depot, produit=produit, marketeur=marketeur,
                 date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
 
@@ -1877,7 +1922,7 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
             # (Mouvement.marketeur = l'émetteur de la cession, pas le destinataire,
             # donc requête séparée filtrée sur cession_marketeur_destinataire)
             cess_recues = Mouvement.objects.filter(
-                produit=produit, type_mouvement='CESSION',
+                depot=periode.depot, produit=produit, type_mouvement='CESSION',
                 cession_marketeur_destinataire=marketeur,
                 date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
@@ -1934,7 +1979,7 @@ def _calculer_stock_a_15(periode, marketeur=None, date_fin_override=None):
     }
 
 
-@login_required
+@voir_required('voir_etat_stock_15')
 def etat_stock_mensuel_15(request):
     from SGDS.models import Societe, Marketeur as MktModel
     from datetime import datetime
@@ -1942,7 +1987,7 @@ def etat_stock_mensuel_15(request):
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes    = _periodes_disponibles()
+    periodes    = _periodes_disponibles(request)
     periode     = _get_periode(request)
     marketeurs  = list(MktModel.objects.filter(statut='ACTIF').order_by('raison_sociale'))
     marketeur   = _get_marketeur_optionnel(request)
@@ -1973,7 +2018,7 @@ def etat_stock_mensuel_15(request):
     })
 
 
-@login_required
+@voir_required('voir_etat_stock_15')
 def etat_stock_mensuel_15_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -2000,10 +2045,11 @@ def etat_stock_mensuel_15_export(request):
 
 
 @marketeur_required
+@voir_required('voir_etat')
 def etat_stock_mensuel_15_marketeur(request):
     from SGDS.models import Societe
     from datetime import datetime
-    periodes    = _periodes_disponibles()
+    periodes    = _periodes_disponibles(request)
     periode     = _get_periode(request)
     mkt         = request.user.marketeur
     date_str    = request.GET.get('date', '').strip()
@@ -2033,6 +2079,7 @@ def etat_stock_mensuel_15_marketeur(request):
 
 
 @marketeur_required
+@voir_required('voir_etat')
 def etat_stock_mensuel_15_marketeur_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -2189,7 +2236,7 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
     # comme le fait _calculer_stock_ouverture_fermeture.
     _inv_initiaux = {}
     if marketeur is None and periode.periode_precedente() is None:
-        for inv in InventaireInitialMarketeur.objects.filter(date_inventaire__lte=periode.date_fin):
+        for inv in InventaireInitialMarketeur.objects.filter(depot=periode.depot, date_inventaire__lte=periode.date_fin):
             pid = inv.produit_id
             _inv_initiaux[pid] = _inv_initiaux.get(pid, _Z) + _D(inv.volume_ambiant)
 
@@ -2213,14 +2260,14 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
         date_j = date_fin_override
         dernier_j = (
             JaugeageJour.objects
-            .filter(date_jaugeage=date_j, est_valide=True)
+            .filter(depot=periode.depot, date_jaugeage=date_j, est_valide=True)
             .order_by('-heure_jaugeage', '-date_creation')
             .first()
         )
         if not dernier_j and date_j >= periode.date_debut:
             dernier_j = (
                 JaugeageJour.objects
-                .filter(date_jaugeage__range=(periode.date_debut, date_j), est_valide=True)
+                .filter(depot=periode.depot, date_jaugeage__range=(periode.date_debut, date_j), est_valide=True)
                 .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
                 .first()
             )
@@ -2241,7 +2288,7 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
         if not sf_physique:
             dernier_j = (
                 JaugeageJour.objects
-                .filter(date_jaugeage__range=(periode.date_debut, periode.date_fin), est_valide=True)
+                .filter(depot=periode.depot, date_jaugeage__range=(periode.date_debut, periode.date_fin), est_valide=True)
                 .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
                 .first()
             )
@@ -2277,7 +2324,7 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
             else:
                 ouv = _inv_initiaux.get(produit.pk, _Z)
             mvts_qs = Mouvement.objects.filter(
-                produit=produit,
+                depot=periode.depot, produit=produit,
                 date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
         else:
@@ -2296,12 +2343,12 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
             else:
                 inv_agg = (
                     InventaireInitialMarketeur.objects
-                    .filter(marketeur=marketeur, produit=produit)
+                    .filter(depot=periode.depot, marketeur=marketeur, produit=produit)
                     .aggregate(v_amb=_Sum('volume_ambiant'))
                 )
                 ouv = _D(inv_agg['v_amb'] or 0)
             mvts_qs = Mouvement.objects.filter(
-                produit=produit, marketeur=marketeur,
+                depot=periode.depot, produit=produit, marketeur=marketeur,
                 date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
 
@@ -2316,7 +2363,7 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
             # (Mouvement.marketeur = l'émetteur de la cession, pas le destinataire,
             # donc requête séparée filtrée sur cession_marketeur_destinataire)
             cess_recues = Mouvement.objects.filter(
-                produit=produit, type_mouvement='CESSION',
+                depot=periode.depot, produit=produit, type_mouvement='CESSION',
                 cession_marketeur_destinataire=marketeur,
                 date_mouvement__range=(periode.date_debut, date_fin_calc),
             )
@@ -2364,7 +2411,7 @@ def _calculer_stock_ambiant(periode, marketeur=None, date_fin_override=None):
     }
 
 
-@login_required
+@voir_required('voir_etat_stock_ambiant')
 def etat_stock_ambiant(request):
     from SGDS.models import Societe, Marketeur as MktModel
     from datetime import datetime
@@ -2372,7 +2419,7 @@ def etat_stock_ambiant(request):
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes    = _periodes_disponibles()
+    periodes    = _periodes_disponibles(request)
     periode     = _get_periode(request)
     marketeurs  = list(MktModel.objects.filter(statut='ACTIF').order_by('raison_sociale'))
     marketeur   = _get_marketeur_optionnel(request)
@@ -2404,7 +2451,7 @@ def etat_stock_ambiant(request):
     })
 
 
-@login_required
+@voir_required('voir_etat_stock_ambiant')
 def etat_stock_ambiant_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -2431,10 +2478,11 @@ def etat_stock_ambiant_export(request):
 
 
 @marketeur_required
+@voir_required('voir_etat')
 def etat_stock_ambiant_marketeur(request):
     from SGDS.models import Societe
     from datetime import datetime
-    periodes    = _periodes_disponibles()
+    periodes    = _periodes_disponibles(request)
     periode     = _get_periode(request)
     mkt         = request.user.marketeur
     date_str    = request.GET.get('date', '').strip()
@@ -2464,6 +2512,7 @@ def etat_stock_ambiant_marketeur(request):
 
 
 @marketeur_required
+@voir_required('voir_etat')
 def etat_stock_ambiant_marketeur_export(request):
     from SGDS.models import Societe
     from django.http import HttpResponse
@@ -2612,13 +2661,28 @@ def _xlsx_stock_ambiant(rapport, societe):
 
 def _filtrer_rapport_frais_marketeur(rapport_complet, mkt):
     """Filtre un rapport frais_passage pour ne garder que les lignes d'un marketeur."""
+    produits      = rapport_complet.get('produits', [])
     modes_filtres = []
     for mode_data in rapport_complet.get('modes', []):
         lignes_mkt = [l for l in mode_data['lignes'] if l['marketeur'].pk == mkt.pk]
         if lignes_mkt:
-            modes_filtres.append({**mode_data, 'lignes': lignes_mkt})
-
-    produits  = rapport_complet.get('produits', [])
+            st_vols   = {p.id: _Z for p in produits}
+            st_global = _Z
+            st_montant = _Z
+            for l in lignes_mkt:
+                for pid, v in l['volumes_par_produit'].items():
+                    st_vols[pid] = st_vols.get(pid, _Z) + _D(v)
+                st_global  += _D(l['volume_global'])
+                st_montant += _D(l['montant'])
+            modes_filtres.append({
+                **mode_data,
+                'lignes': lignes_mkt,
+                'sous_totaux': {
+                    'volumes_par_produit': st_vols,
+                    'volume_global':       st_global,
+                    'montant':             st_montant,
+                },
+            })
     tot_vols  = {p.id: _Z for p in produits}
     tot_vol_g = _Z
     tot_mont  = _Z
@@ -2640,7 +2704,7 @@ def _filtrer_rapport_frais_marketeur(rapport_complet, mkt):
     }
 
 
-@login_required
+@voir_required('voir_frais_passage')
 def etat_frais_passage_mensuel(request):
     from SGDS.models import Societe
     from SGDS.services.frais_passage import calculer_frais_passage
@@ -2648,7 +2712,7 @@ def etat_frais_passage_mensuel(request):
         messages.error(request, "Accès non autorisé.")
         return redirect('client_dashboard')
 
-    periodes = _periodes_disponibles()
+    periodes = _periodes_disponibles(request)
     periode  = _get_periode(request)
     societe  = Societe.get_instance()
     rapport  = calculer_frais_passage(periode) if periode else None
@@ -2661,7 +2725,7 @@ def etat_frais_passage_mensuel(request):
     })
 
 
-@login_required
+@voir_required('voir_frais_passage')
 def etat_frais_passage_mensuel_export(request):
     from SGDS.models import Societe
     from SGDS.services.frais_passage import calculer_frais_passage
@@ -2689,10 +2753,11 @@ def etat_frais_passage_mensuel_export(request):
 
 
 @marketeur_required
+@voir_required('voir_frais_passage')
 def etat_frais_passage_mensuel_marketeur(request):
     from SGDS.models import Societe
     from SGDS.services.frais_passage import calculer_frais_passage
-    periodes        = _periodes_disponibles()
+    periodes        = _periodes_disponibles(request)
     periode         = _get_periode(request)
     societe         = Societe.get_instance()
     mkt             = request.user.marketeur
@@ -2712,6 +2777,7 @@ def etat_frais_passage_mensuel_marketeur(request):
 
 
 @marketeur_required
+@voir_required('voir_frais_passage')
 def etat_frais_passage_mensuel_marketeur_export(request):
     from SGDS.models import Societe
     from SGDS.services.frais_passage import calculer_frais_passage

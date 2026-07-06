@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Configuration email — SGDS{% endblock %}
+{% block nav_configuration_email %}active{% endblock %}
+
+{% block breadcrumb %}
+  <span class="breadcrumb-current">Paramètres</span>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Configuration email</span>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px}
+.section-title{padding:12px 20px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);background:var(--bg);display:flex;align-items:center;gap:8px}
+.section-body{padding:20px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.form-full{grid-column:1/-1}
+
+.field-group{display:flex;flex-direction:column;gap:5px}
+.field-group label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field-group input,
+.field-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:.85rem;color:var(--text);font-family:inherit;transition:border .2s}
+.field-group input:focus{border-color:var(--navy);outline:none}
+.field-help{font-size:.7rem;color:var(--muted);margin-top:3px}
+.field-error{font-size:.72rem;color:#dc2626;margin-top:3px}
+
+.field-check{display:flex;align-items:center;gap:10px;padding:4px 0}
+.field-check input{width:auto !important;accent-color:var(--navy)}
+.field-check label{font-size:.82rem;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0}
+
+.status-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:.74rem;font-weight:700}
+.status-pill.on{background:#dcfce7;color:#166534}
+.status-pill.off{background:#fee2e2;color:#991b1b}
+.status-pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+
+.test-box{background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:16px;margin-top:6px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.test-box .field-group{flex:1;min-width:220px}
+
+.btn-save{padding:10px 28px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;transition:background .2s;display:inline-flex;align-items:center;gap:7px}
+.btn-save:hover{background:var(--navy-l)}
+.btn-secondary{padding:10px 22px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer}
+.btn-secondary:hover{background:var(--card)}
+
+.last-modif{font-size:.75rem;color:var(--muted);display:flex;align-items:center;gap:5px}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Configuration email</h1>
+    <p class="page-subtitle">Paramètres SMTP utilisés pour les notifications et états mensuels envoyés par email</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    {% if config.actif %}
+      <span class="status-pill on">Envoi activé</span>
+    {% else %}
+      <span class="status-pill off">Envoi désactivé</span>
+    {% endif %}
+    <span class="last-modif">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Modifié le {{ config.date_modification|date:"d/m/Y à H:i" }}
+    </span>
+  </div>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="field-error" style="margin-bottom:12px">{{ form.non_field_errors|join:", " }}</div>
+  {% endif %}
+
+  <div class="form-section">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+      Activation
+    </div>
+    <div class="section-body">
+      <div class="field-check">
+        {{ form.actif }}
+        <label for="{{ form.actif.id_for_label }}">Activer l'envoi réel des emails</label>
+      </div>
+      <p class="field-help">Si désactivé, les notifications restent visibles uniquement dans l'application (aucun email n'est envoyé).</p>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+      Serveur SMTP
+    </div>
+    <div class="section-body">
+      <div class="form-grid">
+        <div class="field-group">
+          <label>Serveur (host) *</label>
+          {{ form.host }}
+          {% if form.host.errors %}<span class="field-error">{{ form.host.errors|join:", " }}</span>{% endif %}
+        </div>
+        <div class="field-group">
+          <label>Port *</label>
+          {{ form.port }}
+          {% if form.port.errors %}<span class="field-error">{{ form.port.errors|join:", " }}</span>{% endif %}
+        </div>
+        <div class="field-group">
+          <div class="field-check">
+            {{ form.use_tls }}
+            <label for="{{ form.use_tls.id_for_label }}">Utiliser TLS (port 587 généralement)</label>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-check">
+            {{ form.use_ssl }}
+            <label for="{{ form.use_ssl.id_for_label }}">Utiliser SSL (port 465 généralement)</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="section-title">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 005 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 005 8.6a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6 1.65 1.65 0 0010 3.09V3a2 2 0 114 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Identifiants
+    </div>
+    <div class="section-body">
+      <div class="form-grid">
+        <div class="field-group">
+          <label>Utilisateur (adresse email) *</label>
+          {{ form.host_user }}
+          {% if form.host_user.errors %}<span class="field-error">{{ form.host_user.errors|join:", " }}</span>{% endif %}
+        </div>
+        <div class="field-group">
+          <label>Mot de passe {% if config.host_password %}<span style="color:var(--muted);font-weight:400;text-transform:none">(laisser vide pour ne pas changer)</span>{% endif %}</label>
+          <input type="password" name="host_password" autocomplete="new-password" placeholder="{% if config.host_password %}••••••••{% else %}Mot de passe / mot de passe d'application{% endif %}">
+        </div>
+        <div class="field-group form-full">
+          <label>Adresse d'expédition par défaut</label>
+          {{ form.default_from_email }}
+          <span class="field-help">Ex : « SGDS &lt;notifications@societe.ml&gt; ». Laissé vide, l'utilisateur SMTP est utilisé.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px">
+    <button type="submit" class="btn-save">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Enregistrer
+    </button>
+  </div>
+</form>
+
+<div class="form-section" style="margin-top:20px">
+  <div class="section-title">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+    Tester l'envoi
+  </div>
+  <div class="section-body">
+    <p class="field-help" style="margin-bottom:6px">Envoie un email de test avec la configuration ci-dessus (pensez à enregistrer vos modifications avant de tester).</p>
+    <form method="post" class="test-box">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="test">
+      <div class="field-group">
+        <label>Destinataire du test</label>
+        <input type="email" name="email_test" placeholder="{{ config.host_user|default:'votre adresse email' }}">
+      </div>
+      <button type="submit" class="btn-secondary">Envoyer un email de test</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

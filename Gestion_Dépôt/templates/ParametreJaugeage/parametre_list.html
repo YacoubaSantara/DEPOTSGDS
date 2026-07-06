@@ -60,7 +60,7 @@
     <div class="stat-lbl">Cuves configurées</div>
   </div>
   <div class="stat-card">
-    <div class="stat-val" style="color:var(--amber)">{{ total_cuves|add:"-1"|add:"1"|add:nb_configures|add:"-"|default:0 }}{{ total_cuves }}</div>
+    <div class="stat-val" style="color:var(--amber)">{{ total_cuves }}</div>
     <div class="stat-lbl">Total cuves</div>
   </div>
   <div class="stat-card">
@@ -136,4 +136,6 @@
   </div>
   {% endif %}
 </div>
+
+{% include 'partials/_pagination.html' with page_obj=cuves %}
 {% endblock %}

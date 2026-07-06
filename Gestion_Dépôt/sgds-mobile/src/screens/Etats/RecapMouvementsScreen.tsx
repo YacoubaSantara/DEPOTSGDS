@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, Modal, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import dayjs from 'dayjs';
 
-import { etatsApi, RecapResponse, RecapFilters } from '../../api/etats';
+import { etatsApi, RecapResponse, RecapFilters, Periode } from '../../api/etats';
 import { Colors, FontSize, Radius } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -34,9 +34,8 @@ function fmtN(n: any): string {
 }
 
 function fmtVol(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + ' M';
-  if (n >= 1_000)     return (n / 1_000).toFixed(0) + ' k';
-  return String(Math.round(n));
+  if (isNaN(n)) return '0';
+  return Math.round(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
 }
 
 // ── Composant ─────────────────────────────────────────────────────
@@ -45,20 +44,32 @@ export function RecapMouvementsScreen() {
   const navigation = useNavigation();
 
   const [period, setPeriod]             = useState('30j');
+  const [periodes, setPeriodes]         = useState<Periode[]>([]);
+  const [selectedPeriode, setSelectedPeriode] = useState<Periode | null>(null);
+  const [showPeriodeModal, setShowPeriodeModal] = useState(false);
   const [data, setData]                 = useState<RecapResponse | null>(null);
   const [loading, setLoading]           = useState(true);
   const [refreshing, setRefreshing]     = useState(false);
   const [error, setError]               = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
+  useEffect(() => {
+    etatsApi.periodes().then(r => setPeriodes(r.data)).catch(() => {});
+  }, []);
+
   const buildFilters = useCallback((): RecapFilters => {
+    if (selectedPeriode) {
+      // La période comptable prime sur la plage rapide : elle ajoute aussi
+      // le stock d'ouverture (report) comme point de départ du stock final.
+      return { periode_id: selectedPeriode.id };
+    }
     const p = PERIODS.find(x => x.label === period);
     if (!p?.days) return {};
     return {
       date_debut: dayjs().subtract(p.days, 'day').format('YYYY-MM-DD'),
       date_fin:   dayjs().format('YYYY-MM-DD'),
     };
-  }, [period]);
+  }, [period, selectedPeriode]);
 
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -82,10 +93,15 @@ export function RecapMouvementsScreen() {
     if (!data) return;
     setGeneratingPdf(true);
     try {
-      const p = PERIODS.find(x => x.label === period);
-      const periodeLabel = p?.days
-        ? `Derniers ${period} — du ${dayjs().subtract(p.days, 'day').format('DD/MM/YYYY')} au ${dayjs().format('DD/MM/YYYY')}`
-        : 'Tous les mouvements';
+      let periodeLabel: string;
+      if (selectedPeriode) {
+        periodeLabel = selectedPeriode.nom;
+      } else {
+        const p = PERIODS.find(x => x.label === period);
+        periodeLabel = p?.days
+          ? `Derniers ${period} — du ${dayjs().subtract(p.days, 'day').format('DD/MM/YYYY')} au ${dayjs().format('DD/MM/YYYY')}`
+          : 'Tous les mouvements';
+      }
 
       const html = buildRecapHtml({
         marketeurNom: data.marketeur_nom,
@@ -159,21 +175,48 @@ export function RecapMouvementsScreen() {
       >
         {/* ── Filtre période ──────────────────────────────────── */}
         <View style={styles.filterBar}>
-          <View style={styles.segmented}>
+          <TouchableOpacity
+            style={[styles.periodeBtn, selectedPeriode && styles.periodeBtnActive]}
+            onPress={() => setShowPeriodeModal(true)}
+          >
+            <Ionicons name="calendar-outline" size={14} color={selectedPeriode ? Colors.white : Colors.navy} />
+            <Text style={[styles.periodeBtnText, selectedPeriode && styles.periodeBtnTextActive]} numberOfLines={1}>
+              {selectedPeriode?.nom ?? 'Période comptable'}
+            </Text>
+            {selectedPeriode ? (
+              <TouchableOpacity onPress={() => setSelectedPeriode(null)} hitSlop={8}>
+                <Ionicons name="close-circle" size={14} color={Colors.white} />
+              </TouchableOpacity>
+            ) : (
+              <Ionicons name="chevron-down" size={12} color={Colors.slate} />
+            )}
+          </TouchableOpacity>
+
+          <View style={[styles.segmented, selectedPeriode && styles.segmentedDisabled]}>
             {PERIODS.map(p => (
               <TouchableOpacity
                 key={p.label}
-                onPress={() => setPeriod(p.label)}
-                style={[styles.segBtn, period === p.label && styles.segBtnActive]}
+                onPress={() => { setSelectedPeriode(null); setPeriod(p.label); }}
+                style={[styles.segBtn, !selectedPeriode && period === p.label && styles.segBtnActive]}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.segText, period === p.label && styles.segTextActive]}>
+                <Text style={[styles.segText, !selectedPeriode && period === p.label && styles.segTextActive]}>
                   {p.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
+
+        {/* ── Stock d'ouverture (report) ──────────────────────── */}
+        {selectedPeriode && (
+          <View style={styles.reportBanner}>
+            <Ionicons name="arrow-redo-outline" size={16} color={Colors.navy} />
+            <Text style={styles.reportText}>
+              Stock d'ouverture (report) : <Text style={styles.reportValue}>{fmtVol(Number(t?.stock_ouverture_ambiant ?? 0))} L</Text>
+            </Text>
+          </View>
+        )}
 
         {/* ── KPI globaux ──────────────────────────────────────── */}
         <View style={styles.kpiSection}>
@@ -296,6 +339,44 @@ export function RecapMouvementsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ── Modal sélecteur période comptable ─────────────────────── */}
+      <Modal visible={showPeriodeModal} transparent animationType="slide" onRequestClose={() => setShowPeriodeModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Choisir une période comptable</Text>
+            <Text style={styles.modalHint}>
+              Affiche le stock d'ouverture (report) et les mouvements de la période sélectionnée.
+            </Text>
+            <FlatList
+              data={periodes}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => {
+                const active = selectedPeriode?.id === item.id;
+                return (
+                  <TouchableOpacity
+                    style={[styles.modalOpt, active && styles.modalOptActive]}
+                    onPress={() => { setSelectedPeriode(item); setShowPeriodeModal(false); }}
+                  >
+                    <Ionicons name="calendar" size={16} color={active ? Colors.navy : Colors.slate} />
+                    <Text style={[styles.modalOptText, active && styles.modalOptTextActive]}>{item.nom}</Text>
+                    {item.statut === 'CLOTUREE' && (
+                      <View style={styles.clotureBadge}>
+                        <Text style={styles.clotureBadgeText}>CLÔTURÉE</Text>
+                      </View>
+                    )}
+                    {active && <Ionicons name="checkmark" size={18} color={Colors.navy} />}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <TouchableOpacity style={styles.modalClose} onPress={() => setShowPeriodeModal(false)}>
+              <Text style={styles.modalCloseText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -385,11 +466,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     paddingHorizontal: 14, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: Colors.cloud,
+    gap: 10,
   },
+  periodeBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.navyTint,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  periodeBtnActive:     { backgroundColor: Colors.navy },
+  periodeBtnText:       { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.navy },
+  periodeBtnTextActive: { color: Colors.white },
   segmented: {
     flexDirection: 'row', backgroundColor: Colors.cloud,
     borderRadius: 10, padding: 3,
   },
+  segmentedDisabled: { opacity: 0.5 },
   segBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
   segBtnActive: {
     backgroundColor: Colors.white,
@@ -398,6 +489,45 @@ const styles = StyleSheet.create({
   },
   segText:       { fontSize: 11, fontWeight: '700', color: Colors.slate },
   segTextActive: { color: Colors.navy },
+
+  reportBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.navyTint,
+    marginHorizontal: 14, marginTop: 12,
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  reportText:  { flex: 1, fontSize: 12, color: Colors.navy, fontWeight: '600' },
+  reportValue: { fontWeight: '800' },
+
+  // Modal sélecteur période
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl,
+    padding: 20, maxHeight: '70%',
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.mist,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: Colors.ink, marginBottom: 4 },
+  modalHint:  { fontSize: 11, color: Colors.slate, marginBottom: 12, lineHeight: 16 },
+  modalOpt: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: Colors.cloud,
+  },
+  modalOptActive: { backgroundColor: Colors.navyTint, borderRadius: 10, paddingHorizontal: 8 },
+  modalOptText: { flex: 1, fontSize: 14, color: Colors.ink },
+  modalOptTextActive: { color: Colors.navy, fontWeight: '700' },
+  clotureBadge: { backgroundColor: Colors.cloud, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  clotureBadgeText: { fontSize: 9, fontWeight: '700', color: Colors.slate },
+  modalClose: {
+    alignItems: 'center', padding: 14, marginTop: 8,
+    backgroundColor: Colors.cloud, borderRadius: 12,
+  },
+  modalCloseText: { fontSize: 14, fontWeight: '700', color: Colors.slate },
 
   kpiSection: { padding: 14, gap: 10 },
   kpiBig: {

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Stock à 15° — {{ marketeur.raison_sociale }}</title>
+<style>
+@page {
+  size: A4 landscape;
+  margin: 1.2cm 1.2cm 1.8cm 1.2cm;
+  @frame footer { -pdf-frame-content: footerContent; bottom: 0.6cm; left: 1.2cm; right: 1.2cm; height: 1.6cm; }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #0f2547; }
+
+.doc-header { background: #0e2a47; padding: 10px 14px; margin-bottom: 10px; }
+.logo-img  { height: 30px; }
+.logo-text { color: #fff; font-size: 16pt; font-weight: 900; }
+.logo-sub  { color: rgba(255,255,255,0.6); font-size: 8.5pt; }
+.header-right { text-align: right; color: #fff; }
+.header-title { font-size: 13pt; font-weight: 700; }
+.header-mkt  { font-size: 10.5pt; color: rgba(255,255,255,0.8); margin-top: 1px; }
+.header-meta  { font-size: 8.5pt; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { background: #1b3a6b; color: #fff; font-size: 8.5pt; font-weight: 700; text-transform: uppercase; padding: 6px 8px; text-align: center; }
+.tbl th.sub { background: #2c5285; font-size: 8pt; }
+.tbl th.row-label { text-align: left; }
+.tbl td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-size: 9.5pt; text-align: right; }
+.tbl td.row-label { text-align: left; font-weight: 600; color: #1e3a5f; background: #f8fafc; }
+.tbl td.num { font-family: monospace; }
+.row-ouverture td { background: #eef2ff; }
+.row-entrees td { background: #f0fdf4; }
+.row-sorties td { background: #fff7ed; }
+.row-comptable td { background: #eff6ff; font-weight: 700; }
+.row-pg td { background: #fef2f2; }
+.row-ratio td { background: #fafafa; }
+.row-fermeture td { background: #f0fdf4; font-weight: 700; }
+.num-pos { color: #16a34a; font-weight: 700; }
+.num-neg { color: #dc2626; font-weight: 700; }
+
+#footerContent { border-top: 1px solid #e2e8f0; padding-top: 4px; }
+.sig-block { text-align: center; padding-top: 30px; border-top: 1px solid #0f2547; font-size: 9pt; font-weight: 700; color: #0f2547; }
+</style>
+</head>
+<body>
+
+<table class="doc-header" width="100%" cellpadding="10" cellspacing="0">
+  <tr>
+    <td style="vertical-align:middle">
+      {% if societe.logo %}<img class="logo-img" src="{{ societe.logo.path }}" alt="">{% else %}<div class="logo-text">SGDS</div>{% endif %}
+      <div class="logo-sub">{{ societe.raison_sociale|default:"Système de Gestion des Dépôts pétroliers" }}</div>
+    </td>
+    <td style="vertical-align:middle" class="header-right">
+      <div class="header-title">STOCK À 15° — {{ periode }}</div>
+      <div class="header-mkt">{{ marketeur.raison_sociale }}{% if marketeur.sigle %} ({{ marketeur.sigle }}){% endif %}</div>
+      <div class="header-meta">Généré le {{ generated_at }}</div>
+    </td>
+  </tr>
+</table>
+
+{% if rapport.produits %}
+<table class="tbl" cellpadding="0" cellspacing="0">
+  <thead>
+    <tr>
+      <th class="row-label" rowspan="2">Désignation</th>
+      {% for p in rapport.produits %}<th colspan="2">{{ p.nom|upper }}</th>{% endfor %}
+    </tr>
+    <tr>
+      {% for p in rapport.produits %}<th class="sub">AMB (L)</th><th class="sub">@15°C (L)</th>{% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="row-ouverture">
+      <td class="row-label">STOCKS OUVERTURE</td>
+      {% for v in rapport.stk_ouverture %}<td class="num">{{ v.amb|floatformat:2 }}</td><td class="num">{{ v.c15|floatformat:2 }}</td>{% endfor %}
+    </tr>
+    <tr class="row-entrees">
+      <td class="row-label">CUMULS ENTRÉES</td>
+      {% for v in rapport.cumul_entrees %}<td class="num">{{ v.amb|floatformat:2 }}</td><td class="num">{{ v.c15|floatformat:2 }}</td>{% endfor %}
+    </tr>
+    <tr class="row-sorties">
+      <td class="row-label">CUMULS SORTIES</td>
+      {% for v in rapport.cumul_sorties %}<td class="num">{{ v.amb|floatformat:2 }}</td><td class="num">{{ v.c15|floatformat:2 }}</td>{% endfor %}
+    </tr>
+    <tr class="row-comptable">
+      <td class="row-label">STOCKS COMPTABLE</td>
+      {% for v in rapport.stk_comptable %}<td class="num">{{ v.amb|floatformat:2 }}</td><td class="num">{{ v.c15|floatformat:2 }}</td>{% endfor %}
+    </tr>
+    <tr class="row-pg">
+      <td class="row-label">PERTES OU GAINS</td>
+      {% for v in rapport.pertes_gains %}
+      <td class="num {% if v.amb < 0 %}num-neg{% elif v.amb > 0 %}num-pos{% endif %}">{% if v.amb is not None %}{{ v.amb|floatformat:2 }}{% else %}N/D{% endif %}</td>
+      <td class="num {% if v.c15 < 0 %}num-neg{% elif v.c15 > 0 %}num-pos{% endif %}">{% if v.c15 is not None %}{{ v.c15|floatformat:2 }}{% else %}N/D{% endif %}</td>
+      {% endfor %}
+    </tr>
+    <tr class="row-ratio">
+      <td class="row-label">RATIO (%)</td>
+      {% for v in rapport.ratios %}
+      <td class="num">{% if v.amb is not None %}{{ v.amb|floatformat:4 }}{% else %}N/D{% endif %}</td>
+      <td class="num">{% if v.c15 is not None %}{{ v.c15|floatformat:4 }}{% else %}N/D{% endif %}</td>
+      {% endfor %}
+    </tr>
+    <tr class="row-fermeture">
+      <td class="row-label">STOCKS FERMETURE</td>
+      {% for v in rapport.stk_fermeture %}
+      <td class="num num-pos">{% if v.amb is not None %}{{ v.amb|floatformat:2 }}{% else %}N/D{% endif %}</td>
+      <td class="num num-pos">{% if v.c15 is not None %}{{ v.c15|floatformat:2 }}{% else %}N/D{% endif %}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+{% else %}
+<p style="text-align:center;padding:20px;color:#94a3b8">Aucune donnée pour cette période.</p>
+{% endif %}
+
+<div id="footerContent">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td width="33%" class="sig-block">Le Marketeur</td>
+      <td width="33%" class="sig-block">Le Gestionnaire</td>
+      <td width="34%" style="text-align:right;vertical-align:bottom;font-size:7pt;color:#94a3b8">Réf. MKT-STOCK-15 · Page <pdf:pagenumber> / <pdf:pagecount></td>
+    </tr>
+  </table>
+</div>
+
+</body>
+</html>

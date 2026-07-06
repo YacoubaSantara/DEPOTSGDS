@@ -13,7 +13,7 @@
 .filters-bar{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;box-shadow:var(--shadow)}
 .filters-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .filter-group{display:flex;flex-direction:column;gap:5px;min-width:200px}
-.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.filter-group label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left}
 .filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.82rem;color:var(--text)}
 .btn-filter{padding:8px 18px;background:var(--navy);color:#fff;border-radius:8px;font-size:.82rem;font-weight:600;border:none;cursor:pointer}
 .btn-reset{padding:8px 14px;background:var(--bg);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-weight:600;text-decoration:none}
@@ -35,6 +35,7 @@ tr:last-child td{border-bottom:none}
 .chip-label{font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px}
 .chip-val{font-family:inherit;font-weight:700;font-size:.96rem;color:var(--navy)}
 .empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.page-title{text-align:left}
 
 /* ── Dark mode ── */
 [data-theme="dark"] tr:nth-child(even) td{background:rgba(255,255,255,.02)}
@@ -117,7 +118,7 @@ tr:last-child td{border-bottom:none}
         <th>{{ p.nom }} (L)</th>
         {% endfor %}
         <th>Vol. Global (L)</th>
-        <th>Motif</th>
+        <th class="left">Motif</th>
         <th>PU (FCFA/L)</th>
         <th>Montant (FCFA)</th>
       </tr>

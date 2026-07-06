@@ -42,8 +42,16 @@ class ListeUtilisateursView(LoginRequiredMixin, CanManageUsersMixin, ListView):
         ctx['roles'] = list(
             Role.objects.all().order_by('-systeme', 'nom').values_list('code', 'nom')
         )
-        ctx['role_filtre'] = self.request.GET.get('role', '')
-        ctx['q'] = self.request.GET.get('q', '')
+        ctx['stats_roles'] = {
+            row['profile__role__code']: row['n']
+            for row in User.objects.values('profile__role__code').annotate(n=Count('id'))
+            if row['profile__role__code']
+        }
+        role_filtre = self.request.GET.get('role', '')
+        q = self.request.GET.get('q', '')
+        ctx['role_filtre'] = role_filtre
+        ctx['q'] = q
+        ctx['filtres'] = {'q': q, 'role': role_filtre}
         return ctx
 
 
@@ -78,11 +86,17 @@ class CreerUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, CreateView):
             compte_utilisateur__isnull=True,
         ).order_by('raison_sociale')
 
+    def _depots_qs(self):
+        from SGDS.models import Depot
+        return Depot.objects.filter(statut='ACTIF').order_by('nom')
+
     def _ctx(self, data=None):
         return {
             'roles':                  self._roles_qs(),
             'marketeurs_disponibles': self._marketeurs_disponibles(),
+            'depots':                 self._depots_qs(),
             'data':                   data or {},
+            'data_depot_ids':         data.getlist('depot_ids') if data else [],
         }
 
     def get(self, request, *args, **kwargs):
@@ -95,6 +109,8 @@ class CreerUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, CreateView):
         role_code        = data.get('role', '').strip()
         is_marketeur     = (role_code == 'MARKETEUR')
         marketeur_id     = data.get('marketeur_id', '').strip()
+        depot_ids        = data.getlist('depot_ids')
+        depot_requis     = role_code in ('CHEF_DEPOT', 'OPERATEUR', 'COMPTABLE')
 
         # ── Validations ───────────────────────────────────────
         erreur = None
@@ -108,6 +124,8 @@ class CreerUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, CreateView):
             erreur = "Le rôle est obligatoire."
         elif is_marketeur and not marketeur_id:
             erreur = "Vous devez sélectionner un marketeur à lier pour ce rôle."
+        elif depot_requis and not depot_ids:
+            erreur = "Vous devez sélectionner au moins un dépôt assigné à cet utilisateur pour ce rôle."
 
         if erreur:
             messages.error(request, erreur)
@@ -150,6 +168,7 @@ class CreerUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, CreateView):
 
             else:
                 # ── Création d'un compte interne (RBAC) ───────
+                from SGDS.models import Depot
                 role = Role.objects.get(code=role_code)
                 user = creer_utilisateur(
                     username=data['username'].strip(),
@@ -161,6 +180,8 @@ class CreerUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, CreateView):
                     telephone=data.get('telephone', '').strip(),
                     poste=data.get('poste', '').strip(),
                 )
+                if depot_ids:
+                    user.profile.depots.set(Depot.objects.filter(pk__in=depot_ids))
 
             messages.success(
                 request,
@@ -180,11 +201,16 @@ class ModifierUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, UpdateVie
     fields = ['email', 'first_name', 'last_name', 'is_active']
 
     def get_context_data(self, **kwargs):
+        from SGDS.models import Depot
         ctx = super().get_context_data(**kwargs)
         ctx['roles'] = Role.objects.exclude(code='LECTEUR').order_by('-systeme', 'nom').values_list('code', 'nom')
+        ctx['depots'] = Depot.objects.filter(statut='ACTIF').order_by('nom')
+        profil = getattr(self.object, 'profile', None)
+        ctx['depot_ids_assignes'] = list(profil.depots.values_list('pk', flat=True)) if profil else []
         return ctx
 
     def post(self, request, *args, **kwargs):
+        from SGDS.models import Depot
         self.object = self.get_object()
         profil, _ = UserProfile.objects.get_or_create(user=self.object)
         ancien_role = profil.role
@@ -203,6 +229,8 @@ class ModifierUtilisateurView(LoginRequiredMixin, CanManageUsersMixin, UpdateVie
             except Role.DoesNotExist:
                 pass
 
+        depot_ids = request.POST.getlist('depot_ids')
+        profil.depots.set(Depot.objects.filter(pk__in=depot_ids))
         profil.telephone = request.POST.get('telephone', profil.telephone or '').strip()
         profil.poste = request.POST.get('poste', profil.poste or '').strip()
         profil.actif = 'profil_actif' in request.POST
@@ -324,6 +352,7 @@ class ListeRolesView(LoginRequiredMixin, CanManageRolesMixin, ListView):
     model = Role
     template_name = 'users/roles_liste.html'
     context_object_name = 'roles'
+    paginate_by = 25
 
     def get_queryset(self):
         return Role.objects.annotate(

@@ -66,12 +66,8 @@
   <div class="form-card-body">
     <div class="fields-grid">
       <div class="field-group">
-        <label>{{ form.depot.label }}</label>
-        {{ form.depot }}
-      </div>
-      <div class="field-group">
-        <label>{{ form.type_depot.label }}</label>
-        {{ form.type_depot }}
+        <label>Dépôt</label>
+        <input type="text" value="{{ jaugeage.depot|default:depot }}" disabled class="form-control">
       </div>
       <div class="field-group">
         <label>{{ form.temperature_reference.label }}</label>

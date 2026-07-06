@@ -12,21 +12,24 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, TemplateView
 
+from SGDS.users.decorators import VoirRequiredMixin
+
 
 # ─────────────────────────────────────────────────────────────
 #  LISTE DES PÉRIODES
 # ─────────────────────────────────────────────────────────────
-class ListePeriodesCoulageView(LoginRequiredMixin, ListView):
+class ListePeriodesCoulageView(LoginRequiredMixin, VoirRequiredMixin, ListView):
+    permission_codename = 'voir_coulage'
     template_name = 'coulage/liste_periodes.html'
     paginate_by   = 24
 
     def get_queryset(self):
         from SGDS.models import PeriodeComptable
-        return (
-            PeriodeComptable.objects
-            .select_related('cloture_coulage')
-            .order_by('-annee', '-mois')
-        )
+        from SGDS.services.depot_scope import depot_scope
+        return depot_scope(
+            self.request,
+            PeriodeComptable.objects.select_related('cloture_coulage'),
+        ).order_by('-annee', '-mois')
 
     def get_context_data(self, **kwargs):
         from SGDS.models import Produit
@@ -44,9 +47,10 @@ class RepartitionCoulageView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         from SGDS.models import PeriodeComptable
         from SGDS.services.coulage_repartition import calculer_repartition_coulage
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
         ctx  = super().get_context_data(**kwargs)
-        periode = get_object_or_404(PeriodeComptable, uuid=self.kwargs['periode_uuid'])
+        periode = get_object_or_404_depot(self.request, PeriodeComptable, uuid=self.kwargs['periode_uuid'])
 
         # Utiliser le snapshot si période clôturée et snapshot disponible
         if periode.statut == 'CLOTUREE' and hasattr(periode, 'cloture_coulage'):
@@ -185,14 +189,16 @@ class ClotureCoulageView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def post(self, request, periode_uuid, periode_slug):
         from SGDS.models import PeriodeComptable, JaugeageJour
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
-        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        periode = get_object_or_404_depot(request, PeriodeComptable, uuid=periode_uuid)
 
         if periode.statut != 'OUVERTE':
             messages.warning(request, f"La période {periode} n'est pas ouverte.")
             return redirect('coulage_detail', periode_uuid=periode.uuid, periode_slug=periode.slug)
 
         if not JaugeageJour.objects.filter(
+            depot=periode.depot,
             date_jaugeage__gte=periode.date_debut,
             date_jaugeage__lte=periode.date_fin,
         ).exists():
@@ -232,8 +238,9 @@ class ExportCoulageExcelView(LoginRequiredMixin, View):
     def get(self, request, periode_uuid):
         from SGDS.models import PeriodeComptable
         from SGDS.services.coulage_repartition import calculer_repartition_coulage
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
-        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        periode = get_object_or_404_depot(request, PeriodeComptable, uuid=periode_uuid)
 
         if periode.statut == 'CLOTUREE' and hasattr(periode, 'cloture_coulage'):
             vue = RepartitionCoulageView()
@@ -471,8 +478,9 @@ class SuiviEvolutionView(LoginRequiredMixin, View):
     def get(self, request, periode_uuid, periode_slug, produit_uuid, produit_slug):
         from SGDS.models import PeriodeComptable, Produit
         from SGDS.services.suivi_evolution import calculer_suivi_evolution
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
-        periode  = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        periode  = get_object_or_404_depot(request, PeriodeComptable, uuid=periode_uuid)
         produit  = get_object_or_404(Produit, uuid=produit_uuid)
         produits = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
         rapport  = calculer_suivi_evolution(periode, produit)
@@ -493,8 +501,9 @@ class ExportSuiviExcelView(LoginRequiredMixin, View):
         from SGDS.models import PeriodeComptable, Produit
         from SGDS.services.suivi_evolution import calculer_suivi_evolution
         from SGDS.services.export_excel import exporter_suivi_xlsx
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
-        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        periode = get_object_or_404_depot(request, PeriodeComptable, uuid=periode_uuid)
         produit = get_object_or_404(Produit, uuid=produit_uuid)
         rapport = calculer_suivi_evolution(periode, produit)
 
@@ -518,8 +527,9 @@ class FraisPassageView(LoginRequiredMixin, View):
     def get(self, request, periode_uuid, periode_slug):
         from SGDS.models import PeriodeComptable
         from SGDS.services.frais_passage import calculer_frais_passage
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
-        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        periode = get_object_or_404_depot(request, PeriodeComptable, uuid=periode_uuid)
         rapport = calculer_frais_passage(periode)
 
         from django.shortcuts import render
@@ -536,8 +546,9 @@ class ExportFraisPassageExcelView(LoginRequiredMixin, View):
         from SGDS.models import PeriodeComptable
         from SGDS.services.frais_passage import calculer_frais_passage
         from SGDS.services.export_excel import exporter_frais_passage_xlsx
+        from SGDS.services.depot_scope import get_object_or_404_depot
 
-        periode = get_object_or_404(PeriodeComptable, uuid=periode_uuid)
+        periode = get_object_or_404_depot(request, PeriodeComptable, uuid=periode_uuid)
         rapport = calculer_frais_passage(periode)
 
         contenu = exporter_frais_passage_xlsx(rapport)

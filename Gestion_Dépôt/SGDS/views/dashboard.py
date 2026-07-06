@@ -23,14 +23,16 @@ def _D(v):
 def admin_dashboard(request):
     from SGDS.models import (
         Cuve, Produit, Mouvement, JaugeageJour,
-        Marketeur, Chauffeur, Camion, PeriodeComptable,
+        Marketeur, Chauffeur, Camion,
     )
+    from SGDS.services.depot_scope import depot_scope
+    from SGDS.services.periode_comptable import periode_courante_ou_alerte
 
     today = date.today()
 
     # ── 1. Cuves actives ──────────────────────────────────────
     cuves = list(
-        Cuve.objects.filter(statut='ACTIVE')
+        depot_scope(request, Cuve.objects.filter(statut='ACTIVE'))
         .select_related('produit')
         .order_by('produit__nom', 'numero')
     )
@@ -61,17 +63,13 @@ def admin_dashboard(request):
     produits = list(Produit.objects.filter(statut='ACTIF').order_by('nom'))
 
     # ── 3. Période courante ───────────────────────────────────
-    periode_courante = (
-        PeriodeComptable.objects.filter(statut='OUVERTE')
-        .order_by('-annee', '-mois')
-        .first()
-    )
+    periode_courante = periode_courante_ou_alerte(depot=request.depot)
 
     # ── 4. Mouvements du mois courant ────────────────────────
     debut_mois = today.replace(day=1)
-    mvts_mois  = Mouvement.objects.filter(
+    mvts_mois  = depot_scope(request, Mouvement.objects.filter(
         date_mouvement__range=(debut_mois, today)
-    )
+    ))
     nb_entrees_mois = mvts_mois.filter(type_mouvement='ENTREE').count()
     nb_sorties_mois = mvts_mois.filter(type_mouvement='SORTIE').count()
     vol_entrees_mois = float(
@@ -85,16 +83,16 @@ def admin_dashboard(request):
 
     # ── 5. Jaugeages récents + non validés ───────────────────
     jaugeages_recents = (
-        JaugeageJour.objects
+        depot_scope(request, JaugeageJour.objects)
         .select_related('valide_par')
         .order_by('-date_jaugeage', '-heure_jaugeage', '-date_creation')
         [:8]
     )
-    nb_jaugeages_attente = JaugeageJour.objects.filter(est_valide=False).count()
+    nb_jaugeages_attente = depot_scope(request, JaugeageJour.objects.filter(est_valide=False)).count()
 
     # ── 6. Derniers mouvements ───────────────────────────────
     derniers_mvts = (
-        Mouvement.objects
+        depot_scope(request, Mouvement.objects)
         .select_related('produit', 'marketeur', 'camion')
         .order_by('-date_mouvement', '-date_saisie')
         [:8]
@@ -104,8 +102,8 @@ def admin_dashboard(request):
     nb_marketeurs  = Marketeur.objects.filter(statut='ACTIF').count()
     nb_chauffeurs  = Chauffeur.objects.filter(statut='ACTIF').count()
     nb_camions     = Camion.objects.filter(statut='EN_SERVICE').count()
-    nb_cuves_total = Cuve.objects.filter(statut='ACTIVE').count()
-    total_mvts     = Mouvement.objects.count()
+    nb_cuves_total = depot_scope(request, Cuve.objects.filter(statut='ACTIVE')).count()
+    total_mvts     = depot_scope(request, Mouvement.objects).count()
 
     # ── 8. Graphe : Entrées & Sorties 6 derniers mois ────────
     mois_labels = []
@@ -124,23 +122,27 @@ def admin_dashboard(request):
         noms  = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc']
         mois_labels.append(f"{noms[m-1]} {y}")
         e = float(
-            Mouvement.objects.filter(
+            depot_scope(request, Mouvement.objects.filter(
                 type_mouvement='ENTREE',
                 date_mouvement__range=(debut, fin),
-            ).aggregate(t=Sum('volume_ambiant_recu'))['t'] or 0
+            )).aggregate(t=Sum('volume_ambiant_recu'))['t'] or 0
         )
         s = float(
-            Mouvement.objects.filter(
+            depot_scope(request, Mouvement.objects.filter(
                 type_mouvement='SORTIE',
                 date_mouvement__range=(debut, fin),
-            ).aggregate(t=Sum('volume_ambiant_sortie'))['t'] or 0
+            )).aggregate(t=Sum('volume_ambiant_sortie'))['t'] or 0
         )
         series_entrees.append(round(e / 1000, 2))   # en m³ pour lisibilité
         series_sorties.append(round(s / 1000, 2))
 
-    # ── 9. Graphe : Stock actuel par produit ─────────────────
+    # ── 9. Graphe : Stock actuel par produit (cuves du dépôt actif) ──
+    stock_par_produit = {}
+    for cd in cuves_data:
+        if cd['obj'].produit_id:
+            stock_par_produit[cd['obj'].produit_id] = stock_par_produit.get(cd['obj'].produit_id, 0) + cd['niv']
     chart_produits_labels = [p.nom for p in produits]
-    chart_produits_stocks  = [float(_D(p.stock_actuel)) / 1000 for p in produits]
+    chart_produits_stocks  = [stock_par_produit.get(p.pk, 0) / 1000 for p in produits]
 
     # ── 10. Alertes ───────────────────────────────────────────
     alertes = []
