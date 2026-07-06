@@ -13,6 +13,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Colors }   from '../../constants/colors';
 import { etatsApi } from '../../api/etats';
 import type { FraisPassageResponse, FraisPassageProduit, Periode } from '../../api/etats';
+import { plusieursDepots, libellePeriode } from '../../utils/periodes';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export function FraisPassageScreen() {
   const [exporting,  setExporting]  = useState(false);
   const [periodes,    setPeriodes]    = useState<Periode[]>([]);
   const [selectedPer, setSelectedPer] = useState<Periode | null>(null);
+  const multiDepot = plusieursDepots(periodes);
   const [showModal,   setShowModal]   = useState(false);
 
   useEffect(() => {
@@ -185,7 +187,7 @@ export function FraisPassageScreen() {
         <TouchableOpacity style={styles.perBtn} onPress={() => setShowModal(true)}>
           <Ionicons name="calendar-outline" size={14} color="#92400E" />
           <Text style={styles.perBtnText}>
-            {selectedPer ? selectedPer.nom : "Tarif en vigueur aujourd'hui"}
+            {selectedPer ? libellePeriode(selectedPer, multiDepot) : "Tarif en vigueur aujourd'hui"}
           </Text>
           <Ionicons name="chevron-down" size={14} color={Colors.slate} />
         </TouchableOpacity>
@@ -286,7 +288,7 @@ export function FraisPassageScreen() {
                   onPress={() => { setSelectedPer(p); setShowModal(false); }}
                 >
                   <Text style={[styles.perItemText, selectedPer?.id === p.id && { color: Colors.white }]}>
-                    {p.nom}
+                    {libellePeriode(p, multiDepot)}
                   </Text>
                   {p.statut === 'CLOTUREE' && (
                     <View style={styles.clotureBadge}>

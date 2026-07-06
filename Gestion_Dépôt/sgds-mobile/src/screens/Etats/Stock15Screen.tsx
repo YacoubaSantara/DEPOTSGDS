@@ -13,6 +13,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Colors }    from '../../constants/colors';
 import { etatsApi }  from '../../api/etats';
 import type { StockOuvertureResponse, StockOuvertureLigne, Periode } from '../../api/etats';
+import { plusieursDepots, libellePeriode, libellePeriodeEtat } from '../../utils/periodes';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ tfoot td.r{text-align:right}
   </div>
   <div class="ph-title">STOCK À 15°C — OUVERTURE / FERMETURE</div>
   <div class="ph-sub">Système de Gestion des Dépôts Pétroliers</div>
-  <div class="ph-sub" style="margin-top:8px">${data.periode_nom}</div>
+  <div class="ph-sub" style="margin-top:8px">${data.periode_nom}${data.periode_depot ? ' — ' + data.periode_depot : ''}</div>
 </div>
 <div class="kpi">
   <div class="k"><div class="k-lbl">Stock Ouverture</div><div class="k-val">${fmtN(data.total_ouverture)}</div><div style="font-size:9px;color:#6B7589">litres @15°C</div></div>
@@ -112,6 +113,7 @@ export function Stock15Screen() {
   const [data,        setData]        = useState<StockOuvertureResponse | null>(null);
   const [periodes,    setPeriodes]    = useState<Periode[]>([]);
   const [selectedPer, setSelectedPer] = useState<Periode | null>(null);
+  const multiDepot = plusieursDepots(periodes);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
@@ -175,7 +177,7 @@ export function Stock15Screen() {
         <View style={styles.heroContent}>
           <Text style={styles.heroSub}>État</Text>
           <Text style={styles.heroTitle}>Stock à 15°C</Text>
-          {data && <Text style={styles.heroPeriode}>{data.periode_nom}</Text>}
+          {data && <Text style={styles.heroPeriode}>{libellePeriodeEtat(data.periode_nom, data.periode_depot, multiDepot)}</Text>}
         </View>
         <TouchableOpacity style={styles.pdfBtn} onPress={exportPdf} disabled={exporting || !data}>
           {exporting
@@ -188,7 +190,7 @@ export function Stock15Screen() {
       <View style={styles.filterRow}>
         <TouchableOpacity style={styles.perBtn} onPress={() => setShowModal(true)}>
           <Ionicons name="calendar-outline" size={14} color="#0E7490" />
-          <Text style={styles.perBtnText}>{selectedPer ? selectedPer.nom : 'Période courante'}</Text>
+          <Text style={styles.perBtnText}>{selectedPer ? libellePeriode(selectedPer, multiDepot) : 'Période courante'}</Text>
           <Ionicons name="chevron-down" size={14} color={Colors.slate} />
         </TouchableOpacity>
         {selectedPer && (
@@ -257,7 +259,7 @@ export function Stock15Screen() {
           <View style={styles.fermCard}>
             <View>
               <Text style={styles.fermLabel}>Stock de Fermeture Total</Text>
-              <Text style={styles.fermSub}>{data.lignes.length} produit(s) — {data.periode_nom}</Text>
+              <Text style={styles.fermSub}>{data.lignes.length} produit(s) — {libellePeriodeEtat(data.periode_nom, data.periode_depot, multiDepot)}</Text>
             </View>
             <Text style={styles.fermValue}>{fmtN(data.total_fermeture)} L</Text>
           </View>
@@ -299,7 +301,7 @@ export function Stock15Screen() {
                   onPress={() => { setSelectedPer(p); setShowModal(false); }}
                 >
                   <Text style={[styles.perItemText, selectedPer?.id === p.id && { color: Colors.white }]}>
-                    {p.nom}
+                    {libellePeriode(p, multiDepot)}
                   </Text>
                   {p.statut === 'OUVERTE' && (
                     <View style={styles.openBadge}>

@@ -30,6 +30,7 @@ class StockGlobalResponseSerializer(serializers.Serializer):
     produit_sigle           = serializers.CharField(allow_null=True, allow_blank=True, required=False)
     periode_id              = serializers.IntegerField(allow_null=True, required=False)
     periode_nom             = serializers.CharField(allow_blank=True, required=False)
+    periode_depot           = serializers.CharField(allow_blank=True, required=False)
     # Données
     stock_ouverture_ambiant = serializers.DecimalField(**D)
     lignes                  = StockGlobalLigneSerializer(many=True)
@@ -78,6 +79,7 @@ class RecapSerializer(serializers.Serializer):
     marketeur_nom            = serializers.CharField()
     periode_id               = serializers.IntegerField(allow_null=True, required=False)
     periode_nom              = serializers.CharField(allow_blank=True, required=False)
+    periode_depot            = serializers.CharField(allow_blank=True, required=False)
     par_produit              = RecapProduitSerializer(many=True)
     totaux                   = RecapTotauxSerializer()
 
@@ -117,6 +119,7 @@ class StockOuvertureResponseSerializer(serializers.Serializer):
     marketeur_nom   = serializers.CharField()
     periode_id      = serializers.IntegerField(allow_null=True)
     periode_nom     = serializers.CharField(allow_blank=True)
+    periode_depot   = serializers.CharField(allow_blank=True, required=False)
     lignes          = StockOuvertureLigneSerializer(many=True)
     total_ouverture = serializers.DecimalField(**D)
     total_entrees   = serializers.DecimalField(**D)
@@ -139,6 +142,7 @@ class FraisPassageResponseSerializer(serializers.Serializer):
     date_application  = serializers.CharField(allow_blank=True)
     periode_id        = serializers.IntegerField(allow_null=True, required=False)
     periode_nom       = serializers.CharField(allow_blank=True, required=False)
+    periode_depot     = serializers.CharField(allow_blank=True, required=False)
     produits          = FraisPassageProduitSerializer(many=True)
 
 
@@ -147,6 +151,7 @@ class FraisPassageResponseSerializer(serializers.Serializer):
 class CoulageLigneSerializer(serializers.Serializer):
     periode_id    = serializers.IntegerField()
     periode_nom   = serializers.CharField()
+    periode_depot = serializers.CharField(allow_blank=True, required=False)
     produit_id    = serializers.IntegerField(allow_null=True)
     produit_nom   = serializers.CharField(allow_blank=True)
     produit_sigle = serializers.CharField(allow_blank=True)

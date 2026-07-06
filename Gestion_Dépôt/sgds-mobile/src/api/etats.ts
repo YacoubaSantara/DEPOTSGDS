@@ -21,6 +21,7 @@ export interface StockGlobalResponse {
   produit_sigle: string;
   periode_id: number | null;
   periode_nom: string;
+  periode_depot?: string;
   stock_ouverture_ambiant: number;
   lignes: StockLigne[];
   cumul_entrees_ambiant: number;
@@ -75,6 +76,7 @@ export interface RecapResponse {
   marketeur_nom: string;
   periode_id: number | null;
   periode_nom: string;
+  periode_depot?: string;
   par_produit: RecapProduit[];
   totaux: RecapTotaux;
 }
@@ -101,6 +103,7 @@ export interface StockOuvertureResponse {
   marketeur_nom:   string;
   periode_id:      number | null;
   periode_nom:     string;
+  periode_depot?:  string;
   lignes:          StockOuvertureLigne[];
   total_ouverture: number;
   total_entrees:   number;
@@ -123,6 +126,7 @@ export interface FraisPassageResponse {
   date_application: string;
   periode_id:       number | null;
   periode_nom:      string;
+  periode_depot?:   string;
   produits:         FraisPassageProduit[];
 }
 
@@ -131,6 +135,7 @@ export interface FraisPassageResponse {
 export interface CoulageLigne {
   periode_id:    number;
   periode_nom:   string;
+  periode_depot?: string;
   produit_id:    number | null;
   produit_nom:   string;
   produit_sigle: string;
@@ -166,6 +171,8 @@ export interface Periode {
   mois: number;
   nom: string;
   statut: string;
+  depot_id?: number | null;
+  depot_nom?: string;
 }
 
 // ── API calls ─────────────────────────────────────────────────────

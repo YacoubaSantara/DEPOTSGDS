@@ -13,6 +13,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Colors }   from '../../constants/colors';
 import { etatsApi } from '../../api/etats';
 import type { CoulageResponse, CoulageLigne, Periode } from '../../api/etats';
+import { plusieursDepots, libellePeriode } from '../../utils/periodes';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -31,8 +32,9 @@ function buildHtml(data: CoulageResponse, periodeNom?: string): string {
   // Grouper les lignes par période
   const periodesMap: Record<string, CoulageLigne[]> = {};
   data.lignes.forEach(l => {
-    if (!periodesMap[l.periode_nom]) periodesMap[l.periode_nom] = [];
-    periodesMap[l.periode_nom].push(l);
+    const cle = l.periode_depot ? `${l.periode_nom} — ${l.periode_depot}` : l.periode_nom;
+    if (!periodesMap[cle]) periodesMap[cle] = [];
+    periodesMap[cle].push(l);
   });
 
   const sections = Object.entries(periodesMap).map(([pNom, lignes]) => {
@@ -138,6 +140,7 @@ export function CoulageScreen() {
   const [data,        setData]        = useState<CoulageResponse | null>(null);
   const [periodes,    setPeriodes]    = useState<Periode[]>([]);
   const [selectedPer, setSelectedPer] = useState<Periode | null>(null);
+  const multiDepot = plusieursDepots(periodes);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
@@ -169,7 +172,7 @@ export function CoulageScreen() {
     if (!data) return;
     setExporting(true);
     try {
-      const html = buildHtml(data, selectedPer?.nom);
+      const html = buildHtml(data, selectedPer ? libellePeriode(selectedPer, multiDepot) : undefined);
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Coulage' });
@@ -185,8 +188,9 @@ export function CoulageScreen() {
   if (data) {
     const map: Record<string, CoulageLigne[]> = {};
     data.lignes.forEach(l => {
-      if (!map[l.periode_nom]) map[l.periode_nom] = [];
-      map[l.periode_nom].push(l);
+      const cle = l.periode_depot ? `${l.periode_nom} — ${l.periode_depot}` : l.periode_nom;
+      if (!map[cle]) map[cle] = [];
+      map[cle].push(l);
     });
     Object.entries(map).forEach(([nom, lignes]) => periodeGroups.push({ nom, lignes }));
   }
@@ -220,7 +224,7 @@ export function CoulageScreen() {
       <View style={styles.filterRow}>
         <TouchableOpacity style={styles.perBtn} onPress={() => setShowModal(true)}>
           <Ionicons name="calendar-outline" size={14} color="#5B21B6" />
-          <Text style={styles.perBtnText}>{selectedPer ? selectedPer.nom : 'Toutes les périodes'}</Text>
+          <Text style={styles.perBtnText}>{selectedPer ? libellePeriode(selectedPer, multiDepot) : 'Toutes les périodes'}</Text>
           <Ionicons name="chevron-down" size={14} color={Colors.slate} />
         </TouchableOpacity>
         {selectedPer && (
@@ -315,7 +319,7 @@ export function CoulageScreen() {
                   onPress={() => { setSelectedPer(p); setShowModal(false); }}
                 >
                   <Text style={[styles.perItemText, selectedPer?.id === p.id && { color: Colors.white }]}>
-                    {p.nom}
+                    {libellePeriode(p, multiDepot)}
                   </Text>
                   {p.statut === 'CLOTUREE' && (
                     <View style={styles.clotureBadge}>

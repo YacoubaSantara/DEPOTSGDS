@@ -11,6 +11,7 @@ import * as Sharing from 'expo-sharing';
 import dayjs from 'dayjs';
 
 import { etatsApi, RecapResponse, RecapFilters, Periode } from '../../api/etats';
+import { plusieursDepots, libellePeriode } from '../../utils/periodes';
 import { Colors, FontSize, Radius } from '../../constants/colors';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { ErrorMessage } from '../../components/ErrorMessage';
@@ -46,6 +47,7 @@ export function RecapMouvementsScreen() {
   const [period, setPeriod]             = useState('30j');
   const [periodes, setPeriodes]         = useState<Periode[]>([]);
   const [selectedPeriode, setSelectedPeriode] = useState<Periode | null>(null);
+  const multiDepot = plusieursDepots(periodes);
   const [showPeriodeModal, setShowPeriodeModal] = useState(false);
   const [data, setData]                 = useState<RecapResponse | null>(null);
   const [loading, setLoading]           = useState(true);
@@ -95,7 +97,7 @@ export function RecapMouvementsScreen() {
     try {
       let periodeLabel: string;
       if (selectedPeriode) {
-        periodeLabel = selectedPeriode.nom;
+        periodeLabel = libellePeriode(selectedPeriode, multiDepot);
       } else {
         const p = PERIODS.find(x => x.label === period);
         periodeLabel = p?.days
@@ -181,7 +183,7 @@ export function RecapMouvementsScreen() {
           >
             <Ionicons name="calendar-outline" size={14} color={selectedPeriode ? Colors.white : Colors.navy} />
             <Text style={[styles.periodeBtnText, selectedPeriode && styles.periodeBtnTextActive]} numberOfLines={1}>
-              {selectedPeriode?.nom ?? 'Période comptable'}
+              {selectedPeriode ? libellePeriode(selectedPeriode, multiDepot) : 'Période comptable'}
             </Text>
             {selectedPeriode ? (
               <TouchableOpacity onPress={() => setSelectedPeriode(null)} hitSlop={8}>
@@ -360,7 +362,7 @@ export function RecapMouvementsScreen() {
                     onPress={() => { setSelectedPeriode(item); setShowPeriodeModal(false); }}
                   >
                     <Ionicons name="calendar" size={16} color={active ? Colors.navy : Colors.slate} />
-                    <Text style={[styles.modalOptText, active && styles.modalOptTextActive]}>{item.nom}</Text>
+                    <Text style={[styles.modalOptText, active && styles.modalOptTextActive]}>{libellePeriode(item, multiDepot)}</Text>
                     {item.statut === 'CLOTUREE' && (
                       <View style={styles.clotureBadge}>
                         <Text style={styles.clotureBadgeText}>CLÔTURÉE</Text>

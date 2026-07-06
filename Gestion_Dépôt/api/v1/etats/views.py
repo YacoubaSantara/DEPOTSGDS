@@ -165,6 +165,7 @@ class StockGlobalView(APIView):
             'produit_sigle': (getattr(produit_obj, 'sigle', '') or produit_obj.nom[:4].upper()) if produit_obj else '',
             'periode_id':               periode.pk if periode else None,
             'periode_nom':              str(periode) if periode else '',
+            'periode_depot':            str(periode.depot) if periode and periode.depot_id else '',
             'stock_ouverture_ambiant':  stock_ouverture,
             'lignes':                   lignes,
             'cumul_entrees_ambiant':    cumul_entrees,
@@ -317,6 +318,7 @@ class RecapView(APIView):
             'marketeur_nom': marketeur.raison_sociale,
             'periode_id':    periode.pk if periode else None,
             'periode_nom':   str(periode) if periode else '',
+            'periode_depot': str(periode.depot) if periode and periode.depot_id else '',
             'par_produit':   par_produit,
             'totaux':        totaux,
         }
@@ -351,16 +353,15 @@ class PeriodesView(APIView):
             PeriodeComptable.objects.select_related('depot')
             .order_by('-annee', '-mois', 'depot__nom')
         )
-        plusieurs_depots = len({p.depot_id for p in periodes}) > 1
         data = [
             {
                 'id':     p.pk,
-                # Les périodes sont par dépôt : dès qu'il y en a plusieurs,
-                # le libellé distingue les mois homonymes.
-                'nom':    f"{p} — {p.depot}" if plusieurs_depots else str(p),
+                'nom':    str(p),
                 'statut': p.statut,
                 'mois':   p.mois,
                 'annee':  p.annee,
+                # Les périodes sont par dépôt : le client affiche le dépôt
+                # dès qu'il en existe plusieurs (mois homonymes discernables).
                 'depot_id':  p.depot_id,
                 'depot_nom': str(p.depot) if p.depot_id else '',
             }
@@ -553,6 +554,7 @@ class StockOuvertureFermetureView(APIView):
             'marketeur_nom':   marketeur.raison_sociale,
             'periode_id':      target_periode.pk  if target_periode else None,
             'periode_nom':     str(target_periode) if target_periode else '',
+            'periode_depot':   str(target_periode.depot) if target_periode and target_periode.depot_id else '',
             'lignes':          lignes,
             'total_ouverture': _s('stock_ouverture'),
             'total_entrees':   _s('entrees'),
@@ -721,6 +723,7 @@ class Stock15View(APIView):
             'marketeur_nom':   marketeur.raison_sociale,
             'periode_id':      target_periode.pk  if target_periode else None,
             'periode_nom':     str(target_periode) if target_periode else '',
+            'periode_depot':   str(target_periode.depot) if target_periode and target_periode.depot_id else '',
             'lignes':          lignes,
             'total_ouverture': _s('stock_ouverture'),
             'total_entrees':   _s('entrees'),
@@ -791,6 +794,7 @@ class FraisPassageView(APIView):
             'date_application': date_application,
             'periode_id':       periode.pk if periode else None,
             'periode_nom':      str(periode) if periode else '',
+            'periode_depot':    str(periode.depot) if periode and periode.depot_id else '',
             'produits':         produits_data,
         }
         return Response(FraisPassageResponseSerializer(data).data)
@@ -837,6 +841,7 @@ class CoulageView(APIView):
             lignes.append({
                 'periode_id':    l.cloture.periode_id,
                 'periode_nom':   str(l.cloture.periode),
+                'periode_depot': str(l.cloture.periode.depot) if l.cloture.periode.depot_id else '',
                 'produit_id':    l.produit_id,
                 'produit_nom':   produit_nom,
                 'produit_sigle': produit_sigle,

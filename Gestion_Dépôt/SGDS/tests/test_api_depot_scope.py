@@ -85,14 +85,21 @@ class ScopingDepotAPITests(_BaseAPI):
         )
         self.assertEqual(total, Decimal('400'))
 
-    def test_periodes_libellent_le_depot_si_plusieurs(self):
+    def test_periodes_exposent_le_depot(self):
+        """Le sélecteur reçoit depot_id/depot_nom (l'app compose l'affichage)."""
         resp = self.client_api.get('/api/v1/etats/periodes/')
         self.assertEqual(resp.status_code, 200)
-        noms = [p['nom'] for p in resp.data]
-        self.assertTrue(any('Alpha' in n for n in noms))
-        self.assertTrue(any('Bravo' in n for n in noms))
+        depot_noms = {p['depot_nom'] for p in resp.data}
+        self.assertIn('Alpha', depot_noms)
+        self.assertIn('Bravo', depot_noms)
         depot_ids = {p['depot_id'] for p in resp.data}
         self.assertIn(self.depot_a.pk, depot_ids)
+
+    def test_etat_expose_le_depot_de_sa_periode(self):
+        resp = self.client_api.get('/api/v1/etats/stock-ouverture/',
+                                   {'periode_id': self.periode_b.pk})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['periode_depot'], 'Bravo')
 
     def test_dashboard_consolide_les_deux_depots(self):
         """Le stock dashboard = somme des périodes en cours des deux dépôts."""

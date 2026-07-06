@@ -90,7 +90,8 @@
       "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 2)",
       "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 2; & \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests SGDS.tests_coulage SGDS.tests_workflow_periode SGDS.users.tests --verbosity 1 2>&1 | Select-Object -Last 5)",
       "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests.test_api_depot_scope --verbosity 2 2>&1 | Select-Object -Last 25)",
-      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests SGDS.tests_coulage SGDS.tests_workflow_periode SGDS.users.tests --verbosity 1 2>&1 | Select-Object -Last 5)"
+      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests SGDS.tests_coulage SGDS.tests_workflow_periode SGDS.users.tests --verbosity 1 2>&1 | Select-Object -Last 5)",
+      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests.test_api_depot_scope --verbosity 1 2>&1 | Select-Object -Last 5)"
     ]
   }
 }
