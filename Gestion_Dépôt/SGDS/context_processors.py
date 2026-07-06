@@ -1,14 +1,15 @@
-from SGDS.models import Notification, Depot
+from SGDS.models import Notification
 
 
 def depot_context(request):
     """Injecte le dépôt actif (résolu par DepotContextMiddleware) et la liste
-    des dépôts actifs (pour le switcher SUPERADMIN) dans tous les templates."""
+    des dépôts sélectionnables (pour le switcher — déjà matérialisée par le
+    middleware, aucune requête supplémentaire) dans tous les templates."""
     if not request.user.is_authenticated:
-        return {'depot': None, 'depots_actifs': Depot.objects.none()}
+        return {'depot': None, 'depots_actifs': []}
     return {
         'depot': getattr(request, 'depot', None),
-        'depots_actifs': Depot.objects.filter(statut='ACTIF').order_by('nom'),
+        'depots_actifs': getattr(request, 'depots_selectionnables', []),
     }
 
 

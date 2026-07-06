@@ -160,6 +160,31 @@ class UserProfile(models.Model):
         return bool(self.role and self.role.code == 'SUPERADMIN')
 
     @property
+    def est_marketeur(self):
+        return bool(self.role and self.role.code == 'MARKETEUR')
+
+    @property
+    def peut_selectionner_tous(self):
+        """Seul SUPERADMIN peut choisir la vue consolidée 'TOUS'."""
+        return self.est_superadmin
+
+    def depots_selectionnables(self):
+        """
+        QuerySet des dépôts que cet utilisateur peut avoir comme dépôt actif.
+        Règle unique consommée par DepotContextMiddleware, depot_indicateur
+        et changer_depot_actif :
+          - SUPERADMIN → tous les dépôts ACTIF ;
+          - MARKETEUR  → aucun (ses espaces agrègent tous les dépôts) ;
+          - autres rôles → uniquement leurs dépôts assignés ACTIF.
+        """
+        from SGDS.models import Depot
+        if self.est_marketeur:
+            return Depot.objects.none()
+        if self.est_superadmin:
+            return Depot.objects.filter(statut='ACTIF').order_by('nom')
+        return self.depots.filter(statut='ACTIF').order_by('nom')
+
+    @property
     def est_chef_depot(self):
         return bool(self.role and self.role.code in ('SUPERADMIN', 'CHEF_DEPOT'))
 

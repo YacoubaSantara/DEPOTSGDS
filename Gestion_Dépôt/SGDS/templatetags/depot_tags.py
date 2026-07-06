@@ -12,14 +12,20 @@ def depot_indicateur(context):
     request = context.get('request')
     profil = getattr(request.user, 'profile', None) if request else None
     est_superadmin = bool(profil and profil.est_superadmin)
-    mes_depots = None
-    if profil and not est_superadmin:
-        mes_depots = profil.depots.filter(statut='ACTIF').order_by('nom')
+
+    # Liste déjà résolue (et matérialisée) par DepotContextMiddleware —
+    # aucune requête supplémentaire. Repli si rendu hors middleware.
+    selectionnables = getattr(request, 'depots_selectionnables', None)
+    if selectionnables is None and profil:
+        selectionnables = list(profil.depots_selectionnables())
+    selectionnables = selectionnables or []
+
+    mes_depots = None if est_superadmin else selectionnables
     return {
         'depot':          context.get('depot'),
-        'depots_actifs':  context.get('depots_actifs'),
+        'depots_actifs':  selectionnables if est_superadmin else [],
         'est_superadmin': est_superadmin,
         'mes_depots':     mes_depots,
-        'multi_depot':    bool(mes_depots and mes_depots.count() > 1),
+        'multi_depot':    bool(mes_depots and len(mes_depots) > 1),
         'request':        request,
     }

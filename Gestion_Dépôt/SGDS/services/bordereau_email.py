@@ -1,14 +1,18 @@
 """
-Construction du contexte des bordereaux PDF envoyés par email (un par type de
-mouvement : Entrée/Sortie/Cession/Acquittement). Duplique volontairement le
-calcul déjà présent dans SGDS/views/__init__.py::mouvement_bordereau (écarts,
-pertes/gains, stocks avant/après pour les cessions) plutôt que de le
-réutiliser directement, pour ne jamais risquer de régression sur l'écran
-d'impression existant (Ctrl+P) qui fonctionne déjà.
+Construction du contexte des bordereaux (écarts, tolérance, pertes/gains,
+stocks avant/après pour les cessions). Source UNIQUE du calcul, partagée par :
+  - l'écran d'impression Ctrl+P (views/__init__.py::mouvement_bordereau),
+  - le PDF serveur WeasyPrint (views/__init__.py::mouvement_bordereau_pdf),
+  - le PDF envoyé par email (services/email_mouvement.py).
+Les options d'affichage (show_calc, compact, …) sont passées en overrides —
+seule la vue d'impression les lit depuis les paramètres GET.
 """
 
 
-def construire_contexte_bordereau(mouvement, societe):
+def construire_contexte_bordereau(mouvement, societe, *,
+                                  show_calc=True, show_sigs=True,
+                                  show_stamp=False, compact=False,
+                                  bw=False, auto_print=False):
     from django.utils import timezone as tz
 
     m = mouvement
@@ -91,12 +95,12 @@ def construire_contexte_bordereau(mouvement, societe):
         "societe": societe,
         "now": tz.now(),
         "periode_label": periode_label,
-        "show_calc": True,
-        "show_sigs": True,
-        "show_stamp": False,
-        "compact": False,
-        "bw": False,
-        "auto_print": False,
+        "show_calc": show_calc,
+        "show_sigs": show_sigs,
+        "show_stamp": show_stamp,
+        "compact": compact,
+        "bw": bw,
+        "auto_print": auto_print,
         "ecart_signe": ecart_signe,
         "ecart_pct": ecart_pct,
         "tolerance_status": tolerance_status,

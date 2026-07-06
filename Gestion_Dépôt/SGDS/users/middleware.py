@@ -30,12 +30,11 @@ class DepotContextMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        request.depots_selectionnables = []
         request.depot = self._resoudre(request)
         return self.get_response(request)
 
     def _resoudre(self, request):
-        from SGDS.models import Depot
-
         user = getattr(request, 'user', None)
         if not user or not user.is_authenticated:
             return None
@@ -44,36 +43,34 @@ class DepotContextMiddleware:
         if profil is None:
             return None
 
-        if profil.role and profil.role.code == 'MARKETEUR':
+        # Une seule requête : la liste est matérialisée puis exposée sur la
+        # requête pour être réutilisée par depot_indicateur / depot_context
+        # sans requête supplémentaire. Vide pour MARKETEUR (jamais restreint).
+        selectionnables = list(profil.depots_selectionnables())
+        request.depots_selectionnables = selectionnables
+        if not selectionnables:
             return None
-
-        if profil.est_superadmin:
-            valeur = request.session.get('depot_actif_id')
-            if valeur == 'TOUS':
-                return None
-            if valeur:
-                depot = Depot.objects.filter(pk=valeur, statut='ACTIF').first()
-                if depot:
-                    return depot
-
-            depot = Depot.objects.filter(statut='ACTIF').order_by('nom').first()
-            if depot:
-                request.session['depot_actif_id'] = str(depot.pk)
-            return depot
-
-        mes_depots = profil.depots.filter(statut='ACTIF').order_by('nom')
-        if not mes_depots.exists():
-            return None
-        if mes_depots.count() == 1:
-            return mes_depots.first()
 
         valeur = request.session.get('depot_actif_id')
-        if valeur and valeur != 'TOUS':
-            depot = mes_depots.filter(pk=valeur).first()
+
+        if valeur == 'TOUS':
+            if profil.peut_selectionner_tous:
+                return None  # vue consolidée
+            valeur = None
+
+        # Dépôt fixe : un seul assigné, pas de switch (hors SUPERADMIN qui
+        # garde le choix 'TOUS').
+        if len(selectionnables) == 1 and not profil.peut_selectionner_tous:
+            return selectionnables[0]
+
+        if valeur:
+            depot = next(
+                (d for d in selectionnables if str(d.pk) == str(valeur)), None
+            )
             if depot:
                 return depot
 
-        depot = mes_depots.first()
+        depot = selectionnables[0]
         request.session['depot_actif_id'] = str(depot.pk)
         return depot
 

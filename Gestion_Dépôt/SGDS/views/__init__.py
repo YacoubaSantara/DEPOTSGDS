@@ -1,4 +1,4 @@
-﻿# â"€â"€ Espace Marketeur â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+# â"€â"€ Espace Marketeur â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 from .client import (  # noqa: F401
     client_dashboard, client_mouvements, client_mouvements_pdf,
     client_mouvement_detail, client_parametres_profil, client_parametres_securite,
@@ -1319,9 +1319,12 @@ _BORDEREAU_TEMPLATES = {
 
 @login_required
 def mouvement_bordereau(request, uuid, slug):
-    """Bordereau de mouvement A4 imprimable (Ctrl+P → PDF navigateur). Dispatche selon le type."""
-    from django.utils import timezone as tz
+    """Bordereau de mouvement A4 imprimable (Ctrl+P → PDF navigateur). Dispatche selon le type.
+    Le calcul du contexte (écarts, pertes/gains, stocks cession) vit dans
+    services/bordereau_email.py::construire_contexte_bordereau — source unique
+    partagée avec le PDF serveur et le PDF envoyé par email."""
     from SGDS.models import Societe
+    from SGDS.services.bordereau_email import construire_contexte_bordereau
 
     mouvement = get_object_or_404_depot(
         request,
@@ -1342,107 +1345,15 @@ def mouvement_bordereau(request, uuid, slug):
             return default
         return v not in ("0", "false", "no", "off", "")
 
-    try:
-        from SGDS.services.periode_comptable import periode_pour_date
-        periode = periode_pour_date(mouvement.date_mouvement, mouvement.depot)
-        periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
-    except Exception:
-        periode_label = mouvement.date_mouvement.strftime("%B %Y")
-
-    vol_exp = float(mouvement.volume_ambiant_expediteur or 0)
-    vol_recu = float(mouvement.volume_ambiant_recu or 0)
-    ecart = vol_recu - vol_exp
-    if vol_exp:
-        ecart_signe = f"{'+' if ecart >= 0 else ''}{ecart:,.0f}".replace(",", "â€¯")
-        ecart_pct = f"{'+' if ecart >= 0 else ''}{(ecart / vol_exp * 100):.2f}"
-        tolerance_status = "OK" if abs(ecart / vol_exp) <= 0.005 else "HORS TOLÉRANCE"
-    else:
-        ecart_signe = "â€”"
-        ecart_pct = "â€”"
-        tolerance_status = "â€”"
-
-    pg_amb = float(mouvement.perte_gain_reception or 0)
-    pg_15c_val = float(mouvement.perte_gain_15c or 0)
-    perte_gain_ambiant_signe = (
-        f"{'+' if pg_amb >= 0 else ''}{pg_amb:,.0f}".replace(",", "â€¯")
-        if mouvement.perte_gain_reception is not None else "â€”"
+    ctx = construire_contexte_bordereau(
+        mouvement, societe,
+        show_calc=flag("calc", True),
+        show_sigs=flag("sigs", True),
+        show_stamp=flag("stamp", False),
+        compact=flag("compact", False),
+        bw=flag("bw", False),
+        auto_print=flag("auto", False),
     )
-    perte_gain_15c_signe = (
-        f"{'+' if pg_15c_val >= 0 else ''}{pg_15c_val:,.0f}".replace(",", "â€¯")
-        if mouvement.perte_gain_15c is not None else "â€”"
-    )
-    poids_volumique = float(mouvement.densite_15c_calculee) if mouvement.densite_15c_calculee else None
-
-    # ── Stocks avant/après pour les bordereaux de cession ───────────────────
-    stock_avant_cedant = stock_apres_cedant = None
-    stock_avant_cessionnaire = stock_apres_cessionnaire = None
-    if mouvement.type_mouvement == 'CESSION' and mouvement.cession_marketeur_destinataire:
-        from .etat import _calculer_carte_stock, REGIME_SD, REGIME_AC
-        _regime = mouvement.regime_douanier  # 'SOUS_DOUANE' ou 'ACQUITTE'
-        _produit = mouvement.produit
-        _vol_amb = mouvement.cession_volume_ambiant or 0
-
-        # Cedant : la cession EST dans ses mouvements directs (est_cession_recue=False)
-        try:
-            _carte_c = _calculer_carte_stock(mouvement.marketeur, _produit, _regime)
-            for _l in _carte_c['lignes']:
-                if _l['mouvement'].pk == mouvement.pk and not _l['est_cession_recue']:
-                    stock_apres_cedant = _l['stock_apres_amb']
-                    stock_avant_cedant = stock_apres_cedant + _vol_amb  # la cession a soustrait le volume
-                    break
-        except Exception:
-            pass
-
-        # Cessionnaire : la cession apparaît comme cession reçue (est_cession_recue=True)
-        try:
-            _carte_d = _calculer_carte_stock(
-                mouvement.cession_marketeur_destinataire, _produit, _regime
-            )
-            for _l in _carte_d['lignes']:
-                if _l['mouvement'].pk == mouvement.pk and _l['est_cession_recue']:
-                    stock_apres_cessionnaire = _l['stock_apres_amb']
-                    stock_avant_cessionnaire = stock_apres_cessionnaire - _vol_amb  # la cession a ajouté le volume
-                    break
-        except Exception:
-            pass
-
-    # Total dépôt = somme des deux parties
-    stock_avant_total = (
-        (stock_avant_cedant or 0) + (stock_avant_cessionnaire or 0)
-        if stock_avant_cedant is not None or stock_avant_cessionnaire is not None
-        else None
-    )
-    stock_apres_total = (
-        (stock_apres_cedant or 0) + (stock_apres_cessionnaire or 0)
-        if stock_apres_cedant is not None or stock_apres_cessionnaire is not None
-        else None
-    )
-
-    ctx = {
-        "mouvement": mouvement,
-        "societe": societe,
-        "now": tz.now(),
-        "periode_label": periode_label,
-        "show_calc": flag("calc", True),
-        "show_sigs": flag("sigs", True),
-        "show_stamp": flag("stamp", False),
-        "compact": flag("compact", False),
-        "bw": flag("bw", False),
-        "auto_print": flag("auto", False),
-        "ecart_signe": ecart_signe,
-        "ecart_pct": ecart_pct,
-        "tolerance_status": tolerance_status,
-        "perte_gain_ambiant_signe": perte_gain_ambiant_signe,
-        "perte_gain_15c_signe": perte_gain_15c_signe,
-        "poids_volumique": poids_volumique,
-        "statut_acquittement": mouvement.statut_acquittement,
-        "stock_avant_cedant": stock_avant_cedant,
-        "stock_apres_cedant": stock_apres_cedant,
-        "stock_avant_cessionnaire": stock_avant_cessionnaire,
-        "stock_apres_cessionnaire": stock_apres_cessionnaire,
-        "stock_avant_total": stock_avant_total,
-        "stock_apres_total": stock_apres_total,
-    }
     template = _BORDEREAU_TEMPLATES.get(mouvement.type_mouvement, "mouvements/bordereau.html")
     return render(request, template, ctx)
 
@@ -1462,8 +1373,8 @@ def mouvement_bordereau_pdf(request, uuid, slug):
             content_type="text/plain; charset=utf-8",
         )
 
-    from django.utils import timezone as tz
     from SGDS.models import Societe
+    from SGDS.services.bordereau_email import construire_contexte_bordereau
 
     mouvement = get_object_or_404_depot(
         request,
@@ -1478,56 +1389,9 @@ def mouvement_bordereau_pdf(request, uuid, slug):
     )
     societe = Societe.get_instance()
 
-    try:
-        from SGDS.services.periode_comptable import periode_pour_date
-        periode = periode_pour_date(mouvement.date_mouvement, mouvement.depot)
-        periode_label = str(periode) if periode else mouvement.date_mouvement.strftime("%B %Y")
-    except Exception:
-        periode_label = mouvement.date_mouvement.strftime("%B %Y")
-
-    vol_exp = float(mouvement.volume_ambiant_expediteur or 0)
-    vol_recu = float(mouvement.volume_ambiant_recu or 0)
-    ecart = vol_recu - vol_exp
-    if vol_exp:
-        ecart_signe = f"{'+' if ecart >= 0 else ''}{ecart:,.0f}".replace(",", " ")
-        ecart_pct = f"{'+' if ecart >= 0 else ''}{(ecart / vol_exp * 100):.2f}"
-        tolerance_status = "OK" if abs(ecart / vol_exp) <= 0.005 else "HORS TOLÉRANCE"
-    else:
-        ecart_signe = "—"
-        ecart_pct = "—"
-        tolerance_status = "—"
-
-    pg_amb = float(mouvement.perte_gain_reception or 0)
-    pg_15c_val = float(mouvement.perte_gain_15c or 0)
-    perte_gain_ambiant_signe = (
-        f"{'+' if pg_amb >= 0 else ''}{pg_amb:,.0f}".replace(",", " ")
-        if mouvement.perte_gain_reception is not None else "—"
-    )
-    perte_gain_15c_signe = (
-        f"{'+' if pg_15c_val >= 0 else ''}{pg_15c_val:,.0f}".replace(",", " ")
-        if mouvement.perte_gain_15c is not None else "—"
-    )
-    poids_volumique = float(mouvement.densite_15c_calculee) if mouvement.densite_15c_calculee else None
-
-    ctx = {
-        "mouvement": mouvement,
-        "societe": societe,
-        "now": tz.now(),
-        "periode_label": periode_label,
-        "show_calc": True,
-        "show_sigs": True,
-        "show_stamp": False,
-        "compact": False,
-        "bw": False,
-        "auto_print": False,
-        "ecart_signe": ecart_signe,
-        "ecart_pct": ecart_pct,
-        "tolerance_status": tolerance_status,
-        "perte_gain_ambiant_signe": perte_gain_ambiant_signe,
-        "perte_gain_15c_signe": perte_gain_15c_signe,
-        "poids_volumique": poids_volumique,
-        "statut_acquittement": mouvement.statut_acquittement,
-    }
+    # Contexte partagé — source unique du calcul (services/bordereau_email.py).
+    # Les clés stock_* excédentaires sont ignorées par le template.
+    ctx = construire_contexte_bordereau(mouvement, societe)
     template = _BORDEREAU_TEMPLATES.get(mouvement.type_mouvement, "mouvements/bordereau.html")
     html_string = render_to_string(template, ctx, request=request)
     css_path = finders.find("css/bordereau.css")

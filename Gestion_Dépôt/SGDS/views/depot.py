@@ -84,13 +84,18 @@ def changer_depot_actif(request):
     if request.method == 'POST':
         valeur = request.POST.get('depot_id', '').strip()
         profil = getattr(request.user, 'profile', None)
-        if profil and profil.est_superadmin:
-            if valeur == 'TOUS':
+        if profil:
+            # Règle centralisée dans UserProfile (mêmes dépôts que le
+            # middleware et le switcher — plus de copie locale).
+            if valeur == 'TOUS' and profil.peut_selectionner_tous:
                 request.session['depot_actif_id'] = 'TOUS'
-            elif Depot.objects.filter(pk=valeur, statut='ACTIF').exists():
-                request.session['depot_actif_id'] = valeur
-        elif profil and profil.depots.filter(pk=valeur, statut='ACTIF').exists():
-            request.session['depot_actif_id'] = valeur
+            else:
+                try:
+                    autorise = profil.depots_selectionnables().filter(pk=valeur).exists()
+                except (ValueError, TypeError):
+                    autorise = False
+                if autorise:
+                    request.session['depot_actif_id'] = valeur
     from django.utils.http import url_has_allowed_host_and_scheme
     suivant = request.POST.get('next') or request.META.get('HTTP_REFERER') or '/'
     if not url_has_allowed_host_and_scheme(

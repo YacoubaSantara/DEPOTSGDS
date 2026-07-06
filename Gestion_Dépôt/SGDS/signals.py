@@ -372,12 +372,22 @@ def _envoyer_email_etats_mensuels(marketeurs, periode, sujet_notif, message_noti
     def _envoyer():
         from SGDS.models import ConfigurationEmail
         from SGDS.services.etat_mensuel_envoi import envoyer_etat_mensuel_marketeur
+        from SGDS.services.frais_passage import calculer_frais_passage
+        from SGDS.views.mensuel import _rapport_coulage_pour_periode
 
         config = ConfigurationEmail.get_instance()
         if not config.actif or not config.host_user:
             return
+        # Les rapports pleine-période (tous marketeurs) ne dépendent que de
+        # la période : calculés UNE fois, pas une fois par marketeur (O(M²)).
+        rapport_coulage, _source = _rapport_coulage_pour_periode(periode)
+        rapport_frais = calculer_frais_passage(periode)
         for mkt in marketeurs:
-            envoyer_etat_mensuel_marketeur(periode, mkt, config)
+            envoyer_etat_mensuel_marketeur(
+                periode, mkt, config,
+                rapport_coulage_complet=rapport_coulage,
+                rapport_frais_complet=rapport_frais,
+            )
 
     transaction.on_commit(
         lambda: threading.Thread(target=_envoyer, daemon=True).start()

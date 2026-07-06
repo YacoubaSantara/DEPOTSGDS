@@ -5,7 +5,7 @@ GET /api/v1/dashboard/
 from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Count, Q, Sum
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -103,55 +103,43 @@ def _calc_stock_produit(marketeur, produit, periode_courante, ac_ouverture,
         inv_ac_amb = inv_data.get('ac_amb', Decimal('0'))
         inv_ac_15  = inv_data.get('ac_15',  Decimal('0'))
 
+    # Toutes les sommes (type × régime × amb/15°C) en UNE seule requête via
+    # agrégation conditionnelle — remplace 24 .aggregate() séparés.
+    exprs = {}
+    for cle, type_mv, f_amb, f_15 in (
+        ('e', 'ENTREE',       'volume_ambiant_recu',         'volume_15c_recu'),
+        ('s', 'SORTIE',       'volume_ambiant_sortie',       'volume_15c_sortie'),
+        ('c', 'CESSION',      'cession_volume_ambiant',      'cession_volume_15c'),
+        ('a', 'ACQUITTEMENT', 'acquittement_volume_ambiant', 'acquittement_volume_15c'),
+    ):
+        for suffixe, regime in (('', None), ('_sd', 'SOUS_DOUANE'), ('_ac', 'ACQUITTE')):
+            q = Q(type_mouvement=type_mv)
+            if regime:
+                q &= Q(regime_douanier=regime)
+            exprs[f'{cle}{suffixe}_amb'] = Sum(f_amb, filter=q)
+            exprs[f'{cle}{suffixe}_15']  = Sum(f_15,  filter=q)
+    agg = qs.aggregate(**exprs)
+
+    def g(alias):
+        return _D(agg[alias])
+
+    r = qs_recu.aggregate(amb=Sum('cession_volume_ambiant'), c15=Sum('cession_volume_15c'))
+    r_amb, r_15 = _D(r['amb']), _D(r['c15'])
+
     # Ambiant — base = stock d'ouverture ACQUITTE uniquement.
     # ENTREE SOUS_DOUANE ignorée ; l'ACQUITTEMENT AJOUTE au stock disponible.
-    e_amb = _D(qs.filter(type_mouvement='ENTREE', regime_douanier='ACQUITTE').aggregate(t=Sum('volume_ambiant_recu'))['t'])
-    s_amb = _D(qs.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_ambiant_sortie'))['t'])
-    c_amb = _D(qs.filter(type_mouvement='CESSION').aggregate(t=Sum('cession_volume_ambiant'))['t'])
-    a_amb = _D(qs.filter(type_mouvement='ACQUITTEMENT').aggregate(t=Sum('acquittement_volume_ambiant'))['t'])
-    r_amb = _D(qs_recu.aggregate(t=Sum('cession_volume_ambiant'))['t'])
+    e_amb = g('e_ac_amb')
     pg_amb = qp_coul_par_produit.get(produit.pk, {}).get('qp_coul', Decimal('0'))
-    stock_amb = inv_ac_amb + e_amb + r_amb + a_amb - s_amb - c_amb + pg_amb
+    stock_amb = inv_ac_amb + e_amb + r_amb + g('a_amb') - g('s_amb') - g('c_amb') + pg_amb
 
     # 15°C — même logique (sans quote-part coulage, comme sur le web)
-    e_15 = _D(qs.filter(type_mouvement='ENTREE', regime_douanier='ACQUITTE').aggregate(t=Sum('volume_15c_recu'))['t'])
-    s_15 = _D(qs.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_15c_sortie'))['t'])
-    c_15 = _D(qs.filter(type_mouvement='CESSION').aggregate(t=Sum('cession_volume_15c'))['t'])
-    a_15 = _D(qs.filter(type_mouvement='ACQUITTEMENT').aggregate(t=Sum('acquittement_volume_15c'))['t'])
-    r_15 = _D(qs_recu.aggregate(t=Sum('cession_volume_15c'))['t'])
-    stock_15 = inv_ac_15 + e_15 + r_15 + a_15 - s_15 - c_15
+    stock_15 = inv_ac_15 + g('e_ac_15') + r_15 + g('a_15') - g('s_15') - g('c_15')
 
     # SD / AC (répartition informative par régime douanier)
-    qs_sd = qs.filter(regime_douanier='SOUS_DOUANE')
-    qs_ac = qs.filter(regime_douanier='ACQUITTE')
-    sd_amb = (
-        inv_sd_amb
-        + _D(qs_sd.filter(type_mouvement='ENTREE').aggregate(t=Sum('volume_ambiant_recu'))['t'])
-        - _D(qs_sd.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_ambiant_sortie'))['t'])
-        - _D(qs_sd.filter(type_mouvement='CESSION').aggregate(t=Sum('cession_volume_ambiant'))['t'])
-        - _D(qs_sd.filter(type_mouvement='ACQUITTEMENT').aggregate(t=Sum('acquittement_volume_ambiant'))['t'])
-    )
-    ac_amb = (
-        inv_ac_amb
-        + _D(qs_ac.filter(type_mouvement='ENTREE').aggregate(t=Sum('volume_ambiant_recu'))['t'])
-        + _D(qs_ac.filter(type_mouvement='ACQUITTEMENT').aggregate(t=Sum('acquittement_volume_ambiant'))['t'])
-        - _D(qs_ac.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_ambiant_sortie'))['t'])
-        - _D(qs_ac.filter(type_mouvement='CESSION').aggregate(t=Sum('cession_volume_ambiant'))['t'])
-    )
-    sd_15 = (
-        inv_sd_15
-        + _D(qs_sd.filter(type_mouvement='ENTREE').aggregate(t=Sum('volume_15c_recu'))['t'])
-        - _D(qs_sd.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_15c_sortie'))['t'])
-        - _D(qs_sd.filter(type_mouvement='CESSION').aggregate(t=Sum('cession_volume_15c'))['t'])
-        - _D(qs_sd.filter(type_mouvement='ACQUITTEMENT').aggregate(t=Sum('acquittement_volume_15c'))['t'])
-    )
-    ac_15 = (
-        inv_ac_15
-        + _D(qs_ac.filter(type_mouvement='ENTREE').aggregate(t=Sum('volume_15c_recu'))['t'])
-        + _D(qs_ac.filter(type_mouvement='ACQUITTEMENT').aggregate(t=Sum('acquittement_volume_15c'))['t'])
-        - _D(qs_ac.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_15c_sortie'))['t'])
-        - _D(qs_ac.filter(type_mouvement='CESSION').aggregate(t=Sum('cession_volume_15c'))['t'])
-    )
+    sd_amb = inv_sd_amb + g('e_sd_amb') - g('s_sd_amb') - g('c_sd_amb') - g('a_sd_amb')
+    ac_amb = inv_ac_amb + g('e_ac_amb') + g('a_ac_amb') - g('s_ac_amb') - g('c_ac_amb')
+    sd_15  = inv_sd_15  + g('e_sd_15')  - g('s_sd_15')  - g('c_sd_15')  - g('a_sd_15')
+    ac_15  = inv_ac_15  + g('e_ac_15')  + g('a_ac_15')  - g('s_ac_15')  - g('c_ac_15')
 
     return {
         'stock_amb': stock_amb, 'stock_15': stock_15,
@@ -203,6 +191,13 @@ class DashboardView(APIView):
             .order_by('nom')
         )
 
+        # Capacités par produit en une requête groupée (au lieu d'une par produit)
+        capacites = {
+            row['produit']: _D(row['t'])
+            for row in Cuve.objects.filter(statut='ACTIVE')
+            .values('produit').annotate(t=Sum('capacite_totale'))
+        }
+
         stocks = []
         for produit in produits:
             calc = _calc_stock_produit(
@@ -215,10 +210,7 @@ class DashboardView(APIView):
             if calc['stock_amb'] == 0 and inv_test == 0 and calc['e_amb'] == 0 and calc['r_amb'] == 0:
                 continue
 
-            capacite = _D(
-                Cuve.objects.filter(produit=produit, statut='ACTIVE')
-                .aggregate(t=Sum('capacite_totale'))['t']
-            )
+            capacite = capacites.get(produit.pk, Decimal('0'))
 
             stocks.append({
                 'produit_id':    produit.pk,
@@ -255,14 +247,19 @@ class DashboardView(APIView):
             for m in derniers
         ]
 
-        total = Mouvement.objects.filter(marketeur=marketeur).count()
-
-        # ── KPI globaux ───────────────────────────────────────
-        qs_all = Mouvement.objects.filter(marketeur=marketeur)
-        total_entrees = _D(qs_all.filter(type_mouvement='ENTREE').aggregate(t=Sum('volume_ambiant_recu'))['t'])
-        total_sorties = _D(qs_all.filter(type_mouvement='SORTIE').aggregate(t=Sum('volume_ambiant_sortie'))['t'])
-        nb_entrees    = qs_all.filter(type_mouvement='ENTREE').count()
-        nb_sorties    = qs_all.filter(type_mouvement='SORTIE').count()
+        # ── KPI globaux — 5 requêtes regroupées en une seule ──
+        kpi = Mouvement.objects.filter(marketeur=marketeur).aggregate(
+            total=Count('id'),
+            total_entrees=Sum('volume_ambiant_recu', filter=Q(type_mouvement='ENTREE')),
+            total_sorties=Sum('volume_ambiant_sortie', filter=Q(type_mouvement='SORTIE')),
+            nb_entrees=Count('id', filter=Q(type_mouvement='ENTREE')),
+            nb_sorties=Count('id', filter=Q(type_mouvement='SORTIE')),
+        )
+        total         = kpi['total']
+        total_entrees = _D(kpi['total_entrees'])
+        total_sorties = _D(kpi['total_sorties'])
+        nb_entrees    = kpi['nb_entrees']
+        nb_sorties    = kpi['nb_sorties']
 
         total_cap_all = sum(float(_D(s.get('capacite') or 0)) for s in stocks)
         total_amb_all = sum(float(_D(s.get('stock_ambiant') or 0)) for s in stocks)
