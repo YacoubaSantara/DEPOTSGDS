@@ -42,6 +42,27 @@ def _D(val):
     return Decimal(str(val)) if not isinstance(val, Decimal) else val
 
 
+def _periode_cible(periode_id, *, defaut_ouverte=False):
+    """
+    Résout la période cible d'un état. Les périodes sont PAR DÉPÔT : tout
+    état calculé « pour la période X » doit ensuite filtrer les mouvements
+    sur periode.depot pour rester cohérent avec son stock d'ouverture.
+      - periode_id fourni : la période demandée (None si inexistante) ;
+      - sinon, si defaut_ouverte : la période OUVERTE la plus récente
+        (ordre déterministe par dépôt), à défaut la plus récente.
+    """
+    if periode_id:
+        try:
+            return PeriodeComptable.objects.select_related('depot').get(pk=periode_id)
+        except PeriodeComptable.DoesNotExist:
+            return None
+    if defaut_ouverte:
+        base = PeriodeComptable.objects.select_related('depot').order_by(
+            '-annee', '-mois', 'depot__nom')
+        return base.filter(statut='OUVERTE').first() or base.first()
+    return None
+
+
 class StockGlobalView(APIView):
     """
     GET /api/v1/etats/stock-global/
@@ -64,12 +85,7 @@ class StockGlobalView(APIView):
         date_fin   = request.query_params.get('date_fin')
         periode_id = request.query_params.get('periode_id')
 
-        periode = None
-        if periode_id:
-            try:
-                periode = PeriodeComptable.objects.get(pk=periode_id)
-            except PeriodeComptable.DoesNotExist:
-                periode = None
+        periode = _periode_cible(periode_id)
 
         qs = (
             Mouvement.objects
@@ -87,7 +103,10 @@ class StockGlobalView(APIView):
                 pass
 
         if periode:
-            qs = qs.filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
+            # Les périodes sont par dépôt : on scope les mouvements au dépôt
+            # de la période pour rester cohérent avec son stock d'ouverture.
+            qs = qs.filter(depot=periode.depot,
+                           date_mouvement__range=(periode.date_debut, periode.date_fin))
         else:
             if date_debut:
                 qs = qs.filter(date_mouvement__gte=date_debut)
@@ -181,12 +200,7 @@ class RecapView(APIView):
         date_fin   = request.query_params.get('date_fin')
         periode_id = request.query_params.get('periode_id')
 
-        periode = None
-        if periode_id:
-            try:
-                periode = PeriodeComptable.objects.get(pk=periode_id)
-            except PeriodeComptable.DoesNotExist:
-                periode = None
+        periode = _periode_cible(periode_id)
 
         qs = (
             Mouvement.objects
@@ -195,7 +209,9 @@ class RecapView(APIView):
             .order_by('date_mouvement')
         )
         if periode:
-            qs = qs.filter(date_mouvement__range=(periode.date_debut, periode.date_fin))
+            # Cohérence dépôt : voir _periode_cible
+            qs = qs.filter(depot=periode.depot,
+                           date_mouvement__range=(periode.date_debut, periode.date_fin))
         else:
             if date_debut:
                 qs = qs.filter(date_mouvement__gte=date_debut)
@@ -331,14 +347,22 @@ class PeriodesView(APIView):
     permission_classes     = [IsMarketeurActif]
 
     def get(self, request):
-        periodes = PeriodeComptable.objects.all().order_by('-annee', '-mois')
+        periodes = (
+            PeriodeComptable.objects.select_related('depot')
+            .order_by('-annee', '-mois', 'depot__nom')
+        )
+        plusieurs_depots = len({p.depot_id for p in periodes}) > 1
         data = [
             {
                 'id':     p.pk,
-                'nom':    str(p),
+                # Les périodes sont par dépôt : dès qu'il y en a plusieurs,
+                # le libellé distingue les mois homonymes.
+                'nom':    f"{p} — {p.depot}" if plusieurs_depots else str(p),
                 'statut': p.statut,
                 'mois':   p.mois,
                 'annee':  p.annee,
+                'depot_id':  p.depot_id,
+                'depot_nom': str(p.depot) if p.depot_id else '',
             }
             for p in periodes
         ]
@@ -370,19 +394,8 @@ class StockOuvertureFermetureView(APIView):
         marketeur  = request.user.marketeur
         periode_id = request.query_params.get('periode_id')
 
-        # ── Résoudre la période cible ──────────────────────────────
-        target_periode = None
-        if periode_id:
-            try:
-                target_periode = PeriodeComptable.objects.get(pk=periode_id)
-            except PeriodeComptable.DoesNotExist:
-                pass
-
-        if target_periode is None:
-            target_periode = (
-                PeriodeComptable.objects.filter(statut='OUVERTE').first()
-                or PeriodeComptable.objects.first()
-            )
+        # ── Résoudre la période cible (périodes par dépôt) ─────────
+        target_periode = _periode_cible(periode_id, defaut_ouverte=True)
 
         # ── Mouvements propres du marketeur ────────────────────────
         mvt_qs = (
@@ -398,11 +411,15 @@ class StockOuvertureFermetureView(APIView):
         )
 
         if target_periode:
+            # Cohérence dépôt : le stock d'ouverture (StockOuvertureMarketeur)
+            # est lié à la période — donc au dépôt — cible.
             mvt_qs = mvt_qs.filter(
+                depot=target_periode.depot,
                 date_mouvement__gte=target_periode.date_debut,
                 date_mouvement__lte=target_periode.date_fin,
             )
             cessions_recues_qs = cessions_recues_qs.filter(
+                depot=target_periode.depot,
                 date_mouvement__gte=target_periode.date_debut,
                 date_mouvement__lte=target_periode.date_fin,
             )
@@ -572,18 +589,7 @@ class Stock15View(APIView):
         marketeur  = request.user.marketeur
         periode_id = request.query_params.get('periode_id')
 
-        target_periode = None
-        if periode_id:
-            try:
-                target_periode = PeriodeComptable.objects.get(pk=periode_id)
-            except PeriodeComptable.DoesNotExist:
-                pass
-
-        if target_periode is None:
-            target_periode = (
-                PeriodeComptable.objects.filter(statut='OUVERTE').first()
-                or PeriodeComptable.objects.first()
-            )
+        target_periode = _periode_cible(periode_id, defaut_ouverte=True)
 
         mvt_qs = (
             Mouvement.objects
@@ -597,11 +603,14 @@ class Stock15View(APIView):
         )
 
         if target_periode:
+            # Cohérence dépôt : voir _periode_cible
             mvt_qs = mvt_qs.filter(
+                depot=target_periode.depot,
                 date_mouvement__gte=target_periode.date_debut,
                 date_mouvement__lte=target_periode.date_fin,
             )
             cessions_recues_qs = cessions_recues_qs.filter(
+                depot=target_periode.depot,
                 date_mouvement__gte=target_periode.date_debut,
                 date_mouvement__lte=target_periode.date_fin,
             )
@@ -751,12 +760,7 @@ class FraisPassageView(APIView):
 
     def get(self, request):
         periode_id = request.query_params.get('periode_id')
-        periode = None
-        if periode_id:
-            try:
-                periode = PeriodeComptable.objects.get(pk=periode_id)
-            except PeriodeComptable.DoesNotExist:
-                periode = None
+        periode = _periode_cible(periode_id)
 
         ref_date = periode.date_debut if periode else date_type.today()
         params = ParametresCoulage.en_vigueur(ref_date)

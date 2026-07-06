@@ -86,13 +86,13 @@ def _calculer_stock_par_produit(marketeur):
 
     # Quote-part P/G Installation de la période en cours (même logique que
     # l'état « Stock de fermeture » marketeur) — ambiant uniquement.
+    # quote_part_marketeur lit la clôture figée si elle existe, sinon
+    # calcule (mémoïsé 5 min) — plus de scan complet à chaque affichage.
     qp_coul_par_produit = {}
     if periode_courante:
         try:
-            from SGDS.services.coulage_repartition import calculer_repartition_coulage
-            rapport_coul = calculer_repartition_coulage(periode_courante, marketeurs=[marketeur])
-            if rapport_coul['lignes']:
-                qp_coul_par_produit = rapport_coul['lignes'][0]['par_produit']
+            from SGDS.services.coulage_repartition import quote_part_marketeur
+            qp_coul_par_produit = quote_part_marketeur(periode_courante, marketeur)
         except Exception:
             pass
 

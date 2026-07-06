@@ -43,35 +43,67 @@ def _volume_15(m):
     return Decimal('0')
 
 
-def _quote_part_coulage(marketeur, periode_courante):
+def _periodes_courantes():
     """
-    Quote-part P/G Installation (ambiant) de la période en cours pour ce
-    marketeur — même logique que le dashboard web, cf.
-    SGDS/views/client.py::_calculer_stock_par_produit.
+    Période en cours de CHAQUE dépôt (la plus récente par dépôt) — les
+    espaces marketeur sont consolidés tous dépôts, mais chaque dépôt a son
+    propre calendrier comptable. Liste vide s'il n'y a encore aucune période.
     """
-    if not periode_courante:
-        return {}
-    try:
-        from SGDS.services.coulage_repartition import calculer_repartition_coulage
-        rapport = calculer_repartition_coulage(periode_courante, marketeurs=[marketeur])
-        if rapport['lignes']:
-            return rapport['lignes'][0]['par_produit']
-    except Exception:
-        pass
-    return {}
+    periodes, depots_vus = [], set()
+    for p in PeriodeComptable.objects.order_by('-annee', '-mois', 'depot__nom'):
+        if p.depot_id not in depots_vus:
+            periodes.append(p)
+            depots_vus.add(p.depot_id)
+    return periodes
 
 
-def _calc_stock_produit(marketeur, produit, periode_courante, ac_ouverture,
+def _filtre_fenetres(periodes):
+    """
+    Q limitant les mouvements, PAR dépôt, à la plage de la période en cours
+    de CE dépôt (évite de recompter les mouvements d'un mois déjà intégré au
+    stock d'ouverture quand un autre dépôt est en retard d'un mois).
+    None s'il n'y a aucune période (historique complet, comme avant).
+    """
+    if not periodes:
+        return None
+    filtre = Q()
+    for p in periodes:
+        filtre |= Q(depot_id=p.depot_id,
+                    date_mouvement__range=(p.date_debut, p.date_fin))
+    return filtre
+
+
+def _quote_part_coulage(marketeur, periodes_courantes):
+    """
+    Quote-part P/G Installation (ambiant) consolidée sur la période en cours
+    de chaque dépôt — même logique que le dashboard web (client.py), via le
+    service partagé quote_part_marketeur (clôture figée ou cache 5 min).
+    """
+    consolide = {}
+    for periode in periodes_courantes:
+        try:
+            from SGDS.services.coulage_repartition import quote_part_marketeur
+            for pid, d in quote_part_marketeur(periode, marketeur).items():
+                cumul = consolide.setdefault(pid, {'qp_coul': Decimal('0')})
+                cumul['qp_coul'] += _D(d.get('qp_coul'))
+        except Exception:
+            pass
+    return consolide
+
+
+def _calc_stock_produit(marketeur, produit, fenetres, ac_ouverture,
                          inventaires_agg, qp_coul_par_produit, upto=None):
     """
     Calcule le stock (ambiant et @15°C) d'un produit pour un marketeur, sur
-    la période comptable en cours (ou sur tout l'historique s'il n'y a pas
-    encore de période), en s'alignant sur la formule du dashboard web :
+    la période comptable en cours de chaque dépôt (ou sur tout l'historique
+    s'il n'y a pas encore de période), en s'alignant sur la formule du
+    dashboard web :
       stock = stock d'ouverture (StockOuvertureMarketeur ACQUITTE, reporté
               depuis la fermeture du mois précédent)
             + entrées ACQUITTE + acquittements + cessions reçues
             - sorties - cessions émises
             + quote-part P/G Installation (ambiant uniquement)
+    `fenetres` : Q produit par _filtre_fenetres (ou None = historique).
     `upto` permet de borner les mouvements pris en compte (ex. calcul du
     stock « à hier » pour la variation journalière).
     """
@@ -81,9 +113,9 @@ def _calc_stock_produit(marketeur, produit, periode_courante, ac_ouverture,
         produit=produit,
         type_mouvement='CESSION',
     )
-    if periode_courante:
-        qs = qs.filter(date_mouvement__range=(periode_courante.date_debut, periode_courante.date_fin))
-        qs_recu = qs_recu.filter(date_mouvement__range=(periode_courante.date_debut, periode_courante.date_fin))
+    if fenetres is not None:
+        qs = qs.filter(fenetres)
+        qs_recu = qs_recu.filter(fenetres)
     if upto is not None:
         qs = qs.filter(date_mouvement__lte=upto)
         qs_recu = qs_recu.filter(date_mouvement__lte=upto)
@@ -156,17 +188,23 @@ class DashboardView(APIView):
     def get(self, request):
         marketeur = request.user.marketeur
 
-        periode_courante = PeriodeComptable.objects.order_by('-annee', '-mois').first()
-        qp_coul_par_produit = _quote_part_coulage(marketeur, periode_courante)
+        # Consolidation tous dépôts : période en cours DE CHAQUE dépôt
+        # (chaque dépôt a son propre calendrier comptable).
+        periodes_courantes = _periodes_courantes()
+        fenetres = _filtre_fenetres(periodes_courantes)
+        qp_coul_par_produit = _quote_part_coulage(marketeur, periodes_courantes)
 
-        # ── Stock d'ouverture ACQUITTE de la période en cours ─────
-        # (reporté depuis la fermeture du mois précédent)
+        # ── Stock d'ouverture ACQUITTE, sommé sur la période en cours
+        #    de chaque dépôt (reporté depuis la fermeture du mois précédent)
         ac_ouverture = {}
-        if periode_courante:
+        if periodes_courantes:
             for som in StockOuvertureMarketeur.objects.filter(
-                periode=periode_courante, marketeur=marketeur, regime_douanier='ACQUITTE',
+                periode__in=periodes_courantes, marketeur=marketeur, regime_douanier='ACQUITTE',
             ):
-                ac_ouverture[som.produit_id] = {'amb': _D(som.volume_ambiant), '15c': _D(som.volume_15c)}
+                cumul = ac_ouverture.setdefault(
+                    som.produit_id, {'amb': Decimal('0'), '15c': Decimal('0')})
+                cumul['amb'] += _D(som.volume_ambiant)
+                cumul['15c'] += _D(som.volume_15c)
 
         # ── Inventaires initiaux du marketeur (repli + régime SOUS_DOUANE) ─
         inventaires_agg = {}
@@ -201,7 +239,7 @@ class DashboardView(APIView):
         stocks = []
         for produit in produits:
             calc = _calc_stock_produit(
-                marketeur, produit, periode_courante, ac_ouverture,
+                marketeur, produit, fenetres, ac_ouverture,
                 inventaires_agg, qp_coul_par_produit,
             )
 
@@ -270,7 +308,7 @@ class DashboardView(APIView):
         total_ambiant_hier = Decimal('0')
         for produit in produits:
             calc_hier = _calc_stock_produit(
-                marketeur, produit, periode_courante, ac_ouverture,
+                marketeur, produit, fenetres, ac_ouverture,
                 inventaires_agg, qp_coul_par_produit, upto=hier,
             )
             total_ambiant_hier += calc_hier['stock_amb']

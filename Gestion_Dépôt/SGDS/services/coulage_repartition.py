@@ -22,6 +22,42 @@ def _D(x):
     return Decimal(str(x))
 
 
+def quote_part_marketeur(periode, marketeur):
+    """
+    Quote-part P/G Installation du marketeur sur la période, par produit :
+    {produit_pk: {'qp_coul': Decimal}}.
+
+    Consommé par les dashboards web (views/client.py) et mobile
+    (api/v1/dashboard) à chaque affichage :
+      - période avec clôture figée → lecture directe des ClotureCoulageLigne
+        (valeurs officielles, aucune dérive possible) ;
+      - sinon → calcul live via calculer_repartition_coulage (scan de tous
+        les mouvements de la période), mémoïsé 5 min dans le cache Django
+        pour ne pas payer le scan à chaque requête.
+    """
+    from django.core.cache import cache
+    from SGDS.models import ClotureCoulageLigne
+
+    lignes_figees = ClotureCoulageLigne.objects.filter(
+        cloture__periode=periode, marketeur=marketeur, produit__isnull=False,
+    ).values_list('produit_id', 'qp_coul')
+    if lignes_figees:
+        return {pid: {'qp_coul': _D(qp)} for pid, qp in lignes_figees}
+
+    cle = f'qp_coul:{periode.pk}:{marketeur.pk}'
+    resultat = cache.get(cle)
+    if resultat is None:
+        rapport = calculer_repartition_coulage(periode, marketeurs=[marketeur])
+        resultat = {}
+        if rapport['lignes']:
+            resultat = {
+                pid: {'qp_coul': d.get('qp_coul', Decimal('0'))}
+                for pid, d in rapport['lignes'][0]['par_produit'].items()
+            }
+        cache.set(cle, resultat, 300)
+    return resultat
+
+
 def _produits_concernes(date_debut, date_fin, depot):
     """
     Retourne la liste ordonnée des Produit ayant des mouvements ou des cuves

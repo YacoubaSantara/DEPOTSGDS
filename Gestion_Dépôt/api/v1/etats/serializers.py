@@ -96,6 +96,9 @@ class PeriodeSerializer(serializers.Serializer):
     statut = serializers.CharField()
     mois   = serializers.IntegerField()
     annee  = serializers.IntegerField()
+    # Les périodes sont par dépôt (champs additifs — rétrocompatibles)
+    depot_id  = serializers.IntegerField(allow_null=True, required=False)
+    depot_nom = serializers.CharField(allow_blank=True, required=False)
 
 
 # ── Stock Ouverture / Fermeture ────────────────────────────────────

@@ -87,7 +87,10 @@
       "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests.test_depot_context --verbosity 1 2>&1 | Select-Object -Last 6)",
       "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 3)",
       "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" -c \"import ast; ast.parse\\(open\\(r'E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\Gestion_Dépôt\\\\api\\\\v1\\\\dashboard\\\\views.py', encoding='utf-8'\\).read\\(\\)\\); print\\('syntax OK'\\)\"; & \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 2)",
-      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 2)"
+      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 2)",
+      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py check 2>&1 | Select-Object -Last 2; & \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests SGDS.tests_coulage SGDS.tests_workflow_periode SGDS.users.tests --verbosity 1 2>&1 | Select-Object -Last 5)",
+      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests.test_api_depot_scope --verbosity 2 2>&1 | Select-Object -Last 25)",
+      "PowerShell(& \"E:\\\\Projet Site\\\\SANKE\\\\SGDS\\\\env\\\\Scripts\\\\python.exe\" manage.py test SGDS.tests SGDS.tests_coulage SGDS.tests_workflow_periode SGDS.users.tests --verbosity 1 2>&1 | Select-Object -Last 5)"
     ]
   }
 }
